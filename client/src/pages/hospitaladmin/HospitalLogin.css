@@ -1,0 +1,68 @@
+/* HospitalLogin.css — Slug-based hospital portal login styles */
+
+.hospital-login-loading {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+    color: #64748b;
+    gap: 16px;
+}
+
+.hospital-login-spinner {
+    width: 42px;
+    height: 42px;
+    border: 3px solid rgba(20, 184, 166, 0.2);
+    border-top-color: #14b8a6;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hospital-login-error-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    padding: 24px;
+}
+
+.hospital-login-error-card {
+    background: white;
+    border-radius: 24px;
+    padding: 48px 40px;
+    max-width: 440px;
+    text-align: center;
+    color: #1e293b;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.hospital-login-error-card .error-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 24px;
+}
+
+.hospital-login-error-card h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.hospital-login-error-card p {
+    color: #64748b;
+    margin-bottom: 24px;
+}
+
+.hospital-login-error-card code {
+    background: #f1f5f9;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: #0f172a;
+    font-weight: 600;
+}
