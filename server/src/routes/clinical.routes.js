@@ -34,9 +34,10 @@ router.post('/intake', verifyToken, async (req, res) => {
 // 2. DOCTOR: Get Patient History
 router.get('/history/:patientId', verifyToken, async (req, res) => {
     try {
-        // RLS: scope by hospitalId so cross-hospital data never leaks
-        const filter = { patientId: req.params.patientId };
-        if (req.user.hospitalId) filter.hospitalId = req.user.hospitalId;
+        if (!req.user.hospitalId) {
+            return res.status(403).json({ success: false, message: 'Hospital context required' });
+        }
+        const filter = { patientId: req.params.patientId, hospitalId: req.user.hospitalId };
 
         const history = await ClinicalVisit.find(filter)
             .sort({ visitDate: -1 })
@@ -54,9 +55,10 @@ router.post('/diagnose/:visitId', verifyToken, async (req, res) => {
     try {
         const { diagnosis, prescription, labTests, notes } = req.body;
 
-        // RLS: validate the visit belongs to this hospital before updating
-        const visitFilter = { _id: req.params.visitId };
-        if (req.user.hospitalId) visitFilter.hospitalId = req.user.hospitalId;
+        if (!req.user.hospitalId) {
+            return res.status(403).json({ success: false, message: 'Hospital context required' });
+        }
+        const visitFilter = { _id: req.params.visitId, hospitalId: req.user.hospitalId };
 
         const visit = await ClinicalVisit.findOneAndUpdate(
             visitFilter,

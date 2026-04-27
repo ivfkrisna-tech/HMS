@@ -16,13 +16,16 @@ connectDB();
 const server = http.createServer(app);
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
-    if (origin.includes('localhost')) return true;
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
     if (origin === 'https://medical365.in') return true;
     if (origin === 'https://www.medical365.in') return true;
-    if (origin.endsWith('.medical365.in')) return true;
+    if (/^https:\/\/[\w-]+\.medical365\.in$/.test(origin)) return true;
     if (origin === 'https://freebieshub.in') return true;
     if (origin === 'https://www.freebieshub.in') return true;
-    if (origin.endsWith('.freebieshub.in')) return true;
+    if (/^https:\/\/[\w-]+\.freebieshub\.in$/.test(origin)) return true;
+    if (origin === 'https://krisnaivfgroup5.com') return true;
+    if (origin === 'https://www.krisnaivfgroup5.com') return true;
+    if (/^https:\/\/[\w-]+\.krisnaivfgroup5\.com$/.test(origin)) return true;
     return false;
 };
 

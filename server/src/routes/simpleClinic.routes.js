@@ -10,7 +10,7 @@ const { verifyToken } = require('../middleware/auth.middleware');
 const { getTenantConnection, removeTenantConnection } = require('../db/tenantDb');
 const { getTenantModels } = require('../db/tenantModels');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Generate a unique clinic code from name (3-4 uppercase letters)
 const generateClinicCode = async (name) => {

@@ -9,7 +9,10 @@ router.get('/search', verifyToken, resolveTenant, async (req, res) => {
     try {
         const { term } = req.query;
 
+        const hospitalFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+
         const patients = await MasterUser.find({
+            ...hospitalFilter,
             $or: [
                 { phone: term },
                 { patientId: term },

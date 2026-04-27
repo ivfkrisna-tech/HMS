@@ -97,7 +97,7 @@ const sendOTP = async (phone) => {
  * hashOTP — bcrypt hash for storage (not plaintext in DB).
  */
 const bcrypt = require('bcryptjs');
-const hashOTP = async (otp) => bcrypt.hash(otp, 6);  // low rounds — OTP is short-lived
+const hashOTP = async (otp) => bcrypt.hash(otp, 10);
 
 /**
  * verifyOTP — compare input against stored hash.

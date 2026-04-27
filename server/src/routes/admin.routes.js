@@ -14,7 +14,7 @@ const Lab = require('../models/lab.model');
 const Pharmacy = require('../models/pharmacy.model');
 const Reception = require('../models/reception.model');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // ==========================================
 // HELPERS
@@ -225,12 +225,34 @@ router.delete('/roles/:roleId', verifyAdminOrSuperAdmin, async (req, res) => {
 // ==========================================
 
 // Central Admin Signup — creates centraladmin account
+// Protected: if any centraladmin already exists, requires an existing superadmin/centraladmin to be authenticated.
+// On a fresh install with no admins, allows first-time setup without auth.
 router.post('/signup', async (req, res) => {
     try {
         const { name, email, password, phone } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({ success: false, message: 'Name, email, and password are required' });
+        }
+
+        // Bootstrap guard: once any centraladmin exists, require existing admin auth
+        const existingAdmin = await User.findOne({ role: { $in: ['centraladmin', 'superadmin'] } });
+        if (existingAdmin) {
+            // Require a valid token from an existing centraladmin/superadmin
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return res.status(401).json({ success: false, message: 'Admin account already exists. Authentication required to create another.' });
+            }
+            const token = authHeader.split(' ')[1];
+            let decoded;
+            try {
+                decoded = jwt.verify(token, JWT_SECRET);
+            } catch {
+                return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+            }
+            if (!['centraladmin', 'superadmin'].includes(decoded.role)) {
+                return res.status(403).json({ success: false, message: 'Only an existing central admin can create new admins' });
+            }
         }
 
         const existingUser = await User.findOne({ email });
@@ -247,7 +269,7 @@ router.post('/signup', async (req, res) => {
         const token = jwt.sign(
             { userId: admin._id, email: admin.email, role: 'centraladmin' },
             JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
         );
 
         res.status(201).json({
@@ -261,7 +283,7 @@ router.post('/signup', async (req, res) => {
             token
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error creating admin', error: error.message });
+        res.status(500).json({ success: false, message: 'Error creating admin' });
     }
 });
 

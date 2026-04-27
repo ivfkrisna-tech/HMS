@@ -7,7 +7,7 @@ const Hospital = require('../models/hospital.model');
 const jwt = require('jsonwebtoken');
 
 // JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * Helper: Build user response with full role data

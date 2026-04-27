@@ -117,7 +117,7 @@ router.get('/requests', verifyToken, verifyLab, async (req, res) => {
 
 const uploadSettings = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 }).single('reportFile');
 
 // 3. UPLOAD TEST REPORT

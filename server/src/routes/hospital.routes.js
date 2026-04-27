@@ -17,7 +17,7 @@ const jwt = require('jsonwebtoken');
 const { verifyToken } = require('../middleware/auth.middleware');
 const { getTenantConnection, getTenantDbName, getActiveConnections, removeTenantConnection } = require('../db/tenantDb');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * Central Admin middleware — only 'centraladmin' (or legacy 'superadmin') can access

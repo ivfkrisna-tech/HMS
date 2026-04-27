@@ -2,7 +2,11 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const Role = require('../models/role.model');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET environment variable is not set. Server cannot start securely.');
+    process.exit(1);
+}
 
 /**
  * Verify JWT token and attach user + populated role to req.user
@@ -105,7 +109,8 @@ exports.requirePermission = (...requiredPermissions) => {
 
             next();
         } catch (error) {
-            res.status(500).json({ success: false, message: error.message });
+            console.error('[Auth] Permission check error:', error.message);
+            res.status(500).json({ success: false, message: 'Authorization check failed' });
         }
     };
 };
@@ -125,7 +130,8 @@ exports.verifySuperAdmin = async (req, res, next) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('[Auth] Error:', error.message);
+        res.status(500).json({ success: false, message: 'Authentication error' });
     }
 };
 
@@ -155,7 +161,8 @@ exports.verifyAdminOrSuperAdmin = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Admin access required' });
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('[Auth] Error:', error.message);
+        res.status(500).json({ success: false, message: 'Authentication error' });
     }
 };
 

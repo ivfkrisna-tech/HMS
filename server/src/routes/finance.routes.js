@@ -29,16 +29,15 @@ router.get('/dashboard', verifyFinanceAccess, async (req, res) => {
         const { startDate, endDate, hospitalId } = req.query;
 
         // Determine target hospital ID
-        let targetHospitalId = hospitalId;
         const role = req.user.role ? req.user.role.toLowerCase() : '';
+        let targetHospitalId;
 
-        // If user is not superadmin/centraladmin, scope strictly to their hospital
-        if (role !== 'superadmin' && role !== 'centraladmin') {
-            if (req.user.hospitalId) {
-                targetHospitalId = req.user.hospitalId.toString();
-            } else {
-                // If they are not an admin and have NO hospitalId, they should see ZERO data
-                // They should NOT fall back to seeing global data.
+        if (role === 'superadmin' || role === 'centraladmin') {
+            // Central admins may pass an optional hospitalId to filter; if none, see all
+            targetHospitalId = hospitalId || null;
+        } else {
+            // All other roles are strictly scoped to their own hospital
+            if (!req.user.hospitalId) {
                 return res.json({
                     success: true,
                     data: {
@@ -49,6 +48,7 @@ router.get('/dashboard', verifyFinanceAccess, async (req, res) => {
                     }
                 });
             }
+            targetHospitalId = req.user.hospitalId.toString();
         }
 
         // Date filters
@@ -106,7 +106,8 @@ router.get('/dashboard', verifyFinanceAccess, async (req, res) => {
             } else {
                 // If the order has items but no saved amount/cost, estimate it now using Inventory
                 for (const item of order.items) {
-                    const invItem = await Inventory.findOne({ name: new RegExp('^' + item.medicineName + '$', 'i') });
+                    const escapedName = (item.medicineName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const invItem = await Inventory.findOne({ name: { $regex: new RegExp(`^${escapedName}$`, 'i') } });
                     if (invItem) {
                         const qty = 1; // Simplistic approximation if quantity isn't cleanly stored
                         totalMedicineRevenue += (invItem.sellingPrice || 0) * qty;

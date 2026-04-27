@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // Import Routes
 const authRoutes = require('./routes/auth.routes');
@@ -36,17 +38,23 @@ const patientLocalRoutes = require('./routes/patientLocal.routes');
 const revenueRoutes     = require('./routes/revenue.routes');
 
 const app = express();
-// ughfgh
+
+// --- SECURITY HEADERS ---
+app.use(helmet());
+
 // --- CORS CONFIGURATION ---
 const isAllowedOrigin = (origin) => {
-    if (!origin) return true;                                  // curl / mobile / server-to-server
-    if (origin.includes('localhost')) return true;             // any localhost port (dev)
-    if (origin === 'https://medical365.in') return true;       // root domain
-    if (origin === 'https://www.medical365.in') return true;   // www
-    if (origin.endsWith('.medical365.in')) return true;        // admin.* and all hospital subdomains
-    if (origin === 'https://freebieshub.in') return true;      // freebieshub.in
+    if (!origin) return true;                                           // server-to-server / non-browser
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true; // exact localhost only
+    if (origin === 'https://medical365.in') return true;
+    if (origin === 'https://www.medical365.in') return true;
+    if (/^https:\/\/[\w-]+\.medical365\.in$/.test(origin)) return true;
+    if (origin === 'https://freebieshub.in') return true;
     if (origin === 'https://www.freebieshub.in') return true;
-    if (origin.endsWith('.freebieshub.in')) return true;
+    if (/^https:\/\/[\w-]+\.freebieshub\.in$/.test(origin)) return true;
+    if (origin === 'https://krisnaivfgroup5.com') return true;
+    if (origin === 'https://www.krisnaivfgroup5.com') return true;
+    if (/^https:\/\/[\w-]+\.krisnaivfgroup5\.com$/.test(origin)) return true;
     return false;
 };
 
@@ -58,15 +66,42 @@ app.use(cors({
     credentials: true
 }));
 
+// --- RATE LIMITING ---
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many attempts. Please try again later.' }
+});
+
+const otpLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many OTP requests. Please wait before trying again.' }
+});
+
+const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Please slow down.' }
+});
+
+app.use(globalLimiter);
+
 app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/admin', authLimiter, adminRoutes);
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/public', publicRoutes);
@@ -99,7 +134,7 @@ app.use('/api/revenue', revenueRoutes);
 // Sync receiver + tunnel proxy (active on cloud; no-ops on local for sync routes)
 app.use('/api/sync', syncRoutes);
 // Patient mobile/PWA app routes (cloud: auth + tunnel proxy; local: data serving)
-app.use('/api/patient-app', patientAppRoutes);
+app.use('/api/patient-app', otpLimiter, patientAppRoutes);
 // Local patient data routes — called via tunnel from cloud, or directly on LAN
 app.use('/api/patient-local', patientLocalRoutes);
 
@@ -111,8 +146,7 @@ app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({
         success: false,
-        message: 'Something went wrong!',
-        error: err.message
+        message: 'Something went wrong. Please try again later.'
     });
 });
 
