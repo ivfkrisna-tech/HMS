@@ -331,7 +331,8 @@ router.post('/login', async (req, res) => {
             token
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error during login', error: error.message });
+        console.error('[Admin Login]', error.message);
+        res.status(500).json({ success: false, message: 'Error during login' });
     }
 });
 
