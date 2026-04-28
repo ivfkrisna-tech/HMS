@@ -45,7 +45,8 @@ app.use(helmet());
 // --- CORS CONFIGURATION ---
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;                                           // server-to-server / non-browser
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true; // exact localhost only
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true; // exact localhost
+    if (/^https?:\/\/[\w-]+\.localhost(:\d+)?$/.test(origin)) return true;       // subdomain.localhost (e.g. admin.localhost:5173)
     if (origin === 'https://medical365.in') return true;
     if (origin === 'https://www.medical365.in') return true;
     if (/^https:\/\/[\w-]+\.medical365\.in$/.test(origin)) return true;
