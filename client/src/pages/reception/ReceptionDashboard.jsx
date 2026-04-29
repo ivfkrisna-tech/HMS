@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
 import { getSubdomain } from '../../utils/subdomain';
@@ -15,6 +15,7 @@ const timeSlots = [
 
 const ReceptionDashboard = () => {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { user: currentUser } = useAuth();
     const [appointments, setAppointments] = useState([]);
     const [doctorsList, setDoctorsList] = useState([]);
@@ -75,13 +76,30 @@ const ReceptionDashboard = () => {
             try {
                 const sub = getSubdomain();
                 const res = await hospitalAPI.resolveHospital(sub);
-                if (res.success) setHospitalContext(res.hospital);
+                if (res.success) {
+                    setHospitalContext(res.hospital);
+                    // If redirected with mode=intake, open the form automatically
+                    if (searchParams.get('mode') === 'intake') {
+                        // We need hospitalContext for the fee, so we use the resolved one
+                        handleNewWalkInWithContext(res.hospital);
+                    }
+                }
             } catch (err) { console.error('Error fetching hospital context:', err); }
         };
         fetchHospital();
         fetchAppointments();
         fetchDoctors();
     }, []);
+
+    // New helper to handle intake with specific context if needed during init
+    const handleNewWalkInWithContext = (hCtx) => {
+        setViewMode('intake');
+        setIntakeForm(prev => ({
+            ...prev,
+            consultationFee: hCtx?.appointmentFee ?? '500',
+            visitDate: new Date().toISOString().split('T')[0]
+        }));
+    };
 
     useEffect(() => {
         if (availabilityCheck.doctorId && availabilityCheck.date) {

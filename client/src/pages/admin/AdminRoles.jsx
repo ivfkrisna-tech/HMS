@@ -59,7 +59,7 @@ const AdminRoles = () => {
     // available features in the navbar. De-duplicated by label (not path).
     const PERMISSION_NAV_MAP = {
         // Patient Management
-        patient_create: { label: 'Patient Registration', path: '/reception/dashboard' },
+        patient_create: { label: 'Patient Registration', path: '/reception/dashboard?mode=intake' },
         patient_search: { label: 'Patient Search', path: '/doctor/patients' },
         patient_view: { label: 'Patient Records', path: '/doctor/patients' },
         patient_edit: { label: 'Edit Patients', path: '/doctor/patients' },
