@@ -402,7 +402,7 @@ router.post('/admin/login', async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: 'hospitaladmin',
-                permissions: ['admin_manage_roles', 'admin_view_stats'],
+                permissions: ['*'],
                 dashboardPath: '/hospitaladmin',
                 navLinks: [],
                 hospitalId: user.hospitalId,

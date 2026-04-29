@@ -29,7 +29,8 @@ async function buildUserResponse(user) {
 
     const specialRoles = ['superadmin', 'centraladmin', 'hospitaladmin'];
 
-    if (specialRoles.includes(user.role)) {
+    // If role is one of the special system strings
+    if (typeof user.role === 'string' && specialRoles.includes(user.role)) {
         roleName = user.role;
         const isCentral = user.role === 'centraladmin' || user.role === 'superadmin';
         roleData = {
@@ -40,19 +41,21 @@ async function buildUserResponse(user) {
             isSystemRole: true
         };
     } else if (user.role) {
+        // Handle ObjectId or custom role name
         if (mongoose.Types.ObjectId.isValid(user.role)) {
             roleData = await Role.findById(user.role);
         }
+
+        // If not found by ID or if user.role was a string name, try name lookup
         if (!roleData) {
-            // Legacy string fallback - find role by name scoped to the user's hospital
-            const query = { name: { $regex: new RegExp(`^${user.role}$`, 'i') } };
-            if (user.hospitalId) query.hospitalId = user.hospitalId;
-            roleData = await Role.findOne(query);
-            if (roleData) {
-                user.role = roleData._id;
-                await user.save();
-            }
+            const roleQuery = typeof user.role === 'string' 
+                ? { name: { $regex: new RegExp(`^${user.role}$`, 'i') } }
+                : { _id: user.role }; // Should already be handled by findById, but just in case
+            
+            if (user.hospitalId) roleQuery.hospitalId = user.hospitalId;
+            roleData = await Role.findOne(roleQuery);
         }
+        
         roleName = roleData ? roleData.name : String(user.role);
     }
 
@@ -392,18 +395,18 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid role. Role not found.' });
         }
 
-        // Patients don't need hospital assignment
+        // Patients don't need hospital assignment in the same way, but staff MUST have it.
         const isPatientRole = roleDoc.name.toLowerCase() === 'patient';
 
-        // Determine hospitalId
+        // Determine hospitalId - strictly enforce hospitalId for hospital admins
         const isCentral = req.user.role === 'centraladmin' || req.user.role === 'superadmin';
         let assignedHospitalId = null;
 
         if (!isCentral) {
-            // Hospital admin: always use their hospital
+            // Hospital admin: always use their hospital from their session
             assignedHospitalId = req.user.hospitalId;
         } else {
-            // Central admin: hospitalId must be in body for staff (not patients)
+            // Central admin: hospitalId can come from body, the role, or null
             assignedHospitalId = req.body.hospitalId || roleDoc.hospitalId || null;
         }
 
@@ -414,8 +417,8 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
             });
         }
 
-        const existingUser = await User.findOne({ email });
-        if (existingUser) return res.status(400).json({ success: false, message: 'User already exists' });
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        if (existingUser) return res.status(400).json({ success: false, message: 'User with this email already exists' });
 
         const user = new User({
             name,
@@ -424,7 +427,7 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
             phone: phone || '',
             role: roleId,
             hospitalId: assignedHospitalId,
-            services: roleDoc.name.toLowerCase() === 'doctor' ? services : [],
+            services: roleDoc.name.toLowerCase() === 'doctor' ? (services || []) : [],
             departments: departments?.length ? departments : ['IVF'],
             avatar: avatar || null
         });
@@ -465,7 +468,13 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
                     userId: user._id, hospitalId: assignedHospitalId
                 });
             } else if (roleName === 'reception' || roleName === 'receptionist') {
-                await Reception.create({ userId: user._id, hospitalId: assignedHospitalId });
+                await Reception.create({ 
+                    name: user.name, 
+                    email: user.email, 
+                    phone: user.phone,
+                    userId: user._id, 
+                    hospitalId: assignedHospitalId 
+                });
             }
         } catch (profileError) {
             console.error('Error creating linked profile:', profileError);
@@ -478,6 +487,7 @@ router.post('/users', verifyAdminOrSuperAdmin, async (req, res) => {
             user: userData
         });
     } catch (error) {
+        console.error('Create User Error:', error);
         res.status(500).json({ success: false, message: 'Error creating user', error: error.message });
     }
 });

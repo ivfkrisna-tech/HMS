@@ -37,7 +37,7 @@ exports.verifyToken = async (req, res, next) => {
             const isCentral = user.role === 'centraladmin' || user.role === 'superadmin';
             roleData = {
                 name: user.role,
-                permissions: isCentral ? ['*'] : ['admin_manage_roles', 'admin_view_stats'],
+                permissions: ['*'], // Both Central and Hospital Admins get full permissions within their scope
                 dashboardPath: isCentral ? '/supremeadmin' : '/hospitaladmin',
                 navLinks: [],
                 isSystemRole: true

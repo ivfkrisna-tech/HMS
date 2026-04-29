@@ -604,7 +604,9 @@ router.post('/receptions', verifyAdminOrSuperAdmin, async (req, res) => {
       phone: phone || '',
       services: services || [],
       availability: mergedAvailability,
-      description: description || ''
+      description: description || '',
+      userId: user._id,
+      hospitalId: getHospitalId(req)
     });
 
     await reception.save();
@@ -688,7 +690,8 @@ router.post('/services', verifyAdminOrSuperAdmin, async (req, res) => {
       color: color || '#14C38E',
       price: price || 0,
       duration: duration || '30min',
-      isActive: isActive !== undefined ? isActive : true
+      isActive: isActive !== undefined ? isActive : true,
+      hospitalId: getHospitalId(req)
     });
 
     await service.save();

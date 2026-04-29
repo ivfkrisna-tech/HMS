@@ -42,6 +42,9 @@ const app = express();
 // --- SECURITY HEADERS ---
 app.use(helmet());
 
+// Enable trust proxy for rate limiter to work correctly behind proxies (like Render or Vite dev server)
+app.set('trust proxy', 1);
+
 // --- CORS CONFIGURATION ---
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;                                           // server-to-server / non-browser
@@ -70,7 +73,7 @@ app.use(cors({
 // --- RATE LIMITING ---
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: 50, // Increased from 10 to 50 for smoother login/signup flow
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Too many attempts. Please try again later.' }
@@ -78,7 +81,7 @@ const authLimiter = rateLimit({
 
 const otpLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
-    max: 5,
+    max: 20, // Increased from 5 to 20
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Too many OTP requests. Please wait before trying again.' }
@@ -86,7 +89,7 @@ const otpLimiter = rateLimit({
 
 const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 300,
+    max: 1000, // Increased from 300 to 1000 for busy dashboards
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Too many requests. Please slow down.' }
@@ -101,8 +104,8 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/admin', authLimiter, adminRoutes);
+app.use('/api/auth', authLimiter, authRoutes); // Keep authLimiter for login/signup
+app.use('/api/admin', adminRoutes); // Removed authLimiter for dashboard APIs
 app.use('/api/doctor', doctorRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/public', publicRoutes);
