@@ -77,7 +77,13 @@ const RoleDashboard = () => {
                                 <div
                                     key={index}
                                     className="nav-card"
-                                    onClick={() => navigate(link.path)}
+                                    onClick={() => {
+                                        let path = link.path;
+                                        if (path === '/reception/dashboard' && link.label.toLowerCase().includes('registration')) {
+                                            path = '/reception/dashboard?mode=intake';
+                                        }
+                                        navigate(path);
+                                    }}
                                 >
                                     <div className="nav-card-icon">
                                         {getIconForPath(link.path, link.label)}

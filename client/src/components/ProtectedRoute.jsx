@@ -11,6 +11,10 @@ const ProtectedRoute = ({ children, requiredPermissions = [], allowedRoles = [] 
   }
 
   // If user is authenticated, check permissions
+  if (token && !user) {
+    return <div className="loading-screen">Loading Profile...</div>;
+  }
+
   if (token && user) {
     const userPermissions = user.permissions || [];
     const userRole = user.role || '';
@@ -34,7 +38,8 @@ const ProtectedRoute = ({ children, requiredPermissions = [], allowedRoles = [] 
       }
     } else if (!hasRequiredPermission || !hasAllowedRole) {
       const dashboardPath = user.dashboardPath || '/my-dashboard';
-      return <Navigate to={dashboardPath} replace />;
+      const search = window.location.search;
+      return <Navigate to={`${dashboardPath}${search}`} replace />;
     }
   }
 

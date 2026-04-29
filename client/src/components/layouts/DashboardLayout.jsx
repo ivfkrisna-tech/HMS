@@ -48,10 +48,11 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'All Cases', path: '/doctor/cases', icon: <FiClipboard /> },
             ];
         }
-        if (role === 'reception') {
+        if (role.includes('reception')) {
             return [
                 { label: 'Reception Dashboard', path: '/reception/dashboard', icon: <FiHome /> },
-                { label: 'Appointments/Booking', path: '/appointment', icon: <FiPlusSquare /> },
+                { label: 'Patient Registration', path: '/reception/dashboard?mode=intake', icon: <FiPlusSquare /> },
+                { label: 'Appointments/Booking', path: '/appointment', icon: <FiCalendar /> },
             ];
         }
         if (role === 'lab') {

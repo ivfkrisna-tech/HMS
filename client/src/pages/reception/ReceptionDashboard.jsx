@@ -14,13 +14,17 @@ const timeSlots = [
 ];
 
 const ReceptionDashboard = () => {
-    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const { user: currentUser } = useAuth();
+    
+    // VIEW STATE DRIVEN BY URL (The "Root Solution" for micro-paging/flickering)
+    const viewMode = searchParams.get('mode') || 'dashboard';
+    const patientIdParam = searchParams.get('patientId');
+
     const [appointments, setAppointments] = useState([]);
     const [doctorsList, setDoctorsList] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState('dashboard');
     const [selectedPatientId, setSelectedPatientId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -71,35 +75,45 @@ const ReceptionDashboard = () => {
     const [aadhaarOtp, setAadhaarOtp] = useState('');
     const [hospitalContext, setHospitalContext] = useState(null);
 
+    // Initialize form when mode changes to intake or when patientId changes
+    useEffect(() => {
+        if (viewMode === 'intake') {
+            if (patientIdParam && patientIdParam !== selectedPatientId) {
+                // We should fetch/find the patient and set the form
+                // For now, if they are in search results or appointments, we find them
+                const patient = appointments.find(a => (a.userId?._id || a.patientId) === patientIdParam)?.userId 
+                              || searchResults.find(p => p._id === patientIdParam);
+                if (patient) {
+                    handleEditPatient(patient, true); // true = skip nav
+                }
+            } else if (!patientIdParam) {
+                handleNewWalkIn(true); // true = skip nav
+            }
+        }
+    }, [viewMode, patientIdParam, appointments, searchResults]);
+
+    // Sync Consultation Fee when hospital context is loaded
+    useEffect(() => {
+        if (viewMode === 'intake' && hospitalContext && !intakeForm.consultationFee) {
+            setIntakeForm(prev => ({
+                ...prev,
+                consultationFee: hospitalContext.appointmentFee ?? '500'
+            }));
+        }
+    }, [viewMode, hospitalContext]);
+
     useEffect(() => {
         const fetchHospital = async () => {
             try {
                 const sub = getSubdomain();
                 const res = await hospitalAPI.resolveHospital(sub);
-                if (res.success) {
-                    setHospitalContext(res.hospital);
-                    // If redirected with mode=intake, open the form automatically
-                    if (searchParams.get('mode') === 'intake') {
-                        // We need hospitalContext for the fee, so we use the resolved one
-                        handleNewWalkInWithContext(res.hospital);
-                    }
-                }
+                if (res.success) setHospitalContext(res.hospital);
             } catch (err) { console.error('Error fetching hospital context:', err); }
         };
         fetchHospital();
         fetchAppointments();
         fetchDoctors();
     }, []);
-
-    // New helper to handle intake with specific context if needed during init
-    const handleNewWalkInWithContext = (hCtx) => {
-        setViewMode('intake');
-        setIntakeForm(prev => ({
-            ...prev,
-            consultationFee: hCtx?.appointmentFee ?? '500',
-            visitDate: new Date().toISOString().split('T')[0]
-        }));
-    };
 
     useEffect(() => {
         if (availabilityCheck.doctorId && availabilityCheck.date) {
@@ -173,13 +187,16 @@ const ReceptionDashboard = () => {
 
     const handleSlotClick = (time) => {
         if (availabilityCheck.bookedSlots.includes(time)) return;
-        handleNewWalkIn();
+        setSearchParams({ mode: 'intake' });
         setIntakeForm(prev => ({
             ...prev, doctor: availabilityCheck.doctorId, visitDate: availabilityCheck.date, visitTime: time
         }));
     };
 
-    const handleNewWalkIn = () => {
+    const handleNewWalkIn = (skipNav = false) => {
+        // If called from an event handler (like onClick), skipNav will be an event object.
+        // We only want to skip navigation if skipNav is explicitly true.
+        if (skipNav !== true) setSearchParams({ mode: 'intake' });
         setSelectedPatientId(null);
         setOtpSent(false);
         setAadhaarOtp('');
@@ -194,10 +211,10 @@ const ReceptionDashboard = () => {
             department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: '',
             referralType: '', reasonForVisit: '', paymentMethod: 'Cash'
         });
-        setViewMode('intake');
     };
 
-    const handleEditPatient = (patient) => {
+    const handleEditPatient = (patient, skipNav = false) => {
+        if (!skipNav) setSearchParams({ mode: 'intake', patientId: patient._id });
         setSelectedPatientId(patient._id);
         setOtpSent(false);
         setAadhaarOtp('');
@@ -217,7 +234,6 @@ const ReceptionDashboard = () => {
             consultationFee: hospitalContext?.appointmentFee ?? '500',
             department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: ''
         }));
-        setViewMode('intake');
     };
 
     const handleViewProfile = (patient) => {
@@ -580,14 +596,14 @@ const ReceptionDashboard = () => {
 
                     setPaymentScreenshot(null);
                     fetchAppointments();
-                    setViewMode('dashboard');
+                    setSearchParams({});
                 } else {
                     alert("Booking Failed: " + bookingRes.message);
                 }
             } else if (selectedPatientId) {
                 // Editing existing patient — profile saved, no appointment needed
                 alert("✅ Patient details updated successfully!");
-                setViewMode('dashboard');
+                setSearchParams({});
             } else {
                 alert("Please select a Doctor and Time Slot to complete the registration.");
             }
@@ -604,7 +620,7 @@ const ReceptionDashboard = () => {
             <div className="intake-full-page">
                 <div className="context-bar">
                     <h3>{selectedPatientId ? 'Edit Patient Details' : 'New Registration'}</h3>
-                    <button className="btn-cancel" onClick={() => setViewMode('dashboard')}>Close ✖</button>
+                    <button className="btn-cancel" onClick={() => setSearchParams({})}>Close ✖</button>
                 </div>
                 <div className="intake-container">
                     <form onSubmit={handleSave}>
@@ -851,7 +867,7 @@ const ReceptionDashboard = () => {
         return (
             <div className="reception-dashboard" style={{ maxWidth: '900px', margin: '0 auto' }}>
                 <div className="dashboard-header">
-                    <button onClick={() => setViewMode('dashboard')} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}>← Back to Dashboard</button>
+                    <button onClick={() => setSearchParams({})} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}>← Back to Dashboard</button>
                     <button className="btn-save" onClick={() => handleEditPatient(profilePatient)} style={{ padding: '10px 24px', fontSize: '1rem' }}>📋 Book Appointment</button>
                 </div>
 
@@ -957,7 +973,7 @@ const ReceptionDashboard = () => {
         return (
             <div className="reception-dashboard" style={{ maxWidth: '1000px', margin: '0 auto' }}>
                 <div className="dashboard-header">
-                    <button onClick={() => setViewMode('dashboard')} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>← Back to Dashboard</button>
+                    <button onClick={() => setSearchParams({})} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>← Back to Dashboard</button>
                     <h2>Transaction History</h2>
                 </div>
 
@@ -1016,7 +1032,7 @@ const ReceptionDashboard = () => {
             <div className="dashboard-header">
                 <h1>Reception Desk</h1>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className="btn-cancel" onClick={() => { fetchTransactions(); setViewMode('transactions'); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>💰 Transactions</button>
+                    <button className="btn-cancel" onClick={() => { fetchTransactions(); setSearchParams({ mode: 'transactions' }); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>💰 Transactions</button>
                     <button className="btn-cancel" onClick={() => navigate('/billing/patient')} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🧾 Patient Billing</button>
                     <button className="btn-save" onClick={handleNewWalkIn} style={{ padding: '10px 20px', fontSize: '1rem' }}>+ New Registration</button>
                 </div>
