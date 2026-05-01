@@ -37,7 +37,7 @@ const AdminLabs = () => {
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.role !== 'admin') {
+    if (!['admin', 'hospitaladmin'].includes(user.role)) {
       navigate('/');
     }
     fetchLabs();
@@ -193,6 +193,15 @@ const AdminLabs = () => {
       <div className="superadmin-container">
         <div className="admin-header">
           <div>
+            <button
+              onClick={() => {
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                navigate(user.role === 'hospitaladmin' ? '/hospitaladmin' : '/admin');
+              }}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', padding: '0 0 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              ← Back to Dashboard
+            </button>
             <h1>Manage Labs</h1>
             <p>Add and manage laboratory information</p>
           </div>

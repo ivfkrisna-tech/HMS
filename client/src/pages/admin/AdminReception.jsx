@@ -35,7 +35,7 @@ const AdminReception = () => {
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.role !== 'admin') {
+    if (!['admin', 'hospitaladmin'].includes(user.role)) {
       navigate('/');
     }
     fetchReceptions();

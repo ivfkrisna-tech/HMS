@@ -17,7 +17,7 @@ const CentralAdminDashboard = () => {
     const [hospitals, setHospitals] = useState([]);
     const [loadingHospitals, setLoadingHospitals] = useState(false);
     const [showHospitalForm, setShowHospitalForm] = useState(false);
-    const [hospitalForm, setHospitalForm] = useState({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], appointmentFee: 500 });
+    const [hospitalForm, setHospitalForm] = useState({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'] });
     const [editHospital, setEditHospital] = useState(null);
     const [savingHospital, setSavingHospital] = useState(false);
     const [deleteHospitalConfirm, setDeleteHospitalConfirm] = useState(null);
@@ -446,7 +446,7 @@ const CentralAdminDashboard = () => {
                 if (res.success) { setSuccess('Hospital updated!'); setEditHospital(null); setShowHospitalForm(false); fetchHospitals(); }
             } else {
                 const res = await hospitalAPI.createHospital(hospitalForm);
-                if (res.success) { setSuccess('Hospital created!'); setShowHospitalForm(false); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], appointmentFee: 500 }); fetchHospitals(); }
+                if (res.success) { setSuccess('Hospital created!'); setShowHospitalForm(false); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'] }); fetchHospitals(); }
             }
         } catch (err) { setError(err.response?.data?.message || 'Error saving hospital.'); }
         finally { setSavingHospital(false); }
@@ -467,7 +467,7 @@ const CentralAdminDashboard = () => {
 
     const openEditHospital = (h) => {
         setEditHospital(h);
-        setHospitalForm({ name: h.name, slug: h.slug || '', address: h.address || '', city: h.city || '', state: h.state || '', phone: h.phone || '', email: h.email || '', website: h.website || '', departments: ['IVF'], appointmentFee: h.appointmentFee || 500 });
+        setHospitalForm({ name: h.name, slug: h.slug || '', address: h.address || '', city: h.city || '', state: h.state || '', phone: h.phone || '', email: h.email || '', website: h.website || '', departments: ['IVF'] });
         setShowHospitalAdminForm(false);
         setShowHospitalForm(true);
         setTimeout(() => hospitalFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -545,7 +545,6 @@ const CentralAdminDashboard = () => {
 
     const tabs = [
         { id: 'hospitals', label: '🏥 Hospitals', desc: 'Manage hospitals' },
-        { id: 'simple-clinics', label: '🏪 Simple Clinics', desc: 'Small clinic management' },
         { id: 'staff', label: '👥 All Staff', desc: 'Global staff management' },
         { id: 'revenue-plans', label: '💰 Revenue Plans', desc: 'Set billing models' },
         { id: 'configurations', label: '⚙️ Configurations', desc: 'Roles, tests, questions' },
@@ -906,7 +905,7 @@ const CentralAdminDashboard = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <span style={{ fontSize: '0.75rem', fontWeight: 800, background: 'var(--brand-50, #f0fdfa)', color: 'var(--brand-600, #14b8a6)', padding: '4px 10px', borderRadius: '4px', letterSpacing: '0.05em' }}>CENTRAL ADMIN</span>
                         </div>
-                        <h1 style={{ fontSize: '1.8rem', fontWeight: 850, margin: '8px 0 4px', color: '#1e293b' }}>🏛️ Central Administration Dashboard</h1>
+                        <h1 style={{ fontSize: '1.8rem', fontWeight: 850, margin: '8px 0 4px', color: 'var(--brand-600, #14b8a6)' }}>🏛️ Central Administration Dashboard</h1>
                         <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Manage all hospitals, staff, and system configurations</p>
                     </div>
                     <button
@@ -944,7 +943,7 @@ const CentralAdminDashboard = () => {
                                         {showHospitalAdminForm ? 'Cancel' : '👤 Add Hospital Admin'}
                                     </button>
                                     <button className={showHospitalForm ? 'btn-cancel' : 'btn-save'} style={{ padding: '10px 18px' }}
-                                        onClick={() => { setShowHospitalForm(!showHospitalForm); setShowHospitalAdminForm(false); setEditHospital(null); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], appointmentFee: 500 }); }}>
+                                        onClick={() => { setShowHospitalForm(!showHospitalForm); setShowHospitalAdminForm(false); setEditHospital(null); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'] }); }}>
                                         {showHospitalForm ? 'Cancel' : '+ Add Hospital'}
                                     </button>
                                 </div>
@@ -976,8 +975,13 @@ const CentralAdminDashboard = () => {
                                                 <input type="text" className="staff-input" placeholder="Temporary password" value={hospitalAdminForm.password} onChange={e => setHospitalAdminForm({ ...hospitalAdminForm, password: e.target.value })} required />
                                             </div>
                                             <div className="form-group">
-                                                <label className="staff-label">Phone</label>
-                                                <input type="text" className="staff-input" placeholder="Phone number" value={hospitalAdminForm.phone} onChange={e => setHospitalAdminForm({ ...hospitalAdminForm, phone: e.target.value })} />
+                                                <label className="staff-label">
+                                                    Phone
+                                                    {hospitalAdminForm.phone && hospitalAdminForm.phone.length !== 10 && (
+                                                        <span style={{ color: 'red', marginLeft: '5px', fontSize: '11px', textTransform: 'none' }}>must be 10 digits</span>
+                                                    )}
+                                                </label>
+                                                <input type="tel" className="staff-input" placeholder="Phone number" maxLength="10" value={hospitalAdminForm.phone} onChange={e => setHospitalAdminForm({ ...hospitalAdminForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} />
                                             </div>
                                         </div>
                                         <div className="form-row">
@@ -1028,8 +1032,13 @@ const CentralAdminDashboard = () => {
                                                 <input type="text" className="staff-input" placeholder="e.g. Maharashtra" value={hospitalForm.state} onChange={e => setHospitalForm({ ...hospitalForm, state: e.target.value })} />
                                             </div>
                                             <div className="form-group">
-                                                <label className="staff-label">Phone</label>
-                                                <input type="text" className="staff-input" placeholder="Hospital contact number" value={hospitalForm.phone} onChange={e => setHospitalForm({ ...hospitalForm, phone: e.target.value })} />
+                                                <label className="staff-label">
+                                                    Phone
+                                                    {hospitalForm.phone && hospitalForm.phone.length !== 10 && (
+                                                        <span style={{ color: 'red', marginLeft: '5px', fontSize: '11px', textTransform: 'none' }}>must be 10 digits</span>
+                                                    )}
+                                                </label>
+                                                <input type="tel" className="staff-input" placeholder="Hospital contact number" maxLength="10" value={hospitalForm.phone} onChange={e => setHospitalForm({ ...hospitalForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} />
                                             </div>
                                         </div>
                                         <div className="form-row">
@@ -1046,10 +1055,7 @@ const CentralAdminDashboard = () => {
                                             <label className="staff-label">Address</label>
                                             <input type="text" className="staff-input" value={hospitalForm.address} onChange={e => setHospitalForm({ ...hospitalForm, address: e.target.value })} />
                                         </div>
-                                        <div className="form-group">
-                                            <label className="staff-label">Standard Appointment Fee (₹)</label>
-                                            <input type="number" className="staff-input" value={hospitalForm.appointmentFee} onChange={e => setHospitalForm({ ...hospitalForm, appointmentFee: Number(e.target.value) })} min="0" />
-                                        </div>
+                                        {/* Consultation fee removed from super admin — managed by Hospital Admin via Consultation Fees tab */}
                                         {/* Departments hidden as we only want IVF */}
                                         <button type="submit" disabled={savingHospital} className="submit-button">{savingHospital ? 'Saving...' : editHospital ? '✅ Update Hospital' : '✅ Create Hospital'}</button>
                                     </form>
@@ -1173,8 +1179,13 @@ const CentralAdminDashboard = () => {
                                             <input type="text" placeholder="Temporary password" value={createStaffForm.password} onChange={e => setCreateStaffForm({ ...createStaffForm, password: e.target.value })} required className="staff-input" />
                                         </div>
                                         <div className="form-group">
-                                            <label className="staff-label">Phone</label>
-                                            <input type="text" placeholder="Phone number" value={createStaffForm.phone} onChange={e => setCreateStaffForm({ ...createStaffForm, phone: e.target.value })} className="staff-input" />
+                                            <label className="staff-label">
+                                                Phone
+                                                {createStaffForm.phone && createStaffForm.phone.length !== 10 && (
+                                                    <span style={{ color: 'red', marginLeft: '5px', fontSize: '11px', textTransform: 'none' }}>must be 10 digits</span>
+                                                )}
+                                            </label>
+                                            <input type="tel" placeholder="Phone number" maxLength="10" value={createStaffForm.phone} onChange={e => setCreateStaffForm({ ...createStaffForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} className="staff-input" />
                                         </div>
                                     </div>
                                     <button type="submit" disabled={creatingStaff || !createStaffForm.hospitalId} className="submit-button">
