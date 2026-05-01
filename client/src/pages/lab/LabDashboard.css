@@ -137,6 +137,8 @@
 .lab-actions {
   display: flex;
   gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 10px;
 }
 
 .action-btn {

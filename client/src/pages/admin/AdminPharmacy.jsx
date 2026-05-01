@@ -36,7 +36,7 @@ const AdminPharmacy = () => {
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (!['admin', 'hospitaladmin'].includes(user.role)) {
+    if (!['admin', 'hospitaladmin', 'centraladmin', 'superadmin'].includes(user.role)) {
       navigate('/');
     }
     fetchPharmacies();
@@ -183,7 +183,7 @@ const AdminPharmacy = () => {
             <button
               onClick={() => {
                 const user = JSON.parse(localStorage.getItem('user') || '{}');
-                navigate(user.role === 'hospitaladmin' ? '/hospitaladmin' : '/admin');
+                navigate(['centraladmin', 'superadmin'].includes(user.role) ? '/supremeadmin' : user.role === 'hospitaladmin' ? '/hospitaladmin' : '/admin');
               }}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', padding: '0 0 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
             >

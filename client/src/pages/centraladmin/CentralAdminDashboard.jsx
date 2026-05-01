@@ -546,7 +546,6 @@ const CentralAdminDashboard = () => {
     const tabs = [
         { id: 'hospitals', label: '🏥 Hospitals', desc: 'Manage hospitals' },
         { id: 'staff', label: '👥 All Staff', desc: 'Global staff management' },
-        { id: 'revenue-plans', label: '💰 Revenue Plans', desc: 'Set billing models' },
         { id: 'configurations', label: '⚙️ Configurations', desc: 'Roles, tests, questions' },
     ];
 
@@ -563,8 +562,8 @@ const CentralAdminDashboard = () => {
                     {/* Back Header (Customized for Detail View) */}
                     <div className="centraladmin-header" style={{ marginBottom: '24px', background: 'white', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
                         <div className="header-brand">
-                            <button onClick={closeHospitalDetail} className="back-btn" style={{ marginBottom: '12px' }}>← Back to All Hospitals</button>
-                            <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>🏥 {h.name}</h1>
+                            <button onClick={closeHospitalDetail} className="back-btn" style={{ marginBottom: '12px', color: '#64748b' }}>← Back to All Hospitals</button>
+                            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1e293b', WebkitTextFillColor: '#1e293b' }}>🏥 {h.name}</h1>
                             <p style={{ color: '#64748b' }}>{h.city && `${h.city}, `}{h.state} {h.phone && `· 📞 ${h.phone}`}</p>
                         </div>
                         <div className="admin-user-info">

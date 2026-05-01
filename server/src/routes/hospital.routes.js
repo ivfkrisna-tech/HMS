@@ -471,6 +471,14 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
 
         hospital.departmentFees = departmentFees;
+
+        // Sync the main appointmentFee with the first department fee value
+        // so the reception dashboard picks up the updated fee
+        const feeValues = Object.values(departmentFees).filter(v => typeof v === 'number');
+        if (feeValues.length > 0) {
+            hospital.appointmentFee = feeValues[0];
+        }
+
         await hospital.save();
 
         res.json({ success: true, message: 'Department fees updated successfully', hospital });
