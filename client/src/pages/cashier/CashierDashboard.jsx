@@ -156,10 +156,11 @@ const CashierDashboard = () => {
         setProcessingPayment(true);
         setError('');
 
-        const appointmentIds = billingData.appointments.map(a => a._id);
-        const labReportIds = billingData.labReports.map(l => l._id);
-        const pharmacyOrderIds = billingData.pharmacyOrders.map(p => p._id);
-        const facilityChargeIds = billingData.facilityCharges.map(f => f._id);
+        const appointmentIds = (billingData.appointments || []).map(a => a._id);
+        const labReportIds = (billingData.labReports || []).map(l => l._id);
+        const pharmacyOrderIds = (billingData.pharmacyOrders || []).map(p => p._id);
+        const facilityChargeIds = (billingData.facilityCharges || []).map(f => f._id);
+        const admissionIds = (billingData.admissions || []).map(a => a._id);
 
         try {
             const res = await billingAPI.processPayment({
@@ -167,12 +168,13 @@ const CashierDashboard = () => {
                 labReportIds,
                 pharmacyOrderIds,
                 facilityChargeIds,
+                admissionIds,
                 paymentMode
             });
             if (res.success) {
                 setSuccess('Payment processed successfully. Items marked as Paid.');
                 // Clear bills
-                setBillingData({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [] });
+                setBillingData({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [] });
             }
         } catch (err) {
             setError('Error processing payment');
@@ -184,11 +186,12 @@ const CashierDashboard = () => {
     const formatCurrency = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
 
     // Calculates
-    const totalAppointments = billingData.appointments.reduce((sum, a) => sum + (a.amount || 0), 0);
-    const totalLab = billingData.labReports.reduce((sum, l) => sum + (l.amount || 0), 0);
-    const totalPharmacy = billingData.pharmacyOrders.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
-    const totalFacilities = billingData.facilityCharges.reduce((sum, f) => sum + (f.totalAmount || 0), 0);
-    const grandTotal = totalAppointments + totalLab + totalPharmacy + totalFacilities;
+    const totalAppointments = (billingData.appointments || []).reduce((sum, a) => sum + (a.amount || 0), 0);
+    const totalLab = (billingData.labReports || []).reduce((sum, l) => sum + (l.amount || 0), 0);
+    const totalPharmacy = (billingData.pharmacyOrders || []).reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+    const totalFacilities = (billingData.facilityCharges || []).reduce((sum, f) => sum + (f.totalAmount || 0), 0);
+    const totalAdmissions = (billingData.admissions || []).filter(a => a.paymentStatus !== 'Paid').reduce((sum, a) => sum + (a.totalAmount || 0), 0);
+    const grandTotal = totalAppointments + totalLab + totalPharmacy + totalFacilities + totalAdmissions;
 
     const hasBills = grandTotal > 0;
 

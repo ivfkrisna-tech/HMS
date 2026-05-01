@@ -1048,9 +1048,9 @@ const ReceptionDashboard = () => {
 
             <div className="appointments-list">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-                    <h3 style={{ margin: 0 }}>Today's Queue</h3>
+                    <h3 style={{ margin: 0 }}>Active Queue</h3>
                     <span style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', padding: '3px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 700 }}>
-                        {appointments.filter(a => { const d = new Date(a.appointmentDate); const t = new Date(); return d.toDateString() === t.toDateString(); }).length} patients today
+                        {appointments.length} patients
                     </span>
                     {hospitalContext?.appointmentMode === 'token' && (
                         <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '3px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 700 }}>
@@ -1070,7 +1070,7 @@ const ReceptionDashboard = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {appointments.filter(apt => { const d = new Date(apt.appointmentDate); const t = new Date(); return d.toDateString() === t.toDateString(); }).map(apt => (
+                            {appointments.map(apt => (
                                 <tr key={apt._id}>
                                     <td>{apt.userId?.name}<br /><small>{apt.userId?.phone}</small></td>
                                     <td>{apt.doctorName}</td>
@@ -1114,6 +1114,7 @@ const ReceptionDashboard = () => {
                                                     }}
                                                 >
                                                     {apt.isHospitalized ? '🏥 Hospitalized' : 'Hospitalize'}
+                                                </button>
                                                 <button
                                                     onClick={() => handleCancelAppointment(apt._id)}
                                                     style={{ padding: '4px 10px', fontSize: '12px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '5px', cursor: 'pointer', fontWeight: '600' }}

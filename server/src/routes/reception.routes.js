@@ -253,12 +253,9 @@ router.get('/appointments', verifyToken, verifyReception, async (req, res) => {
         let queryFilter = {};
         if (req.user.hospitalId) queryFilter.hospitalId = req.user.hospitalId;
 
-        // Default: today's active appointments only (reception queue view)
+        // Default: all active appointments (pending / confirmed)
         // Pass ?all=true to get full history
         if (req.query.all !== 'true') {
-            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-            const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
-            queryFilter.appointmentDate = { $gte: todayStart, $lte: todayEnd };
             queryFilter.status = { $nin: ['cancelled', 'completed'] };
         }
 

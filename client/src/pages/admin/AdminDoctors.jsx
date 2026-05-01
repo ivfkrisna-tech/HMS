@@ -427,8 +427,8 @@ const AdminDoctors = () => {
 
             {/* Personal Info Modal */}
             {viewDoctor && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ background: 'white', borderRadius: '20px', padding: '32px', maxWidth: '600px', width: '90%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 80px rgba(0,0,0,0.25)' }}>
+                <div onClick={() => setViewDoctor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: '20px', padding: '32px', maxWidth: '400px', width: '90%', boxShadow: '0 25px 80px rgba(0,0,0,0.25)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                             <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#1e293b' }}>👨‍⚕️ Doctor Information</h2>
                             <button onClick={() => setViewDoctor(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#94a3b8' }}>×</button>
@@ -440,69 +440,19 @@ const AdminDoctors = () => {
                             </div>
                             <div>
                                 <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>{viewDoctor.name || viewDoctor.userId?.name || 'Unknown'}</h3>
-                                <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '14px' }}>{viewDoctor.specialty || 'No specialty listed'}</p>
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                             {[
                                 { label: 'Email', value: viewDoctor.email || '—' },
-                                { label: 'Phone', value: viewDoctor.phone || '—' },
-                                { label: 'Experience', value: viewDoctor.experience || '—' },
-                                { label: 'Education', value: viewDoctor.education || '—' },
-                                { label: 'Consultation Fee', value: viewDoctor.consultationFee ? `₹${viewDoctor.consultationFee}` : '₹500 (default)' },
-                                { label: 'Services', value: viewDoctor.services?.length ? `${viewDoctor.services.length} assigned` : '—' },
+                                { label: 'Phone', value: viewDoctor.phone || '—' }
                             ].map((item, i) => (
                                 <div key={i} style={{ padding: '10px 14px', background: '#f1f5f9', borderRadius: '8px' }}>
                                     <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{item.label}</div>
                                     <div style={{ fontSize: '14px', color: '#1e293b', fontWeight: 500 }}>{item.value}</div>
                                 </div>
                             ))}
-                        </div>
-
-                        {viewDoctor.departments?.length > 0 && (
-                            <div style={{ marginBottom: '16px' }}>
-                                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '6px' }}>Departments</div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                    {viewDoctor.departments.map((d, i) => (
-                                        <span key={i} style={{ background: '#eff6ff', color: '#1d4ed8', borderRadius: '6px', padding: '3px 10px', fontSize: '12px', fontWeight: 600 }}>{d}</span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {viewDoctor.availability && (
-                            <div style={{ marginBottom: '16px' }}>
-                                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>Weekly Availability</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '6px' }}>
-                                {viewDoctor.availability && typeof viewDoctor.availability === 'object' && (
-                                    Object.entries(viewDoctor.availability).map(([day, info]) => {
-                                        if (!info) return null;
-                                        return (
-                                        <div key={day} style={{ padding: '8px 10px', borderRadius: '8px', background: info.available ? '#f0fdf4' : '#fef2f2', border: `1px solid ${info.available ? '#bbf7d0' : '#fecdd3'}`, fontSize: '12px' }}>
-                                            <div style={{ fontWeight: 700, textTransform: 'capitalize', color: info.available ? '#166534' : '#991b1b', marginBottom: '2px' }}>{day}</div>
-                                            {info.available ? (
-                                                <div style={{ color: '#64748b' }}>{info.startTime || '09:00'} - {info.endTime || '17:00'}</div>
-                                            ) : (
-                                                <div style={{ color: '#991b1b' }}>Off</div>
-                                            )}
-                                        </div>
-                                    )})
-                                )}
-                                </div>
-                            </div>
-                        )}
-
-                        {viewDoctor.bio && (
-                            <div style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: '8px', marginBottom: '16px' }}>
-                                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>Bio</div>
-                                <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: 1.5 }}>{viewDoctor.bio}</p>
-                            </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                            <button onClick={() => { setViewDoctor(null); handleEdit(viewDoctor); }} style={{ padding: '10px 20px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>✏️ Edit</button>
-                            <button onClick={() => setViewDoctor(null)} style={{ padding: '10px 20px', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}>Close</button>
                         </div>
                     </div>
                 </div>
