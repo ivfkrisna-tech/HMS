@@ -19,9 +19,49 @@ const PatientBillingProfile = () => {
     const [successMsg, setSuccessMsg] = useState('');
     const [dischargingId, setDischargingId] = useState(null);
 
+    const [searchResults, setSearchResults] = useState([]);
+
+    const handleSearchChange = async (e) => {
+        const val = e.target.value;
+        setSearchQuery(val);
+        if (val.length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        try {
+            const res = await billingAPI.searchPatients(val);
+            if (res.success) setSearchResults(res.patients);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleSelectPatient = async (patient) => {
+        setSearchQuery(patient.mrn || patient.phone || patient.name);
+        setSearchResults([]);
+        setLoading(true);
+        setError('');
+        setPatient(null);
+        setBilling(null);
+        setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [] });
+        setSuccessMsg('');
+        try {
+            const res = await billingAPI.getPatientBills(patient._id);
+            if (res.success) {
+                setPatient(res.patient);
+                setBilling(res.billing);
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || 'Patient not found');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSearch = async (e) => {
         e.preventDefault();
         if (!searchQuery.trim()) return;
+        setSearchResults([]);
         setLoading(true);
         setError('');
         setPatient(null);
@@ -95,7 +135,7 @@ const PatientBillingProfile = () => {
             });
             setSuccessMsg(`Payment of ${fmt(total)} processed successfully via ${paymentMode}.`);
             // Reload billing
-            const res = await billingAPI.getPatientBills(searchQuery.trim());
+            const res = await billingAPI.getPatientBills(patient._id);
             if (res.success) setBilling(res.billing);
             setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [] });
         } catch (err) {
@@ -110,7 +150,7 @@ const PatientBillingProfile = () => {
         setDischargingId(admissionId);
         try {
             await admissionAPI.dischargePatient(admissionId);
-            const res = await billingAPI.getPatientBills(searchQuery.trim());
+            const res = await billingAPI.getPatientBills(patient._id);
             if (res.success) setBilling(res.billing);
         } catch (err) {
             alert(err.response?.data?.message || 'Discharge failed');
@@ -133,18 +173,37 @@ const PatientBillingProfile = () => {
             </div>
 
             {/* Search */}
-            <form className="billing-search-bar" onSubmit={handleSearch}>
-                <input
-                    type="text"
-                    placeholder="Search by Phone / MRN / Patient ID..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="billing-search-input"
-                />
-                <button type="submit" className="btn-search" disabled={loading}>
-                    {loading ? 'Searching...' : 'Search'}
-                </button>
-            </form>
+            <div style={{ position: 'relative' }}>
+                <form className="billing-search-bar" onSubmit={handleSearch}>
+                    <input
+                        type="text"
+                        placeholder="Search by Name, Phone, MRN or Patient ID..."
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                        className="billing-search-input"
+                    />
+                    <button type="submit" className="btn-search" disabled={loading}>
+                        {loading ? 'Searching...' : 'Search'}
+                    </button>
+                </form>
+                {searchResults.length > 0 && (
+                    <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0,
+                        background: 'white', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        zIndex: 1000, maxHeight: '300px', overflowY: 'auto', borderRadius: '8px', marginTop: '4px'
+                    }}>
+                        {searchResults.map(p => (
+                            <div key={p._id} style={{ padding: '12px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSelectPatient(p)}>
+                                <div>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{p.name} <span style={{ color: '#666', fontSize: '0.85rem' }}>({p.patientId || 'N/A'})</span></div>
+                                    <div style={{ fontSize: '0.85rem', color: '#888' }}>📱 {p.phone}</div>
+                                </div>
+                                <button className="btn-search" style={{ padding: '4px 12px', fontSize: '0.85rem' }}>Select</button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
 
             {error && <div className="billing-error">{error}</div>}
             {successMsg && <div className="billing-success">{successMsg}</div>}

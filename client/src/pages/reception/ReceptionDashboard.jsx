@@ -270,6 +270,7 @@ const ReceptionDashboard = () => {
             });
             alert(`Patient admitted successfully!`);
             setHospitalizeModal({ open: false, appointment: null });
+            fetchAppointments(); // Refresh to show hospitalized status
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to admit patient');
         } finally {
@@ -627,84 +628,27 @@ const ReceptionDashboard = () => {
                         <div className="form-section">
                             <h4>1. Patient Identity & KYC</h4>
 
-                            {/* AADHAAR VERIFICATION ROW */}
+                            {/* AADHAAR NUMBER FIELD */}
                             <div className="form-row" style={{ alignItems: 'flex-end', backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px dashed #22c55e', gap: '15px' }}>
-                                {/* AADHAAR INPUT */}
                                 <div className="field" style={{ flex: 2 }}>
-                                    <label>Aadhaar Number {intakeForm.isAadhaarVerified && '✅ Verified'}</label>
+                                    <label>Aadhaar Number</label>
                                     <input
                                         name="aadhaar"
                                         maxLength="12"
                                         placeholder="Enter 12-digit Aadhaar"
                                         value={intakeForm.aadhaar}
                                         onChange={handleInputChange}
-                                        disabled={intakeForm.isAadhaarVerified || otpSent}
                                         style={{
-                                            borderColor: intakeForm.isAadhaarVerified ? 'green' : '#ccc',
-                                            backgroundColor: intakeForm.isAadhaarVerified ? '#e6fffa' : 'white',
+                                            borderColor: intakeForm.aadhaar?.length === 12 ? 'green' : '#ccc',
+                                            backgroundColor: intakeForm.aadhaar?.length === 12 ? '#e6fffa' : 'white',
                                             fontWeight: 'bold'
                                         }}
                                     />
-                                </div>
-
-                                {/* OTP INPUT (Conditional) */}
-                                {otpSent && !intakeForm.isAadhaarVerified && (
-                                    <div className="field verified-anim" style={{ flex: 1 }}>
-                                        <label>Enter OTP</label>
-                                        <input
-                                            type="text"
-                                            maxLength="6"
-                                            placeholder="Ex: 123456"
-                                            value={aadhaarOtp}
-                                            onChange={(e) => setAadhaarOtp(e.target.value)}
-                                            style={{ borderColor: '#2563eb' }}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* ACTION BUTTONS */}
-                                <div className="field" style={{ flex: 1 }}>
-                                    {!intakeForm.isAadhaarVerified ? (
-                                        !otpSent ? (
-                                            <button
-                                                type="button"
-                                                onClick={handleSendOTP}
-                                                className="btn-save"
-                                                style={{ width: '100%', backgroundColor: '#2563eb' }}
-                                                disabled={verifyingAadhaar || !intakeForm.aadhaar}
-                                            >
-                                                {verifyingAadhaar ? 'Sending...' : 'Send OTP'}
-                                            </button>
-                                        ) : (
-                                            <div style={{ display: 'flex', gap: '5px' }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleVerifyOTP}
-                                                    className="btn-save"
-                                                    style={{ flex: 2, backgroundColor: '#059669' }}
-                                                    disabled={verifyingAadhaar}
-                                                >
-                                                    {verifyingAadhaar ? '...' : 'Verify OTP'}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { setOtpSent(false); setAadhaarOtp(''); }}
-                                                    className="btn-cancel"
-                                                    style={{ flex: 1, padding: '0 5px', fontSize: '0.8rem', height: '100%' }}
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        )
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            onClick={() => setIntakeForm({ ...intakeForm, isAadhaarVerified: false, aadhaar: '' })}
-                                            className="btn-cancel"
-                                            style={{ width: '100%' }}
-                                        >
-                                            Reset / Clear
-                                        </button>
+                                    {intakeForm.aadhaar && intakeForm.aadhaar.length !== 12 && (
+                                        <span style={{ color: '#d97706', fontSize: '11px', marginTop: '4px', display: 'block' }}>Enter 12 digits</span>
+                                    )}
+                                    {intakeForm.aadhaar?.length === 12 && (
+                                        <span style={{ color: '#16a34a', fontSize: '11px', marginTop: '4px', display: 'block' }}>✅ Aadhaar recorded</span>
                                     )}
                                 </div>
                             </div>
@@ -1035,6 +979,7 @@ const ReceptionDashboard = () => {
                     <button className="btn-cancel" onClick={() => { fetchTransactions(); setSearchParams({ mode: 'transactions' }); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>💰 Transactions</button>
                     <button className="btn-cancel" onClick={() => navigate('/billing/patient')} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🧾 Patient Billing</button>
                     <button className="btn-save" onClick={handleNewWalkIn} style={{ padding: '10px 20px', fontSize: '1rem' }}>+ New Registration</button>
+                    <button className="btn-save" onClick={() => { document.querySelector('.search-section input').focus(); window.scrollTo(0, 0); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>+ Book Existing Patient</button>
                 </div>
             </div>
 
@@ -1104,6 +1049,9 @@ const ReceptionDashboard = () => {
             <div className="appointments-list">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
                     <h3 style={{ margin: 0 }}>Today's Queue</h3>
+                    <span style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', padding: '3px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 700 }}>
+                        {appointments.filter(a => { const d = new Date(a.appointmentDate); const t = new Date(); return d.toDateString() === t.toDateString(); }).length} patients today
+                    </span>
                     {hospitalContext?.appointmentMode === 'token' && (
                         <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '3px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 700 }}>
                             🎟️ Token Queue Mode
@@ -1122,7 +1070,7 @@ const ReceptionDashboard = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {appointments.map(apt => (
+                            {appointments.filter(apt => { const d = new Date(apt.appointmentDate); const t = new Date(); return d.toDateString() === t.toDateString(); }).map(apt => (
                                 <tr key={apt._id}>
                                     <td>{apt.userId?.name}<br /><small>{apt.userId?.phone}</small></td>
                                     <td>{apt.doctorName}</td>
@@ -1157,10 +1105,15 @@ const ReceptionDashboard = () => {
                                             <>
                                                 <button
                                                     onClick={() => openHospitalizeModal(apt)}
-                                                    style={{ padding: '4px 10px', fontSize: '12px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '5px', cursor: 'pointer', fontWeight: '600' }}
+                                                    style={{
+                                                        padding: '4px 10px', fontSize: '12px',
+                                                        background: apt.isHospitalized ? '#fecdd3' : '#dbeafe',
+                                                        color: apt.isHospitalized ? '#be123c' : '#1d4ed8',
+                                                        border: `1px solid ${apt.isHospitalized ? '#fb7185' : '#93c5fd'}`,
+                                                        borderRadius: '5px', cursor: 'pointer', fontWeight: '600'
+                                                    }}
                                                 >
-                                                    Hospitalize
-                                                </button>
+                                                    {apt.isHospitalized ? '🏥 Hospitalized' : 'Hospitalize'}
                                                 <button
                                                     onClick={() => handleCancelAppointment(apt._id)}
                                                     style={{ padding: '4px 10px', fontSize: '12px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '5px', cursor: 'pointer', fontWeight: '600' }}

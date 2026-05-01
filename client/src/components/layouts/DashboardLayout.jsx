@@ -52,7 +52,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             return [
                 { label: 'Reception Dashboard', path: '/reception/dashboard', icon: <FiHome /> },
                 { label: 'Patient Registration', path: '/reception/dashboard?mode=intake', icon: <FiPlusSquare /> },
-                { label: 'Appointments/Booking', path: '/appointment', icon: <FiCalendar /> },
+                { label: 'Patient Billing', path: '/billing/patient', icon: <FiFileText /> },
             ];
         }
         if (role === 'lab') {

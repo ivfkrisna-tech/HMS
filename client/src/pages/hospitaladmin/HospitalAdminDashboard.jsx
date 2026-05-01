@@ -534,29 +534,6 @@ const HospitalAdminDashboard = () => {
                             </div>
                         ) : null}
 
-                        {/* Quick Operations */}
-                        <div className="admin-card">
-                            <h2>⚡ Quick Operations</h2>
-                            <p style={{ color: '#888', fontSize: '14px', margin: '0 0 20px' }}>
-                                Jump to the areas you manage most frequently. Contact your Central Admin to manage question libraries, test packages, or medicine catalogs.
-                            </p>
-                            <div className="ha-ops-grid">
-                                {operationLinks.map((item, i) => (
-                                    <div
-                                        key={i}
-                                        className="ha-op-card"
-                                        onClick={() => navigate(item.path)}
-                                        style={{ background: item.bg, borderColor: item.color + '30' }}
-                                    >
-                                        <span className="ha-op-icon" style={{ color: item.color }}>{item.icon}</span>
-                                        <div>
-                                            <h4 style={{ color: item.color }}>{item.label}</h4>
-                                            <p>{item.desc}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
 
                         {/* My Profile Card */}
                         <div className="admin-card" style={{ marginTop: '24px' }}>

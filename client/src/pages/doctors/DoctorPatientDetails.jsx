@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doctorAPI, labTestAPI, questionLibraryAPI, hospitalAPI } from '../../utils/api';
+import { doctorAPI, labTestAPI, questionLibraryAPI, hospitalAPI, testPackageAPI } from '../../utils/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import './DoctorPatientDetails.css';
@@ -22,6 +22,8 @@ const DoctorPatientDetails = () => {
     const [saving, setSaving] = useState(false);
     const [catalogTests, setCatalogTests] = useState([]);
     const [catalogMedicines, setCatalogMedicines] = useState([]);
+    const [testPackages, setTestPackages] = useState([]);
+    const [selectedPackages, setSelectedPackages] = useState([]);
     const [dynamicLibrary, setDynamicLibrary] = useState(null);
     const [hospitalDepartments, setHospitalDepartments] = useState([]);
     const [isLocked, setIsLocked] = useState(false);
@@ -112,10 +114,12 @@ const DoctorPatientDetails = () => {
             } catch (err) { console.error(err); }
 
             try {
-                const testRes = await labTestAPI.getLabTests();
-                if (testRes.success) {
-                    setCatalogTests(testRes.data || []);
-                }
+                const [testRes, pkgRes] = await Promise.all([
+                    labTestAPI.getLabTests(),
+                    testPackageAPI.getPackages()
+                ]);
+                if (testRes.success) setCatalogTests(testRes.data || []);
+                if (pkgRes.success) setTestPackages((pkgRes.data || []).filter(p => p.isActive));
             } catch (err) { console.error("Error fetching lab test catalog", err); }
 
             try {
@@ -1126,6 +1130,85 @@ const DoctorPatientDetails = () => {
                             {/* Lab Tests Section */}
                             <div>
                                 <h4 style={{ margin: '0 0 12px', color: '#1e293b', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>🧪 Select Lab Tests</h4>
+
+                                {/* ===== TEST PACKAGES SECTION ===== */}
+                                {testPackages.length > 0 && (
+                                    <div style={{ marginBottom: '20px' }}>
+                                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            📦 Test Packages <span style={{ background: '#eef2ff', color: '#4f46e5', padding: '2px 8px', borderRadius: '10px', fontSize: '11px' }}>{testPackages.length}</span>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                                            {testPackages.map(pkg => {
+                                                const isSelected = selectedPackages.includes(pkg._id);
+                                                const pkgTestNames = (pkg.tests || []).map(t => t.name || t);
+                                                const individualTotal = (pkg.tests || []).reduce((s, t) => s + (t.price || 0), 0);
+                                                const displayPrice = pkg.discountedPrice || pkg.price || individualTotal;
+                                                const savings = individualTotal > displayPrice ? Math.round(((individualTotal - displayPrice) / individualTotal) * 100) : 0;
+
+                                                return (
+                                                    <div
+                                                        key={pkg._id}
+                                                        onClick={() => {
+                                                            const newSelectedPkgs = isSelected
+                                                                ? selectedPackages.filter(id => id !== pkg._id)
+                                                                : [...selectedPackages, pkg._id];
+                                                            setSelectedPackages(newSelectedPkgs);
+
+                                                            // Auto-toggle all tests in this package
+                                                            let currentTests = sessionData.labTests ? sessionData.labTests.split(', ').filter(t => t.trim()) : [];
+                                                            if (!isSelected) {
+                                                                // Add all package test names
+                                                                pkgTestNames.forEach(tn => {
+                                                                    if (!currentTests.includes(tn)) currentTests.push(tn);
+                                                                });
+                                                            } else {
+                                                                // Remove package test names (only if not in another selected package)
+                                                                const otherPkgTests = testPackages
+                                                                    .filter(p => newSelectedPkgs.includes(p._id))
+                                                                    .flatMap(p => (p.tests || []).map(t => t.name || t));
+                                                                pkgTestNames.forEach(tn => {
+                                                                    if (!otherPkgTests.includes(tn)) {
+                                                                        currentTests = currentTests.filter(t => t !== tn);
+                                                                    }
+                                                                });
+                                                            }
+                                                            setSessionData(prev => ({ ...prev, labTests: currentTests.join(', ') }));
+                                                        }}
+                                                        style={{
+                                                            padding: '14px 16px', borderRadius: '12px', cursor: 'pointer',
+                                                            border: `2px solid ${isSelected ? '#6366f1' : '#e2e8f0'}`,
+                                                            background: isSelected ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)' : '#fafafa',
+                                                            transition: 'all 0.25s', position: 'relative',
+                                                            boxShadow: isSelected ? '0 4px 12px rgba(99,102,241,0.15)' : 'none'
+                                                        }}
+                                                    >
+                                                        {isSelected && (
+                                                            <div style={{ position: 'absolute', top: '8px', right: '10px', width: '22px', height: '22px', borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '13px', fontWeight: '800' }}>✓</div>
+                                                        )}
+                                                        <div style={{ fontWeight: '800', color: '#1e293b', fontSize: '14px', marginBottom: '4px' }}>{pkg.name}</div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                                            <span style={{ fontWeight: '800', color: '#059669', fontSize: '15px' }}>₹{displayPrice}</span>
+                                                            {savings > 0 && (
+                                                                <>
+                                                                    <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '12px' }}>₹{individualTotal}</span>
+                                                                    <span style={{ background: '#dcfce7', color: '#166534', padding: '1px 6px', borderRadius: '8px', fontSize: '10px', fontWeight: '700' }}>{savings}% OFF</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                                            {pkgTestNames.map((tn, i) => (
+                                                                <span key={i} style={{ fontSize: '10px', padding: '2px 6px', background: isSelected ? '#c7d2fe' : '#e2e8f0', color: isSelected ? '#3730a3' : '#475569', borderRadius: '6px', fontWeight: '600' }}>{tn}</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ===== INDIVIDUAL TESTS ===== */}
+                                <div style={{ fontSize: '13px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>Individual Tests</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginBottom: '16px' }}>
                                     {catalogTests.length > 0 ? catalogTests.filter(t => t.isActive).map(test => {
                                         const isChecked = sessionData.labTests.split(', ').includes(test.name);
@@ -1147,12 +1230,37 @@ const DoctorPatientDetails = () => {
                                                 />
                                                 <div>
                                                     <div style={{ fontWeight: '700', color: '#0f172a' }}>{test.name}</div>
-                                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{test.category}</div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{test.category} {test.price ? `• ₹${test.price}` : ''}</div>
                                                 </div>
                                             </label>
                                         );
                                     }) : <p style={{ color: '#94a3b8', fontSize: '13px', gridColumn: '1 / -1', textAlign: 'center', padding: '20px', background: '#f8fafc', borderRadius: '8px' }}>No lab tests defined by Super Admin.</p>}
                                 </div>
+
+                                {/* ===== PRICING SUMMARY ===== */}
+                                {selectedPackages.length > 0 && (
+                                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px', padding: '12px 16px', marginBottom: '12px' }}>
+                                        <div style={{ fontWeight: '700', color: '#166534', fontSize: '13px', marginBottom: '6px' }}>📦 Package Pricing Applied:</div>
+                                        {selectedPackages.map(pkgId => {
+                                            const pkg = testPackages.find(p => p._id === pkgId);
+                                            if (!pkg) return null;
+                                            const displayPrice = pkg.discountedPrice || pkg.price || 0;
+                                            return (
+                                                <div key={pkgId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', padding: '4px 0', color: '#334155' }}>
+                                                    <span>{pkg.name} ({(pkg.tests || []).length} tests)</span>
+                                                    <span style={{ fontWeight: '700', color: '#059669' }}>₹{displayPrice}</span>
+                                                </div>
+                                            );
+                                        })}
+                                        <div style={{ borderTop: '1px dashed #86efac', marginTop: '6px', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: '800', fontSize: '14px', color: '#15803d' }}>
+                                            <span>Total Package Cost:</span>
+                                            <span>₹{selectedPackages.reduce((sum, pkgId) => {
+                                                const pkg = testPackages.find(p => p._id === pkgId);
+                                                return sum + (pkg?.discountedPrice || pkg?.price || 0);
+                                            }, 0)}</span>
+                                        </div>
+                                    </div>
+                                )}
                                 <label style={{ fontSize: '13px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '6px' }}>Edit Final Lab Tests (Comma separated):</label>
                                 <input
                                     name="labTests"

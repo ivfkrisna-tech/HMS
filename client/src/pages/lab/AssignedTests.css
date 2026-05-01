@@ -326,7 +326,7 @@
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.modal-header {
+.lab-modal .modal-header {
   padding: 24px 32px;
   border-bottom: 1px solid #f1f5f9;
   display: flex;
@@ -338,14 +338,14 @@
   z-index: 10;
 }
 
-.modal-header h2 {
+.lab-modal .modal-header h2 {
   margin: 0;
   font-size: 1.5rem;
   color: #1e293b;
   font-weight: 800;
 }
 
-.close-btn {
+.lab-modal .close-btn {
   background: none;
   border: none;
   font-size: 1.5rem;
@@ -354,11 +354,11 @@
   transition: color 0.2s;
 }
 
-.close-btn:hover {
+.lab-modal .close-btn:hover {
   color: #ef4444;
 }
 
-.modal-content {
+.lab-modal .modal-content {
   padding: 32px;
 }
 

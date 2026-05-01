@@ -133,12 +133,11 @@
   background: linear-gradient(to bottom, #8b5cf6, #a78bfa);
 }
 
-/* Actions */
 .lab-actions {
   display: flex;
-  gap: 20px;
+  gap: 24px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: 24px;
 }
 
 .action-btn {
@@ -149,10 +148,11 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  width: max-content;
+  width: auto;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   background: linear-gradient(135deg, var(--lab-primary), var(--lab-secondary));
   color: white;

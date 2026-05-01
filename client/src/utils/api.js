@@ -337,6 +337,7 @@ export const financeAPI = {
 };
 
 export const billingAPI = {
+    searchPatients: async (query) => (await apiClient.get(`/api/billing/search-patients?query=${query}`)).data,
     getPatientBills: async (identifier) => (await apiClient.get(`/api/billing/patient/${identifier}`)).data,
     addFacilityCharge: async (data) => (await apiClient.post('/api/billing/facility-charge', data)).data,
     processPayment: async (data) => (await apiClient.put('/api/billing/pay', data)).data,

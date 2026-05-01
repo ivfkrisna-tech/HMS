@@ -54,9 +54,14 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         const { identifier } = req.params;
         const { User, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission } = getModels(req);
 
-        // Find patient by MRN, patientId, or phone
+        // Find patient by MRN, patientId, phone, or name
         const patient = await User.findOne({
-            $or: [{ mrn: identifier }, { patientId: identifier }, { phone: identifier }]
+            $or: [
+                { mrn: identifier },
+                { patientId: identifier },
+                { phone: identifier },
+                { name: { $regex: identifier, $options: 'i' } }
+            ]
         });
 
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
@@ -90,6 +95,29 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             billing: { appointments, labReports, pharmacyOrders, facilityCharges, admissions }
         });
 
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// 1.5 Search Patients for Dropdown — tenant-scoped
+router.get('/search-patients', verifyBillingAccess, async (req, res) => {
+    try {
+        const { query } = req.query;
+        if (!query || query.length < 2) return res.json({ success: true, patients: [] });
+
+        const { User } = getModels(req);
+        const patients = await User.find({
+            role: 'patient',
+            $or: [
+                { name: { $regex: query, $options: 'i' } },
+                { phone: { $regex: query, $options: 'i' } },
+                { mrn: { $regex: query, $options: 'i' } },
+                { patientId: { $regex: query, $options: 'i' } }
+            ]
+        }).select('name phone mrn patientId email dob').limit(10).lean();
+
+        res.json({ success: true, patients });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

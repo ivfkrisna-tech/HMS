@@ -191,7 +191,7 @@ const MainRoutes = () => {
                             <Route path="accountant/dashboard" element={<ProtectedRoute requiredPermissions={['finance_view']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin']}><AccountantDashboard /></ProtectedRoute>} />
 
                             {/* Patient Billing Profile — receptionist + accountant + admin */}
-                            <Route path="billing/patient" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_manage', 'appointment_manage']} allowedRoles={['accountant', 'cashier', 'reception', 'centraladmin', 'superadmin', 'hospitaladmin']}><PatientBillingProfile /></ProtectedRoute>} />
+                            <Route path="billing/patient" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_manage', 'appointment_manage']} allowedRoles={['accountant', 'cashier', 'reception', 'receptionist', 'centraladmin', 'superadmin', 'hospitaladmin']}><PatientBillingProfile /></ProtectedRoute>} />
                         {/* Cashier / Billing */}
                         <Route path="cashier/billing" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_manage']} allowedRoles={['billing', 'cashier', 'centraladmin', 'superadmin', 'hospitaladmin']}><CashierDashboard /></ProtectedRoute>} />
 

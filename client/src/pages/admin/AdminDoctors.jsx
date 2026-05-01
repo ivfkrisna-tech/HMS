@@ -217,11 +217,8 @@ const AdminDoctors = () => {
                             ← Back to {isHospitalAdmin ? 'Hospital Admin' : 'Dashboard'}
                         </button>
                         <h1>Manage Doctors</h1>
-                        <p>Add and manage doctor profiles for the user platform.</p>
+                        <p>View and manage doctor profiles for the user platform.</p>
                     </div>
-                    <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-                        {showForm ? 'Cancel' : '+ Add Doctor'}
-                    </button>
                 </div>
 
                 {error && <div className="error-message">{error}</div>}
@@ -430,7 +427,7 @@ const AdminDoctors = () => {
 
             {/* Personal Info Modal */}
             {viewDoctor && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
                     <div style={{ background: 'white', borderRadius: '20px', padding: '32px', maxWidth: '600px', width: '90%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 80px rgba(0,0,0,0.25)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                             <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#1e293b' }}>👨‍⚕️ Doctor Information</h2>
@@ -438,7 +435,7 @@ const AdminDoctors = () => {
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px', padding: '16px', background: '#f8fafc', borderRadius: '12px' }}>
-                            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>
+                            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', flexShrink: 0 }}>
                                 {viewDoctor.image || '👨‍⚕️'}
                             </div>
                             <div>
@@ -478,16 +475,20 @@ const AdminDoctors = () => {
                             <div style={{ marginBottom: '16px' }}>
                                 <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '8px' }}>Weekly Availability</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '6px' }}>
-                                    {Object.entries(viewDoctor.availability).map(([day, info]) => (
+                                {viewDoctor.availability && typeof viewDoctor.availability === 'object' && (
+                                    Object.entries(viewDoctor.availability).map(([day, info]) => {
+                                        if (!info) return null;
+                                        return (
                                         <div key={day} style={{ padding: '8px 10px', borderRadius: '8px', background: info.available ? '#f0fdf4' : '#fef2f2', border: `1px solid ${info.available ? '#bbf7d0' : '#fecdd3'}`, fontSize: '12px' }}>
                                             <div style={{ fontWeight: 700, textTransform: 'capitalize', color: info.available ? '#166534' : '#991b1b', marginBottom: '2px' }}>{day}</div>
                                             {info.available ? (
-                                                <div style={{ color: '#64748b' }}>{info.startTime} - {info.endTime}</div>
+                                                <div style={{ color: '#64748b' }}>{info.startTime || '09:00'} - {info.endTime || '17:00'}</div>
                                             ) : (
                                                 <div style={{ color: '#991b1b' }}>Off</div>
                                             )}
                                         </div>
-                                    ))}
+                                    )})
+                                )}
                                 </div>
                             </div>
                         )}

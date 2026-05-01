@@ -267,7 +267,21 @@ router.get('/appointments', verifyToken, verifyReception, async (req, res) => {
             .populate('doctorId', 'name')
             .sort({ tokenNumber: 1, appointmentTime: 1 })
             .lean();
-        res.json({ success: true, appointments });
+
+        // Cross-reference active admissions to flag hospitalized patients
+        const Admission = require('../models/admission.model');
+        const patientIds = [...new Set(appointments.map(a => a.userId?._id).filter(Boolean))];
+        const activeAdmissions = patientIds.length > 0
+            ? await Admission.find({ patientId: { $in: patientIds }, status: 'Admitted' }).select('patientId').lean()
+            : [];
+        const admittedSet = new Set(activeAdmissions.map(a => String(a.patientId)));
+
+        const enrichedAppointments = appointments.map(apt => ({
+            ...apt,
+            isHospitalized: apt.userId?._id ? admittedSet.has(String(apt.userId._id)) : false
+        }));
+
+        res.json({ success: true, appointments: enrichedAppointments });
     } catch (e) { res.status(500).json({ message: e.message }); }
 });
 

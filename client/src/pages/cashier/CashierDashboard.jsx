@@ -51,10 +51,49 @@ const CashierDashboard = () => {
         }
     };
 
+    const [searchResults, setSearchResults] = useState([]);
+
+    const handleSearchChange = async (e) => {
+        const val = e.target.value;
+        setSearchInput(val);
+        if (val.length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        try {
+            const res = await billingAPI.searchPatients(val);
+            if (res.success) setSearchResults(res.patients);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleSelectPatient = async (patient) => {
+        setSearchInput(patient.mrn || patient.phone || patient.name);
+        setSearchResults([]);
+        setLoading(true);
+        setError('');
+        setSuccess('');
+        try {
+            const res = await billingAPI.getPatientBills(patient._id);
+            if (res.success) {
+                setPatientInfo(res.patient);
+                setBillingData(res.billing);
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || 'Error finding patient or bills');
+            setPatientInfo(null);
+            setBillingData({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [] });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSearch = async (e) => {
         e?.preventDefault();
         if (!searchInput) return;
 
+        setSearchResults([]);
         setLoading(true);
         setError('');
         setSuccess('');
@@ -102,7 +141,8 @@ const CashierDashboard = () => {
                 setSuccess('Facility charge added to bill.');
                 setFacilityForm({ name: '', pricePerDay: '', days: '' });
                 // Refresh bills
-                handleSearch();
+                const resBills = await billingAPI.getPatientBills(patientInfo._id);
+                if (resBills.success) setBillingData(resBills.billing);
             }
         } catch (err) {
             setError(err.response?.data?.message || 'Error adding facility charge');
@@ -156,23 +196,42 @@ const CashierDashboard = () => {
         <div className="cashier-dashboard">
             <div className="cashier-header">
                 <h1>Cashier Dashboard</h1>
-                <p style={{ color: '#64748b' }}>Search patient by MRN or Mobile Number to clear pending bills.</p>
+                <p style={{ color: '#64748b' }}>Search patient by Name, MRN or Mobile Number to clear pending bills.</p>
             </div>
 
-            <form className="search-section" onSubmit={handleSearch}>
-                <div className="search-input">
-                    <label>Patient Identifier (MRN or Mobile)</label>
-                    <input 
-                        type="text" 
-                        placeholder="e.g. PAT-123456 or 9876543210" 
-                        value={searchInput} 
-                        onChange={(e) => setSearchInput(e.target.value)} 
-                    />
-                </div>
-                <button type="submit" disabled={loading} className="search-btn">
-                    {loading ? 'Searching...' : '🔍 Search Bills'}
-                </button>
-            </form>
+            <div style={{ position: 'relative' }}>
+                <form className="search-section" onSubmit={handleSearch}>
+                    <div className="search-input">
+                        <label>Patient Identifier (Name, MRN or Mobile)</label>
+                        <input 
+                            type="text" 
+                            placeholder="e.g. John Doe, PAT-123456 or 9876543210" 
+                            value={searchInput} 
+                            onChange={handleSearchChange} 
+                        />
+                    </div>
+                    <button type="submit" disabled={loading} className="search-btn">
+                        {loading ? 'Searching...' : '🔍 Search Bills'}
+                    </button>
+                </form>
+                {searchResults.length > 0 && (
+                    <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0,
+                        background: 'white', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        zIndex: 1000, maxHeight: '300px', overflowY: 'auto', borderRadius: '8px', marginTop: '4px'
+                    }}>
+                        {searchResults.map(p => (
+                            <div key={p._id} style={{ padding: '12px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSelectPatient(p)}>
+                                <div>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{p.name} <span style={{ color: '#666', fontSize: '0.85rem' }}>({p.patientId || 'N/A'})</span></div>
+                                    <div style={{ fontSize: '0.85rem', color: '#888' }}>📱 {p.phone}</div>
+                                </div>
+                                <button className="search-btn" style={{ padding: '6px 16px', fontSize: '0.85rem' }}>Select</button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
 
             {error && <div className="error-message" style={{ marginBottom: '20px' }}>⚠️ {error}</div>}
             {success && <div className="success-message" style={{ marginBottom: '20px' }}>✅ {success}</div>}
