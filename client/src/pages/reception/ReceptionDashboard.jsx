@@ -616,9 +616,8 @@ const ReceptionDashboard = () => {
         }
     };
 
-    if (viewMode === 'intake') {
-        return (
-            <div className="intake-full-page">
+    const renderIntake = () => (
+        <div className="intake-full-page">
                 <div className="context-bar">
                     <h3>{selectedPatientId ? 'Edit Patient Details' : 'New Registration'}</h3>
                     <button className="btn-cancel" onClick={() => setSearchParams({})}>Close ✖</button>
@@ -909,13 +908,14 @@ const ReceptionDashboard = () => {
                     )}
                 </div>
             </div>
-        );
-    }
+        </div>
+    );
 
-    if (viewMode === 'transactions') {
+    const renderTransactions = () => {
         const totalCollected = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
         return (
-            <div className="reception-dashboard" style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            <div className="intake-full-page" style={{ padding: '40px', background: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center' }}>
+            <div className="reception-dashboard" style={{ maxWidth: '1000px', width: '100%', margin: '0', background: 'white', borderRadius: '12px', height: 'fit-content', maxHeight: '90vh', overflowY: 'auto' }}>
                 <div className="dashboard-header">
                     <button onClick={() => setSearchParams({})} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>← Back to Dashboard</button>
                     <h2>Transaction History</h2>
@@ -966,6 +966,7 @@ const ReceptionDashboard = () => {
                         </tbody>
                     </table>
                 </div>
+            </div>
             </div>
         );
     }
@@ -1300,6 +1301,9 @@ const ReceptionDashboard = () => {
                 </div>
             </div>
         )}
+        {/* Render Modals over Dashboard */}
+        {viewMode === 'intake' && renderIntake()}
+        {viewMode === 'transactions' && renderTransactions()}
         </>
     );
 };

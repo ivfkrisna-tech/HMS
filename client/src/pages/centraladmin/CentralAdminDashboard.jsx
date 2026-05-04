@@ -907,12 +907,6 @@ const CentralAdminDashboard = () => {
                         <h1 style={{ fontSize: '1.8rem', fontWeight: 850, margin: '8px 0 4px', color: 'var(--brand-600, #14b8a6)' }}>🏛️ Central Administration Dashboard</h1>
                         <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Manage all hospitals, staff, and system configurations</p>
                     </div>
-                    <button
-                        onClick={() => navigate('/supremeadmin/revenue')}
-                        style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(99,102,241,0.3)', whiteSpace: 'nowrap' }}
-                    >
-                        📊 System Revenue Analytics
-                    </button>
                 </div>
 
                 {error && <div className="error-message">⚠️ {error}</div>}

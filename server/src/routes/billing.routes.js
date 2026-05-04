@@ -54,9 +54,12 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         const { identifier } = req.params;
         const { User, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission } = getModels(req);
 
-        // Find patient by MRN, patientId, phone, or name
-        const patient = await User.findOne({
+        const mongoose = require('mongoose');
+        const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+        
+        const patient = await MasterUser.findOne({
             $or: [
+                ...(isObjectId ? [{ _id: identifier }] : []),
                 { mrn: identifier },
                 { patientId: identifier },
                 { phone: identifier },
@@ -106,8 +109,8 @@ router.get('/search-patients', verifyBillingAccess, async (req, res) => {
         const { query } = req.query;
         if (!query || query.length < 2) return res.json({ success: true, patients: [] });
 
-        const { User } = getModels(req);
-        const patients = await User.find({
+        // Use MasterUser for searching across all patients
+        const patients = await MasterUser.find({
             role: 'patient',
             $or: [
                 { name: { $regex: query, $options: 'i' } },

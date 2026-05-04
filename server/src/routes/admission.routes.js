@@ -104,15 +104,39 @@ router.put('/:id/discharge', verifyAdmissionAccess, async (req, res) => {
     try {
         const { dischargeDate, notes } = req.body;
         const Admission = getAdmission(req);
-        const admission = await Admission.findByIdAndUpdate(
-            req.params.id,
-            {
-                status: 'Discharged',
-                dischargeDate: dischargeDate ? new Date(dischargeDate) : new Date(),
-                ...(notes && { notes }),
-            },
-            { new: true }
-        );
+        const admission = await Admission.findById(req.params.id);
+        
+        if (!admission) return res.status(404).json({ success: false, message: 'Admission not found' });
+
+        const finalDischargeDate = dischargeDate ? new Date(dischargeDate) : new Date();
+        const admissionDate = new Date(admission.admissionDate);
+        
+        // Calculate days (minimum 1 day)
+        let diffTime = finalDischargeDate.getTime() - admissionDate.getTime();
+        let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays <= 0) diffDays = 1;
+        
+        let grandTotal = 0;
+        
+        // Update facility charges based on actual days stayed
+        if (admission.selectedFacilities && admission.selectedFacilities.length > 0) {
+            admission.selectedFacilities = admission.selectedFacilities.map(f => {
+                const fTotal = diffDays * Number(f.pricePerDay || 0);
+                grandTotal += fTotal;
+                return {
+                    ...f.toObject ? f.toObject() : f,
+                    days: diffDays,
+                    totalAmount: fTotal
+                };
+            });
+        }
+        
+        admission.status = 'Discharged';
+        admission.dischargeDate = finalDischargeDate;
+        admission.totalAmount = grandTotal;
+        if (notes) admission.notes = notes;
+        
+        await admission.save();
 
         if (!admission) return res.status(404).json({ success: false, message: 'Admission not found' });
         res.json({ success: true, message: 'Patient discharged successfully', admission });

@@ -4,6 +4,8 @@ const Appointment = require('../models/appointment.model');
 const User = require('../models/user.model');
 const Doctor = require('../models/doctor.model'); // Required to fetch doctor details
 const { verifyToken } = require('../middleware/auth.middleware');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
+const { getTenantModels } = require('../db/tenantModels');
 
 const verifyReception = (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
@@ -248,7 +250,7 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
 });
 
 // 4. APPOINTMENTS
-router.get('/appointments', verifyToken, verifyReception, async (req, res) => {
+router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (req, res) => {
     try {
         let queryFilter = {};
         if (req.user.hospitalId) queryFilter.hospitalId = req.user.hospitalId;
@@ -266,7 +268,9 @@ router.get('/appointments', verifyToken, verifyReception, async (req, res) => {
             .lean();
 
         // Cross-reference active admissions to flag hospitalized patients
-        const Admission = require('../models/admission.model');
+        let Admission = require('../models/admission.model'); // fallback
+        if (req.tenantDb) Admission = getTenantModels(req.tenantDb).Admission;
+        
         const patientIds = [...new Set(appointments.map(a => a.userId?._id).filter(Boolean))];
         const activeAdmissions = patientIds.length > 0
             ? await Admission.find({ patientId: { $in: patientIds }, status: 'Admitted' }).select('patientId').lean()

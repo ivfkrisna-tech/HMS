@@ -135,22 +135,24 @@
 
 .lab-actions {
   display: flex;
-  gap: 24px;
+  gap: 32px;
   flex-wrap: wrap;
-  margin-top: 24px;
+  margin-top: 40px;
+  justify-content: flex-start;
+  align-items: center;
 }
 
 .action-btn {
-  padding: 16px 32px;
+  padding: 18px 36px;
   border-radius: 16px;
   border: none;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  width: auto;
-  transition: all 0.3s ease;
-  display: flex;
+  min-width: 200px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
