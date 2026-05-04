@@ -135,30 +135,28 @@
 
 .lab-actions {
   display: flex;
-  gap: 32px;
+  gap: 24px;
   flex-wrap: wrap;
-  margin-top: 40px;
-  justify-content: flex-start;
-  align-items: center;
+  margin-top: 30px;
 }
 
 .action-btn {
-  padding: 18px 36px;
-  border-radius: 16px;
+  flex: 1 1 200px;
+  max-width: 300px;
+  padding: 18px 24px;
+  border-radius: 12px;
   border: none;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
-  min-width: 200px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
   background: linear-gradient(135deg, var(--lab-primary), var(--lab-secondary));
   color: white;
-  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.25);
 }
 
 .action-btn:hover {

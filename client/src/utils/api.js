@@ -434,4 +434,17 @@ export const revenueAPI = {
     setHospitalPlan: async (id, data) => (await apiClient.put(`/api/revenue/hospital/${id}`, data)).data,
 };
 
+};
+
+export const patientAPI = {
+    getFullHistory: async (patientId) => {
+        const response = await apiClient.get(`/api/patient/${patientId}/full-history`);
+        return response.data;
+    },
+    search: async (term) => {
+        const response = await apiClient.get(`/api/patient/search?term=${term}`);
+        return response.data;
+    }
+};
+
 export default apiClient;

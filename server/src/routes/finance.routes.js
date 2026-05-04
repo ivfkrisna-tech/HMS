@@ -2,21 +2,25 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { verifyToken } = require('../middleware/auth.middleware');
-
-const Appointment = require('../models/appointment.model');
-const LabReport = require('../models/labReport.model');
-const PharmacyOrder = require('../models/pharmacyOrder.model');
-const Inventory = require('../models/inventory.model');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
+const { getTenantModels } = require('../db/tenantModels');
 
 // Middleware to check if user has access to finance data
 const verifyFinanceAccess = async (req, res, next) => {
     try {
         await verifyToken(req, res, () => {
             const role = req.user.role ? req.user.role.toLowerCase() : '';
-            if (['accountant', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(role)) {
+            const dynRoleStr = req.user._roleData?.name ? req.user._roleData.name.toLowerCase() : '';
+            const permissions = req.user._roleData?.permissions || [];
+            
+            const allowed = ['accountant', 'billing', 'cashier', 'centraladmin', 'superadmin', 'hospitaladmin', 'admin'];
+            
+            const hasAccess = allowed.some(keyword => dynRoleStr.includes(keyword) || role.includes(keyword));
+            
+            if (hasAccess || permissions.includes('*') || permissions.includes('finance_access')) {
                 return next();
             }
-            return res.status(403).json({ success: false, message: 'Finance access required' });
+            return res.status(403).json({ success: false, message: `Finance access required. Role: ${dynRoleStr || role}` });
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -24,7 +28,7 @@ const verifyFinanceAccess = async (req, res, next) => {
 };
 
 // GET Financial Dashboard Analytics
-router.get('/dashboard', verifyFinanceAccess, async (req, res) => {
+router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) => {
     try {
         const { startDate, endDate, hospitalId } = req.query;
 
@@ -70,6 +74,19 @@ router.get('/dashboard', verifyFinanceAccess, async (req, res) => {
         let hospitalFilter = {};
         if (targetHospitalId) {
             hospitalFilter = { hospitalId: targetHospitalId };
+        }
+
+        let Appointment = require('../models/appointment.model');
+        let LabReport = require('../models/labReport.model');
+        let PharmacyOrder = require('../models/pharmacyOrder.model');
+        let Inventory = require('../models/inventory.model');
+        
+        if (req.tenantDb) {
+            const tenantModels = getTenantModels(req.tenantDb);
+            Appointment = tenantModels.Appointment;
+            LabReport = tenantModels.LabReport;
+            PharmacyOrder = tenantModels.PharmacyOrder;
+            Inventory = tenantModels.Inventory;
         }
 
         // 1. Consultations Revenue

@@ -50,7 +50,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         }
         if (role.includes('reception')) {
             return [
-                { label: 'Reception Dashboard', path: '/reception/dashboard', icon: <FiHome /> },
+                { label: 'Reception Dashboard', path: '/my-dashboard', icon: <FiHome /> },
                 { label: 'Patient Registration', path: '/reception/dashboard?mode=intake', icon: <FiPlusSquare /> },
                 { label: 'Patient Billing', path: '/billing/patient', icon: <FiFileText /> },
             ];

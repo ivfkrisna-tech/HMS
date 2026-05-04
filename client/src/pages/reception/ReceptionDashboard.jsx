@@ -980,7 +980,6 @@ const ReceptionDashboard = () => {
                     <button className="btn-cancel" onClick={() => { fetchTransactions(); setSearchParams({ mode: 'transactions' }); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>💰 Transactions</button>
                     <button className="btn-cancel" onClick={() => navigate('/billing/patient')} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🧾 Patient Billing</button>
                     <button className="btn-save" onClick={handleNewWalkIn} style={{ padding: '10px 20px', fontSize: '1rem' }}>+ New Registration</button>
-                    <button className="btn-save" onClick={() => { document.querySelector('.search-section input').focus(); window.scrollTo(0, 0); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>+ Book Existing Patient</button>
                 </div>
             </div>
 

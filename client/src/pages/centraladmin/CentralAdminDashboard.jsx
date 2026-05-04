@@ -1815,12 +1815,7 @@ const CentralAdminDashboard = () => {
                                     <p style={{ color: '#888', fontSize: '13px', margin: '4px 0 0' }}>Assign a billing model to each hospital or clinic</p>
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                    <button
-                                        onClick={() => navigate('/supremeadmin/revenue')}
-                                        style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', padding: '9px 18px', borderRadius: '9px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
-                                    >
-                                        📊 View System Analytics
-                                    </button>
+
                                     <button className="btn-edit" onClick={fetchRevenuePlans} style={{ padding: '9px 18px' }}>
                                         ↻ Refresh
                                     </button>
