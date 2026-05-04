@@ -183,7 +183,6 @@ const DoctorPatientDetails = () => {
     };
 
     const handleSaveAndMerge = async () => {
-        if (!window.confirm("Save all changes and finish session?")) return;
         setSaving(true);
         try {
             // 1. Save Profile
