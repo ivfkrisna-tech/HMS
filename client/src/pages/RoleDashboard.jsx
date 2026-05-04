@@ -48,7 +48,11 @@ const RoleDashboard = () => {
 
     const userName = user.name || 'Staff';
     const roleName = user.role || 'Staff';
-    const navLinks = user.navLinks || [];
+    // Filter out buttons that should be hidden from the dashboard
+    const HIDDEN_NAV_LABELS = ['book existing patient', 'system revenue analytics'];
+    const navLinks = (user.navLinks || []).filter(
+        link => !HIDDEN_NAV_LABELS.includes((link.label || '').toLowerCase().trim())
+    );
     const permissions = user.permissions || [];
 
     // Get time-based greeting

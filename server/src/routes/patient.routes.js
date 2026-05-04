@@ -40,10 +40,16 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
         // Ensure that explicit permissions are checked instead of just strictly hardcoded names
         const hasPermission = (req.user.permissions || []).includes('patient_view') || 
                               (req.user.permissions || []).includes('visit_diagnose') ||
+                              (req.user.permissions || []).includes('billing_view') ||
+                              (req.user.permissions || []).includes('billing_manage') ||
                               (req.user._roleData?.permissions || []).includes('patient_view') ||
-                              (req.user._roleData?.permissions || []).includes('visit_diagnose');
+                              (req.user._roleData?.permissions || []).includes('visit_diagnose') ||
+                              (req.user._roleData?.permissions || []).includes('billing_view') ||
+                              (req.user._roleData?.permissions || []).includes('billing_manage');
 
-        const hasAccess = allowedRoles.includes(userRole) || allowedRoles.includes(dynRole) || hasPermission;
+        // Use partial matching so 'Billing Executive', 'Lab Technician', etc. are recognized
+        const matchesRole = allowedRoles.some(r => userRole.includes(r) || dynRole.includes(r));
+        const hasAccess = matchesRole || hasPermission;
 
         if (!hasAccess && userRole !== 'superadmin') {
             return res.status(403).json({ success: false, message: 'Unauthorized access to patient history' });

@@ -802,7 +802,6 @@ const ReceptionDashboard = () => {
                 </div>
             </div>
         );
-    }
 
     // PROFILE VIEW MODE
     if (viewMode === 'profile' && profilePatient) {
@@ -908,8 +907,8 @@ const ReceptionDashboard = () => {
                     )}
                 </div>
             </div>
-        </div>
-    );
+        );
+    }
 
     const renderTransactions = () => {
         const totalCollected = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);

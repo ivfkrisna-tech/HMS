@@ -83,7 +83,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'Appointments', path: '/appointment', icon: <FiCalendar /> },
             ];
         }
-        if (role === 'billing') {
+        if (role.includes('billing')) {
             return [
                 { label: 'Patient Billing', path: '/cashier/billing', icon: <FiFileText /> },
             ];
