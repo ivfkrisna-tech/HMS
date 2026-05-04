@@ -33,7 +33,7 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
         const userId = req.params.id;
         const roleData = req.user._roleData;
 
-        const allowedRoles = ['doctor', 'nurse', 'superadmin', 'admin', 'reception', 'lab', 'pharmacy', 'centraladmin', 'hospitaladmin'];
+        const allowedRoles = ['doctor', 'nurse', 'superadmin', 'admin', 'reception', 'lab', 'pharmacy', 'centraladmin', 'hospitaladmin', 'billing', 'accountant', 'cashier'];
         const userRole = (req.user.role || '').toLowerCase();
         const dynRole = (roleData?.name || '').toLowerCase();
         

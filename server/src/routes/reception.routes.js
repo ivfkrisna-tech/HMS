@@ -255,10 +255,14 @@ router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (
         let queryFilter = {};
         if (req.user.hospitalId) queryFilter.hospitalId = req.user.hospitalId;
 
-        // Default: all active appointments (pending / confirmed)
+        // Default: all active appointments (pending / confirmed) for TODAY
         // Pass ?all=true to get full history
         if (req.query.all !== 'true') {
             queryFilter.status = { $nin: ['cancelled', 'completed'] };
+            
+            // Generate today's date in YYYY-MM-DD format based on local time or UTC as standard in this app
+            const today = new Date().toLocaleDateString('en-CA'); // Outputs YYYY-MM-DD locally
+            queryFilter.appointmentDate = today;
         }
 
         const appointments = await Appointment.find(queryFilter)

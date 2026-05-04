@@ -1071,7 +1071,7 @@ const ReceptionDashboard = () => {
                         </thead>
                         <tbody>
                             {appointments.map(apt => (
-                                <tr key={apt._id}>
+                                <tr key={apt._id} style={apt.isHospitalized ? { backgroundColor: '#fdf2f8' } : {}}>
                                     <td>{apt.userId?.name}<br /><small>{apt.userId?.phone}</small></td>
                                     <td>{apt.doctorName}</td>
                                     <td>

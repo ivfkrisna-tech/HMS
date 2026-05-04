@@ -197,6 +197,7 @@ const DoctorPatientDetails = () => {
                 diagnosis: sessionData.diagnosis,
                 notes: sessionData.notes,
                 labTests: sessionData.labTests.split(',').map(s => s.trim()).filter(Boolean),
+                selectedPackages: selectedPackages,
                 pharmacy: (sessionData.medicines || []).filter(m => m.medicineName?.trim()).map(m => ({
                     medicineName: m.medicineName?.trim() || '',
                     saltName: m.saltName?.trim() || '',

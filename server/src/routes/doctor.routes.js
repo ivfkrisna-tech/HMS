@@ -326,7 +326,7 @@ router.get('/all-appointments', verifyToken, async (req, res) => {
 // 6. UPDATE Session (Notes)
 router.patch('/appointments/:id/prescription', verifyToken, upload.single('prescriptionFile'), async (req, res) => {
     try {
-        const { status, diagnosis, labTests, dietPlan, pharmacy, notes, labId } = req.body;
+        const { status, diagnosis, labTests, selectedPackages, dietPlan, pharmacy, notes, labId } = req.body;
         const findQuery = { _id: req.params.id };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
         const appointment = await Appointment.findOne(findQuery);
@@ -384,13 +384,35 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
             
             // Dynamically calculate total amount for these lab tests
             const LabTest = require('../models/labTest.model');
+            const TestPackage = require('../models/testPackage.model');
+            
             const allTests = await LabTest.find();
+            const selectedPkgs = await TestPackage.find({ _id: { $in: selectedPackages || [] } }).populate('tests');
+            
             let totalAmount = 0;
             const hidStr = (req.user.hospitalId || appointment.hospitalId || '').toString();
+            let packageTestNames = [];
+            
+            // Add package prices and collect tests
+            selectedPkgs.forEach(pkg => {
+                totalAmount += (pkg.discountedPrice || pkg.price || 0);
+                if (pkg.tests) {
+                    pkg.tests.forEach(t => packageTestNames.push(t.name.trim().toLowerCase()));
+                }
+                const pkgLabel = `[Package] ${pkg.name}`;
+                if (!appointment.labTests.includes(pkgLabel)) {
+                    appointment.labTests.push(pkgLabel);
+                }
+            });
+
             (appointment.labTests || []).forEach(testName => {
-                const testObj = allTests.find(t => t.name.trim().toLowerCase() === testName.trim().toLowerCase());
+                const normalizedName = testName.trim().toLowerCase();
+                if (normalizedName.startsWith('[package]')) return; // Already charged
+                if (packageTestNames.includes(normalizedName)) return; // Included in a package
+
+                const testObj = allTests.find(t => t.name.trim().toLowerCase() === normalizedName);
                 if (testObj) {
-                    if (hidStr && testObj.hospitalPrices && testObj.hospitalPrices.has && testObj.hospitalPrices.has(hidStr)) {
+                    if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices.has === 'function' && testObj.hospitalPrices.has(hidStr)) {
                         totalAmount += testObj.hospitalPrices.get(hidStr) || 0;
                     } else if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hidStr]) {
                         totalAmount += testObj.hospitalPrices[hidStr];

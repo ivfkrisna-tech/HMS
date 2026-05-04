@@ -48,6 +48,28 @@ const getModels = (req) => {
     };
 };
 
+// Search patients for autocomplete dropdown
+router.get('/search-patients', verifyBillingAccess, async (req, res) => {
+    try {
+        const { query } = req.query;
+        if (!query) return res.json({ success: true, patients: [] });
+
+        const regex = new RegExp(query, 'i');
+        const patients = await MasterUser.find({
+            $or: [
+                { name: regex },
+                { phone: regex },
+                { mrn: regex },
+                { patientId: regex }
+            ]
+        }).select('name phone mrn patientId dob gender').limit(10).lean();
+
+        res.json({ success: true, patients });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // 1. Search Patient & Fetch All Bills (pending + paid summary) — tenant-scoped
 router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
     try {
@@ -72,14 +94,14 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         const pendingStatuses = ['pending', 'Pending', 'PENDING', 'Unpaid'];
 
         const [appointments, labReports, pharmacyOrders, facilityCharges, admissions] = await Promise.all([
-            Appointment.find({ patientId: patient._id, paymentStatus: { $in: pendingStatuses } })
+            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient.patientId }], paymentStatus: { $in: pendingStatuses } })
                 .select('appointmentDate appointmentTime amount paymentStatus serviceName doctorName status createdAt').lean(),
-            LabReport.find({ patientId: patient._id, paymentStatus: { $in: pendingStatuses } })
+            LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient.patientId }], paymentStatus: { $in: pendingStatuses } })
                 .select('testNames amount paymentStatus testStatus createdAt').lean(),
-            PharmacyOrder.find({ patientId: patient._id, paymentStatus: { $in: pendingStatuses } })
+            PharmacyOrder.find({ $or: [{ userId: patient._id }, { patientId: patient.patientId }], paymentStatus: { $in: pendingStatuses } })
                 .select('items totalAmount paymentStatus orderStatus createdAt').lean(),
             FacilityCharge.find({ patientId: patient._id, paymentStatus: { $in: pendingStatuses } })
-                .select('facilityName pricePerDay daysUsed totalAmount paymentStatus createdAt').lean(),
+                .select('facilityName pricePerDay days totalAmount paymentStatus createdAt').lean(),
             Admission.find({ patientId: patient._id })
                 .sort({ admissionDate: -1 }).lean(),
         ]);
@@ -140,7 +162,7 @@ router.post('/facility-charge', verifyBillingAccess, async (req, res) => {
             patientId,
             facilityName,
             pricePerDay: Number(pricePerDay),
-            daysUsed: Number(days),
+            days: Number(days),
             totalAmount: Number(pricePerDay) * Number(days),
             addedBy: req.user._id || req.user.userId
         });

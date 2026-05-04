@@ -49,6 +49,19 @@ const PatientBillingProfile = () => {
             const res = await billingAPI.getPatientBills(patient._id);
             if (res.success) {
                 setPatient(res.patient);
+                res.billing.admissions = res.billing.admissions.map(adm => {
+                    if (adm.status === 'Admitted') {
+                        const diffDays = Math.max(1, Math.ceil((new Date().getTime() - new Date(adm.admissionDate).getTime()) / (1000 * 60 * 60 * 24)));
+                        let grandTotal = 0;
+                        adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
+                            const fTotal = diffDays * Number(f.pricePerDay || 0);
+                            grandTotal += fTotal;
+                            return { ...f, days: diffDays, totalAmount: fTotal };
+                        });
+                        adm.totalAmount = grandTotal;
+                    }
+                    return adm;
+                });
                 setBilling(res.billing);
             }
         } catch (err) {
@@ -72,6 +85,19 @@ const PatientBillingProfile = () => {
             const res = await billingAPI.getPatientBills(searchQuery.trim());
             if (res.success) {
                 setPatient(res.patient);
+                res.billing.admissions = res.billing.admissions.map(adm => {
+                    if (adm.status === 'Admitted') {
+                        const diffDays = Math.max(1, Math.ceil((new Date().getTime() - new Date(adm.admissionDate).getTime()) / (1000 * 60 * 60 * 24)));
+                        let grandTotal = 0;
+                        adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
+                            const fTotal = diffDays * Number(f.pricePerDay || 0);
+                            grandTotal += fTotal;
+                            return { ...f, days: diffDays, totalAmount: fTotal };
+                        });
+                        adm.totalAmount = grandTotal;
+                    }
+                    return adm;
+                });
                 setBilling(res.billing);
             }
         } catch (err) {
@@ -151,7 +177,22 @@ const PatientBillingProfile = () => {
         try {
             await admissionAPI.dischargePatient(admissionId);
             const res = await billingAPI.getPatientBills(patient._id);
-            if (res.success) setBilling(res.billing);
+            if (res.success) {
+                res.billing.admissions = res.billing.admissions.map(adm => {
+                    if (adm.status === 'Admitted') {
+                        const diffDays = Math.max(1, Math.ceil((new Date().getTime() - new Date(adm.admissionDate).getTime()) / (1000 * 60 * 60 * 24)));
+                        let grandTotal = 0;
+                        adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
+                            const fTotal = diffDays * Number(f.pricePerDay || 0);
+                            grandTotal += fTotal;
+                            return { ...f, days: diffDays, totalAmount: fTotal };
+                        });
+                        adm.totalAmount = grandTotal;
+                    }
+                    return adm;
+                });
+                setBilling(res.billing);
+            }
         } catch (err) {
             alert(err.response?.data?.message || 'Discharge failed');
         } finally {
@@ -392,7 +433,7 @@ const PatientBillingProfile = () => {
                                             <td>{fmtDate(f.createdAt)}</td>
                                             <td>{f.facilityName}</td>
                                             <td>{fmt(f.pricePerDay)}</td>
-                                            <td>{f.daysUsed}</td>
+                                            <td>{f.days}</td>
                                             <td className="amount-cell">{fmt(f.totalAmount)}</td>
                                         </tr>
                                     ))}

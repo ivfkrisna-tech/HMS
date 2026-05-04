@@ -259,10 +259,14 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
-    position: static;
-    z-index: auto;
-    background: transparent;
+    position: sticky;
+    top: -40px;
+    background: white;
+    z-index: 100;
+    margin: -40px -40px 30px -40px;
+    padding: 40px 40px 20px 40px;
+    border-bottom: 1px solid #f1f5f9;
+    border-radius: 24px 24px 0 0;
 }
 
 .modal-header h2 {

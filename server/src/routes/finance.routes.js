@@ -41,7 +41,7 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
             targetHospitalId = hospitalId || null;
         } else {
             // All other roles are strictly scoped to their own hospital
-            if (!req.user.hospitalId) {
+            if (!req.tenantDb && !req.user.hospitalId) {
                 return res.json({
                     success: true,
                     data: {
@@ -52,7 +52,7 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
                     }
                 });
             }
-            targetHospitalId = req.user.hospitalId.toString();
+            targetHospitalId = req.user.hospitalId ? req.user.hospitalId.toString() : null;
         }
 
         // Date filters
@@ -72,7 +72,7 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
 
         // HARD ISOLATION: Direct hospitalId filter — no doctor lookup needed
         let hospitalFilter = {};
-        if (targetHospitalId) {
+        if (!req.tenantDb && targetHospitalId) {
             hospitalFilter = { hospitalId: targetHospitalId };
         }
 
@@ -83,10 +83,10 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
         
         if (req.tenantDb) {
             const tenantModels = getTenantModels(req.tenantDb);
-            Appointment = tenantModels.Appointment;
-            LabReport = tenantModels.LabReport;
-            PharmacyOrder = tenantModels.PharmacyOrder;
-            Inventory = tenantModels.Inventory;
+            Appointment = tenantModels.Appointment || Appointment;
+            LabReport = tenantModels.LabReport || LabReport;
+            PharmacyOrder = tenantModels.PharmacyOrder || PharmacyOrder;
+            Inventory = tenantModels.Inventory || Inventory; // Fallback to master if tenant doesn't have it
         }
 
         // 1. Consultations Revenue

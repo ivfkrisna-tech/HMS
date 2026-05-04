@@ -89,11 +89,20 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             ];
         }
         if (user?.navLinks && user.navLinks.length > 0) {
-            return user.navLinks.map(link => ({
-                label: link.label,
-                path: link.path,
-                icon: <FiFileText /> // Fallback icon for dynamic links
-            }));
+            const links = user.navLinks.map(link => {
+                return {
+                    label: link.label,
+                    // If the backend link says 'Reception Dashboard' but actually points to /reception/dashboard, we will leave it
+                    // But we'll add a Home link below to ensure they can get to /my-dashboard.
+                    path: link.path,
+                    icon: <FiFileText /> // Fallback icon for dynamic links
+                };
+            });
+            // Add a Home link at the very top to guarantee they can get back to my-dashboard
+            return [
+                { label: 'Home Dashboard', path: '/my-dashboard', icon: <FiHome /> },
+                ...links
+            ];
         }
 
         return [
