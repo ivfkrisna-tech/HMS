@@ -317,6 +317,15 @@ export const hospitalAPI = {
     // Appointment mode (Supreme Admin)
     updateAppointmentMode: async (id, appointmentMode) => (await apiClient.put(`/api/hospitals/${id}`, { appointmentMode })).data,
     getNextToken: async (hospitalId, doctorId, date) => (await apiClient.get(`/api/hospitals/${hospitalId}/next-token?doctorId=${doctorId}&date=${date}`)).data,
+    getStaffCollections: async (startDate, endDate) => {
+        let url = `/api/hospitals/my-hospital/staff-collections`;
+        const params = new URLSearchParams();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        const qs = params.toString();
+        if (qs) url += `?${qs}`;
+        return (await apiClient.get(url)).data;
+    }
 };
 
 export const hospitalAdminAPI = {

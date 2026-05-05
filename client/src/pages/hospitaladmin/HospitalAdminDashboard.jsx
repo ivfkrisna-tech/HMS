@@ -67,6 +67,12 @@ const HospitalAdminDashboard = () => {
     const [savingLabTest, setSavingLabTest] = useState(false);
     const [labTestForm, setLabTestForm] = useState({ name: '', code: '', description: '', price: '', category: 'General' });
 
+    // --- Collections State ---
+    const [staffCollections, setStaffCollections] = useState([]);
+    const [loadingCollections, setLoadingCollections] = useState(false);
+    const [collectionsStartDate, setCollectionsStartDate] = useState('');
+    const [collectionsEndDate, setCollectionsEndDate] = useState('');
+
     // Auth check
     useEffect(() => {
         const role = currentUser?.role;
@@ -85,7 +91,20 @@ const HospitalAdminDashboard = () => {
     useEffect(() => {
         if (activeTab === 'inventory' && inventory.length === 0) fetchInventory();
         if (activeTab === 'labpricing' && labTests.length === 0) fetchLabTests();
+        if (activeTab === 'collections' && staffCollections.length === 0) fetchStaffCollections();
     }, [activeTab]);
+
+    const fetchStaffCollections = async (start = collectionsStartDate, end = collectionsEndDate) => {
+        try {
+            setLoadingCollections(true);
+            const res = await hospitalAPI.getStaffCollections(start, end);
+            if (res.success) setStaffCollections(res.collections || []);
+        } catch (err) {
+            console.error('Error fetching staff collections:', err);
+        } finally {
+            setLoadingCollections(false);
+        }
+    };
 
     const fetchMyHospital = async () => {
         try {
@@ -422,6 +441,7 @@ const HospitalAdminDashboard = () => {
         { id: 'facilities', label: '🛏️ Facilities' },
         { id: 'inventory', label: '💊 Inventory' },
         { id: 'labpricing', label: '🧪 Lab Pricing' },
+        { id: 'collections', label: '💰 Collections' },
     ];
 
     // Hospital Admin can navigate to operations but NOT to question library / test packages / medicines
@@ -739,9 +759,9 @@ const HospitalAdminDashboard = () => {
                     <div className="admin-card">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                             <div>
-                                <h2>💵 Consultation Fees</h2>
+                                <h2>💵 Consultation Settings</h2>
                                 <p style={{ color: '#888', fontSize: '14px', margin: '4px 0 0' }}>
-                                    Configure the consultation fee. Receptionists cannot alter this fee during booking.
+                                    Configure the consultation fee and validity period.
                                 </p>
                             </div>
                             <button
@@ -750,15 +770,18 @@ const HospitalAdminDashboard = () => {
                                 onClick={async () => {
                                     try {
                                         setError('');
-                                        await hospitalAPI.updateDepartmentFees({ departmentFees: hospitalInfo.departmentFees });
-                                        setSuccess('Consultation fee saved!');
+                                        await hospitalAPI.updateDepartmentFees({ 
+                                            departmentFees: hospitalInfo.departmentFees,
+                                            consultationValidityDays: hospitalInfo.consultationValidityDays
+                                        });
+                                        setSuccess('Consultation settings saved!');
                                         setTimeout(() => setSuccess(''), 3000);
                                     } catch (err) {
-                                        setError('Error saving fees');
+                                        setError('Error saving settings');
                                     }
                                 }}
                             >
-                                Save Fee
+                                Save Settings
                             </button>
                         </div>
 
@@ -767,6 +790,7 @@ const HospitalAdminDashboard = () => {
                                 <thead>
                                     <tr>
                                         <th>Consultation Fee (₹)</th>
+                                        <th>Consultation Validity (Days)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -788,6 +812,25 @@ const HospitalAdminDashboard = () => {
                                                         }));
                                                     }}
                                                 />
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    className="staff-input"
+                                                    style={{ width: '140px', padding: '8px 12px' }}
+                                                    value={hospitalInfo?.consultationValidityDays ?? 30}
+                                                    onChange={(e) => {
+                                                        const val = Number(e.target.value);
+                                                        setHospitalInfo(prev => ({
+                                                            ...prev,
+                                                            consultationValidityDays: val
+                                                        }));
+                                                    }}
+                                                />
+                                                <span style={{ color: '#64748b' }}>days</span>
                                             </div>
                                         </td>
                                     </tr>
@@ -1175,6 +1218,79 @@ const HospitalAdminDashboard = () => {
                                             </tr>
                                         ))}
                                     </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ===================== COLLECTIONS TAB ===================== */}
+                {activeTab === 'collections' && (
+                    <div className="admin-card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                            <div>
+                                <h2>💰 Staff Collections</h2>
+                                <p style={{ color: '#888', fontSize: '14px', margin: '4px 0 0' }}>
+                                    Track payments collected by reception staff and doctors.
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Start Date</label>
+                                    <input type="date" className="staff-input" style={{ width: 'auto', padding: '8px' }} 
+                                        value={collectionsStartDate} onChange={e => setCollectionsStartDate(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>End Date</label>
+                                    <input type="date" className="staff-input" style={{ width: 'auto', padding: '8px' }} 
+                                        value={collectionsEndDate} onChange={e => setCollectionsEndDate(e.target.value)} />
+                                </div>
+                                <button className="btn-save" style={{ padding: '8px 16px', height: '38px' }} onClick={() => fetchStaffCollections()}>Filter</button>
+                            </div>
+                        </div>
+
+                        {loadingCollections ? (
+                            <div className="loading-message">Loading collections...</div>
+                        ) : staffCollections.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
+                                <p>No collection records found for the selected period.</p>
+                            </div>
+                        ) : (
+                            <div className="users-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Staff Member</th>
+                                            <th>Payment Channel</th>
+                                            <th>Total Transactions</th>
+                                            <th>Total Collected (₹)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {staffCollections.map((col, i) => (
+                                            <tr key={i}>
+                                                <td style={{ fontWeight: 600, color: '#1e293b' }}>{col.staffName || 'Unknown Staff'}</td>
+                                                <td>
+                                                    <span style={{ 
+                                                        background: '#e0f2fe', color: '#0369a1', padding: '4px 10px', 
+                                                        borderRadius: '12px', fontSize: '12px', fontWeight: 600 
+                                                    }}>
+                                                        {col.paymentMethod || 'Cash'}
+                                                    </span>
+                                                </td>
+                                                <td>{col.count}</td>
+                                                <td style={{ fontWeight: 700, color: '#059669' }}>{formatCurrency(col.totalAmount)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+                                            <td colSpan="3" style={{ textAlign: 'right', paddingRight: '20px' }}>Total Amount:</td>
+                                            <td style={{ color: '#059669', fontSize: '16px' }}>
+                                                {formatCurrency(staffCollections.reduce((sum, col) => sum + col.totalAmount, 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             </div>
                         )}

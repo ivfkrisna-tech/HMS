@@ -5,6 +5,7 @@ import { useAuth } from '../../store/hooks';
 import { getSubdomain } from '../../utils/subdomain';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import Webcam from 'react-webcam';
 import './ReceptionDashboard.css';
 
 const timeSlots = [
@@ -55,10 +56,10 @@ const ReceptionDashboard = () => {
         // Identity
         title: 'Mrs.', firstName: '', middleName: '', lastName: '',
         dob: '', age: '', gender: 'Female', mobile: '', email: '',
-        address: '', aadhaar: '', isAadhaarVerified: false,
+        address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
 
         // Partner
-        partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '',
+        partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '', partnerRelation: 'Husband',
 
         // Vitals / Payment (Reception Duties)
         height: '', weight: '', bmi: '', bloodGroup: '',
@@ -70,6 +71,9 @@ const ReceptionDashboard = () => {
     });
 
     const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+    const [patientPhoto, setPatientPhoto] = useState(null);
+    const [showWebcam, setShowWebcam] = useState(false);
+    const webcamRef = React.useRef(null);
     const [verifyingAadhaar, setVerifyingAadhaar] = useState(false);
     const [otpSent, setOtpSent] = useState(false);
     const [aadhaarOtp, setAadhaarOtp] = useState('');
@@ -174,6 +178,12 @@ const ReceptionDashboard = () => {
         } catch (err) { console.error(err); }
     };
 
+    const capturePhoto = React.useCallback(() => {
+        const imageSrc = webcamRef.current.getScreenshot();
+        setPatientPhoto(imageSrc);
+        setShowWebcam(false);
+    }, [webcamRef]);
+
     const todayStr = new Date().toISOString().split('T')[0];
 
     const isSlotInPast = (time) => {
@@ -201,11 +211,12 @@ const ReceptionDashboard = () => {
         setOtpSent(false);
         setAadhaarOtp('');
         setVerifyingAadhaar(false);
+        setPatientPhoto(null);
         setIntakeForm({
             title: 'Mrs.', firstName: '', middleName: '', lastName: '',
             dob: '', age: '', gender: 'Female', mobile: '', email: '',
-            address: '', aadhaar: '', isAadhaarVerified: false,
-            partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '',
+            address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
+            partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '', partnerRelation: 'Husband',
             height: '', weight: '', bmi: '', bloodGroup: '',
             paymentStatus: 'Pending', consultationFee: hospitalContext?.appointmentFee ?? '500',
             department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: '',
@@ -219,6 +230,7 @@ const ReceptionDashboard = () => {
         setOtpSent(false);
         setAadhaarOtp('');
         setVerifyingAadhaar(false);
+        setPatientPhoto(patient.avatar || null);
         const p = patient.fertilityProfile || {};
         const getVal = (val) => val || '';
 
@@ -230,6 +242,7 @@ const ReceptionDashboard = () => {
             email: getVal(patient.email),
             aadhaar: p.aadhaar || '',
             isAadhaarVerified: p.aadhaar ? true : false,
+            avatar: patient.avatar || '',
             ...p,
             consultationFee: hospitalContext?.appointmentFee ?? '500',
             department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: ''
@@ -499,8 +512,26 @@ const ReceptionDashboard = () => {
                 throw new Error(regRes.message || "Registration failed.");
             }
 
-            // 2. Update Profile (Vitals + Basic Info + Aadhaar)
-            await receptionAPI.updateIntake(userId, intakeForm);
+            let finalAvatar = intakeForm.avatar;
+            if (patientPhoto && patientPhoto.startsWith('data:image')) {
+                try {
+                    const fetchRes = await fetch(patientPhoto);
+                    const blob = await fetchRes.blob();
+                    const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+                    const fd = new FormData();
+                    fd.append('images', file);
+                    const upRes = await uploadAPI.uploadImages(fd);
+                    if (upRes.success && upRes.files?.length > 0) {
+                        finalAvatar = upRes.files[0].url;
+                    }
+                } catch (e) { console.error('Photo upload failed', e); }
+            }
+
+            // 2. Update Profile (Vitals + Basic Info + Aadhaar + Avatar)
+            const updatePayload = { ...intakeForm };
+            if (finalAvatar) updatePayload.avatar = finalAvatar;
+
+            await receptionAPI.updateIntake(userId, updatePayload);
 
             // 3. Book Appointment (optional when editing existing patient)
             const isTokenMode = hospitalContext?.appointmentMode === 'token';
@@ -626,6 +657,38 @@ const ReceptionDashboard = () => {
                     <form onSubmit={handleSave}>
                         <div className="form-section">
                             <h4>1. Patient Identity & KYC</h4>
+                            <div className="form-row">
+                                <div className="field" style={{ flex: 1 }}>
+                                    <label>Patient Photo</label>
+                                    {showWebcam ? (
+                                        <div style={{ position: 'relative', width: '200px', borderRadius: '8px', overflow: 'hidden' }}>
+                                            <Webcam
+                                                audio={false}
+                                                ref={webcamRef}
+                                                screenshotFormat="image/jpeg"
+                                                videoConstraints={{ facingMode: "user" }}
+                                                style={{ width: '200px', height: '150px', objectFit: 'cover' }}
+                                            />
+                                            <button 
+                                                type="button" 
+                                                onClick={capturePhoto}
+                                                style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
+                                            >
+                                                📸 Capture
+                                            </button>
+                                        </div>
+                                    ) : patientPhoto ? (
+                                        <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+                                            <img src={patientPhoto} alt="Patient" style={{ width: '100px', height: '100px', borderRadius: '8px', objectFit: 'cover', border: '2px solid #e2e8f0' }} />
+                                            <button type="button" className="btn-edit" onClick={() => setShowWebcam(true)} style={{ padding: '6px 12px', fontSize: '12px' }}>Retake Photo</button>
+                                        </div>
+                                    ) : (
+                                        <button type="button" className="btn-action" onClick={() => setShowWebcam(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: 'fit-content', background: '#f8fafc', color: '#475569', border: '1px dashed #cbd5e1' }}>
+                                            📸 Open Camera
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
 
                             {/* AADHAAR NUMBER FIELD */}
                             <div className="form-row" style={{ alignItems: 'flex-end', backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px dashed #22c55e', gap: '15px' }}>
@@ -667,10 +730,28 @@ const ReceptionDashboard = () => {
                                 <div className="field"><label>Age</label><input name="age" value={intakeForm.age} onChange={handleInputChange} /></div>
                             </div>
                             <div className="form-row">
-                                <div className="field"><label>Partner Name</label><input name="partnerFirstName" value={intakeForm.partnerFirstName} onChange={handleInputChange} /></div>
+                                <div className="field">
+                                    <label>Guardian / Partner Name</label>
+                                    <input name="partnerFirstName" value={intakeForm.partnerFirstName} onChange={handleInputChange} placeholder="Name of accompanying person" />
+                                </div>
+                                <div className="field">
+                                    <label>Relation to Patient</label>
+                                    <select name="partnerRelation" value={intakeForm.partnerRelation || 'Husband'} onChange={handleInputChange}>
+                                        <option value="Husband">Husband</option>
+                                        <option value="Wife">Wife</option>
+                                        <option value="Father">Father</option>
+                                        <option value="Mother">Mother</option>
+                                        <option value="Son">Son</option>
+                                        <option value="Daughter">Daughter</option>
+                                        <option value="Brother">Brother</option>
+                                        <option value="Sister">Sister</option>
+                                        <option value="Friend">Friend</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
                                 <div className="field">
                                     <label>
-                                        Partner Mobile
+                                        Mobile
                                         {intakeForm.partnerMobile && intakeForm.partnerMobile.length !== 10 && (
                                             <span style={{ color: 'red', marginLeft: '5px', fontSize: '11px' }}>incorrect phone number</span>
                                         )}
@@ -1002,7 +1083,14 @@ const ReceptionDashboard = () => {
                         {searchResults.map(p => (
                             <div key={p._id} style={{ padding: '12px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>{p.name} <span style={{ color: '#666', fontSize: '0.9rem' }}>({p.patientId || 'N/A'})</span></div>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
+                                        {p.name} <span style={{ color: '#666', fontSize: '0.9rem' }}>({p.patientId || 'N/A'})</span>
+                                    </div>
+                                    {p.fertilityProfile?.partnerFirstName && (
+                                        <div style={{ fontSize: '0.9rem', color: '#6366f1' }}>
+                                            Guardian / Partner: {p.fertilityProfile.partnerFirstName} {p.fertilityProfile.partnerLastName || ''}
+                                        </div>
+                                    )}
                                     <div style={{ fontSize: '0.9rem', color: '#888' }}>📱 {p.phone}</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '8px' }}>

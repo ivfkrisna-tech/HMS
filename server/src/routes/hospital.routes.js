@@ -462,7 +462,7 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
             return res.status(403).json({ success: false, message: 'Only hospital admins manage their department fees this way' });
         }
         
-        const { departmentFees } = req.body;
+        const { departmentFees, consultationValidityDays } = req.body;
         if (!departmentFees || typeof departmentFees !== 'object') {
             return res.status(400).json({ success: false, message: 'Department fees data required' });
         }
@@ -471,6 +471,9 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
 
         hospital.departmentFees = departmentFees;
+        if (consultationValidityDays !== undefined) {
+            hospital.consultationValidityDays = Number(consultationValidityDays);
+        }
 
         // Sync the main appointmentFee with the first department fee value
         // so the reception dashboard picks up the updated fee
@@ -481,7 +484,7 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
 
         await hospital.save();
 
-        res.json({ success: true, message: 'Department fees updated successfully', hospital });
+        res.json({ success: true, message: 'Settings updated successfully', hospital });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -938,6 +941,64 @@ router.put('/:id/branding', verifyCentralAdmin, async (req, res) => {
 
         res.json({ success: true, message: 'Branding updated successfully', branding: hospital.branding });
     } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// GET STAFF WISE COLLECTIONS
+router.get('/my-hospital/staff-collections', verifyHospitalAdmin, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        if (!hospitalId) return res.status(400).json({ success: false, message: 'No hospital context' });
+
+        const { startDate, endDate } = req.query;
+        const match = { 
+            hospitalId: new mongoose.Types.ObjectId(hospitalId),
+            paymentStatus: { $regex: /^paid$/i },
+            bookedBy: { $exists: true, $ne: null }
+        };
+
+        if (startDate && endDate) {
+            match.createdAt = {
+                $gte: new Date(startDate),
+                $lte: new Date(endDate)
+            };
+        }
+
+        const collections = await Appointment.aggregate([
+            { $match: match },
+            {
+                $group: {
+                    _id: { staffId: '$bookedBy', method: '$paymentMethod' },
+                    totalAmount: { $sum: '$amount' },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: '_id.staffId',
+                    foreignField: '_id',
+                    as: 'staff'
+                }
+            },
+            { $unwind: { path: '$staff', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    staffId: '$_id.staffId',
+                    staffName: '$staff.name',
+                    paymentMethod: '$_id.method',
+                    totalAmount: 1,
+                    count: 1,
+                    _id: 0
+                }
+            },
+            { $sort: { staffName: 1, paymentMethod: 1 } }
+        ]);
+
+        res.json({ success: true, collections });
+    } catch (err) {
+        console.error('Staff Collections Error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });

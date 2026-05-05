@@ -177,7 +177,9 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
             $or: [
                 { name: { $regex: query, $options: 'i' } },
                 { phone: { $regex: query, $options: 'i' } },
-                { patientId: { $regex: query, $options: 'i' } }
+                { patientId: { $regex: query, $options: 'i' } },
+                { 'fertilityProfile.partnerFirstName': { $regex: query, $options: 'i' } },
+                { 'fertilityProfile.partnerLastName': { $regex: query, $options: 'i' } }
             ]
         };
 
@@ -210,6 +212,7 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         // Update Root Aadhaar Fields
         if (updates.aadhaar) updateQuery.aadhaarNumber = updates.aadhaar;
         if (updates.isAadhaarVerified !== undefined) updateQuery.isAadhaarVerified = updates.isAadhaarVerified;
+        if (updates.avatar) updateQuery.avatar = updates.avatar;
 
         // Map Fertility Profile fields
         const profileFields = [
@@ -217,6 +220,7 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
             'aadhaar', 'altPhone', 'patientCategory', 'nationality', 'isInternational', 'language', 'languagesKnown',
             'height', 'weight', 'bmi', 'bloodGroup',
             'partnerTitle', 'partnerFirstName', 'partnerLastName', 'partnerDob', 'partnerAge', 'partnerAadhaar',
+            'partnerRelation',
             'partnerMobile', 'partnerAltPhone', 'partnerEmail', 'partnerAddressSame', 'partnerAddress',
             'partnerArea', 'partnerCity', 'partnerState', 'partnerCountry', 'partnerPinCode', 'partnerNationality',
             'partnerHeight', 'partnerWeight', 'partnerBmi', 'partnerBloodGroup',
