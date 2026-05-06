@@ -819,11 +819,17 @@ const CentralAdminDashboard = () => {
                                     )}
                                 </div>
 
-                                <div style={{ marginTop: '12px', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.78rem', color: '#64748b', lineHeight: 1.7 }}>
-                                    <strong>DNS Setup (hospital's domain registrar):</strong><br />
+                                <div style={{ marginTop: '12px', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.78rem', color: '#64748b', lineHeight: 1.9 }}>
+                                    <strong>DNS setup at hospital's domain registrar:</strong><br />
+                                    The hospital adds ONE record pointing their subdomain to the HMS server.<br />
                                     Type: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>CNAME</code> &nbsp;
                                     Name: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>portal</code> &nbsp;
-                                    Value: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>{import.meta.env.VITE_ROOT_DOMAIN || 'your-platform-domain.com'}</code>
+                                    Value: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>admin.krisnaivfgroup5.com</code><br />
+                                    <span style={{ color: '#94a3b8' }}>
+                                        This points <em>portal.apex.com</em> to the same server that runs
+                                        <em> admin.krisnaivfgroup5.com</em>. SSL is handled automatically by Caddy.
+                                        The root domain <em>apex.com</em> is untouched.
+                                    </span>
                                 </div>
                             </div>
 
