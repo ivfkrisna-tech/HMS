@@ -652,8 +652,6 @@ const CentralAdminDashboard = () => {
                                         { icon: '📋', label: 'Lab Tests', path: '/admin/lab-tests', bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
                                         { icon: '💊', label: 'Pharmacy', path: '/admin/pharmacy', bg: '#ffedd5', color: '#ea580c', border: '#fed7aa' },
                                         { icon: '🏥', label: 'Reception', path: '/admin/reception', bg: '#dcfce7', color: '#16a34a', border: '#bbf7d0' },
-                                        { icon: '🛠️', label: 'Services', path: '/admin/services', bg: '#fefce8', color: '#ca8a04', border: '#fef08a' },
-                                        { icon: '💉', label: 'Medicines', path: '/admin/medicines', bg: '#fdf2f8', color: '#be185d', border: '#fbcfe8' },
                                     ].map((item, i) => (
                                         <button
                                             key={i}
@@ -2009,7 +2007,7 @@ const CentralAdminDashboard = () => {
                     <div className="admin-card">
                         <h2>⚙️ System Configurations</h2>
                         <p style={{ color: '#888', fontSize: '14px', margin: '5px 0 20px' }}>
-                            Manage global settings — roles, question libraries, lab tests, medicines, services, and test packages.
+                            Manage global settings — roles, question libraries, lab tests, test packages, labs, and pharmacy.
                         </p>
                         <div className="config-grid">
                             {[
@@ -2017,8 +2015,6 @@ const CentralAdminDashboard = () => {
                                 { icon: '❓', label: 'Question Library', desc: 'Configure assessment forms', path: '/admin/question-library', bg: '#f5f3ff', color: '#8b5cf6' },
                                 { icon: '🧪', label: 'Lab Tests', desc: 'Manage lab test catalog', path: '/admin/lab-tests', bg: '#fdf4ff', color: '#d946ef' },
                                 { icon: '📦', label: 'Test Packages', desc: 'Bundle lab tests into packages', path: '/admin/test-packages', bg: '#f0fdf4', color: '#22c55e' },
-                                { icon: '💊', label: 'Medicine Catalog', desc: 'Global medicine library', path: '/admin/medicines', bg: '#fff7ed', color: '#f97316' },
-                                { icon: '🛠️', label: 'Services', desc: 'Hospital services & pricing', path: '/admin/services', bg: '#fefce8', color: '#eab308' },
                                 { icon: '🏥', label: 'Labs', desc: 'Manage lab departments', path: '/admin/labs', bg: '#f0f9ff', color: '#0ea5e9' },
                                 { icon: '💊', label: 'Pharmacy', desc: 'Manage pharmacy departments', path: '/admin/pharmacy', bg: '#fff1f2', color: '#f43f5e' },
                             ].map((item, i) => (

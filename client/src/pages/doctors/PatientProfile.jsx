@@ -113,6 +113,7 @@ const PatientProfile = () => {
         { key: 'overview', label: '📋 Overview', icon: '' },
         { key: 'vitals', label: '💓 Vitals' },
         { key: 'medical', label: '🏥 Medical History' },
+        { key: 'documents', label: '📁 Documents' },
         { key: 'visits', label: '📅 All Visits' },
         { key: 'labs', label: '🧪 Lab Reports' },
         { key: 'prescriptions', label: '💊 Prescriptions' },
@@ -444,6 +445,49 @@ const PatientProfile = () => {
         </div>
     );
 
+    const renderDocuments = () => {
+        const reports = fp.previousReports || [];
+        return (
+            <div style={C.card}>
+                <h4 style={C.cardTitle}>📁 Uploaded Medical Documents</h4>
+                {reports.length === 0 ? (
+                    <div style={C.empty}>
+                        <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📂</div>
+                        <p>No documents uploaded yet.</p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px' }}>
+                        {reports.map((doc, i) => (
+                            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontSize: '1.6rem' }}>{doc.fileName?.endsWith('.pdf') ? '📄' : '🖼️'}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ color: '#f8fafc', fontWeight: '700', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {doc.fileName || `Document ${i + 1}`}
+                                        </div>
+                                        <div style={{ color: '#64748b', fontSize: '0.72rem', marginTop: '2px' }}>
+                                            {doc.date ? new Date(doc.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Date unknown'}
+                                        </div>
+                                    </div>
+                                </div>
+                                {doc.url && (
+                                    <a
+                                        href={doc.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: '#fff', padding: '7px 14px', borderRadius: '8px', textDecoration: 'none', fontWeight: '700', fontSize: '0.8rem', marginTop: '4px' }}
+                                    >
+                                        👁 View Document
+                                    </a>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const renderClinical = () => {
         const h = fp;
         return (
@@ -538,6 +582,7 @@ const PatientProfile = () => {
                 {activeTab === 'overview' && renderOverview()}
                 {activeTab === 'vitals' && renderVitals()}
                 {activeTab === 'medical' && renderMedicalHistory()}
+                {activeTab === 'documents' && renderDocuments()}
                 {activeTab === 'visits' && renderVisits()}
                 {activeTab === 'labs' && renderLabs()}
                 {activeTab === 'prescriptions' && renderPrescriptions()}

@@ -515,16 +515,26 @@ const ReceptionDashboard = () => {
             let finalAvatar = intakeForm.avatar;
             if (patientPhoto && patientPhoto.startsWith('data:image')) {
                 try {
-                    const fetchRes = await fetch(patientPhoto);
-                    const blob = await fetchRes.blob();
-                    const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+                    // Use atob-based conversion — more reliable than fetch() for data URLs
+                    const parts = patientPhoto.split(';base64,');
+                    const mime = parts[0].split(':')[1] || 'image/jpeg';
+                    const binary = atob(parts[1]);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    const blob = new Blob([bytes], { type: mime });
+                    const file = new File([blob], 'patient-photo.jpg', { type: mime });
                     const fd = new FormData();
                     fd.append('images', file);
                     const upRes = await uploadAPI.uploadImages(fd);
                     if (upRes.success && upRes.files?.length > 0) {
                         finalAvatar = upRes.files[0].url;
+                    } else {
+                        console.warn('Photo upload response missing URL', upRes);
                     }
-                } catch (e) { console.error('Photo upload failed', e); }
+                } catch (e) {
+                    console.error('Photo upload failed', e);
+                    alert('Photo upload failed — patient will be saved without photo. Check your connection and try again.');
+                }
             }
 
             // 2. Update Profile (Vitals + Basic Info + Aadhaar + Avatar)

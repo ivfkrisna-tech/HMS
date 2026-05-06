@@ -186,6 +186,34 @@
   font-size: 0.75rem;
 }
 
+/* Topbar right section */
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Home button in topbar */
+.topbar-home-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+.topbar-home-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
 /* User Profile Widget */
 .user-profile-widget {
   display: flex;

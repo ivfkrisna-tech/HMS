@@ -34,24 +34,28 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
         const roleData = req.user._roleData;
 
         const allowedRoles = ['doctor', 'nurse', 'superadmin', 'admin', 'reception', 'lab', 'pharmacy', 'centraladmin', 'hospitaladmin', 'billing', 'accountant', 'cashier'];
-        const userRole = (req.user.role || '').toLowerCase();
-        const dynRole = (roleData?.name || '').toLowerCase();
-        
-        // Ensure that explicit permissions are checked instead of just strictly hardcoded names
-        const hasPermission = (req.user.permissions || []).includes('patient_view') || 
-                              (req.user.permissions || []).includes('visit_diagnose') ||
-                              (req.user.permissions || []).includes('billing_view') ||
-                              (req.user.permissions || []).includes('billing_manage') ||
-                              (req.user._roleData?.permissions || []).includes('patient_view') ||
-                              (req.user._roleData?.permissions || []).includes('visit_diagnose') ||
-                              (req.user._roleData?.permissions || []).includes('billing_view') ||
-                              (req.user._roleData?.permissions || []).includes('billing_manage');
+        // role can be a String ('doctor') or Mongoose ObjectId — always coerce to string
+        const userRole = String(req.user.role || '').toLowerCase();
+        const dynRole = String(roleData?.name || '').toLowerCase();
+        const rolePerms = req.user._roleData?.permissions || [];
 
-        // Use partial matching so 'Billing Executive', 'Lab Technician', etc. are recognized
+        // Wildcard (*) means full access; also check explicit clinical/billing permissions
+        const hasPermission = rolePerms.includes('*') ||
+                              rolePerms.includes('patient_view') ||
+                              rolePerms.includes('visit_diagnose') ||
+                              rolePerms.includes('billing_view') ||
+                              rolePerms.includes('billing_manage') ||
+                              rolePerms.includes('appointment_manage') ||
+                              rolePerms.includes('lab_view') ||
+                              rolePerms.includes('lab_manage') ||
+                              rolePerms.includes('pharmacy_view') ||
+                              rolePerms.includes('pharmacy_manage');
+
+        // Use partial matching so 'Billing Executive', 'Lab Technician', 'Jr Doctor', etc. are recognized
         const matchesRole = allowedRoles.some(r => userRole.includes(r) || dynRole.includes(r));
         const hasAccess = matchesRole || hasPermission;
 
-        if (!hasAccess && userRole !== 'superadmin') {
+        if (!hasAccess) {
             return res.status(403).json({ success: false, message: 'Unauthorized access to patient history' });
         }
 

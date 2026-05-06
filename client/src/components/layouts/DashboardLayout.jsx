@@ -196,6 +196,14 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
             </div>
 
             <div className="topbar-right">
+                <button
+                    className="topbar-home-btn"
+                    onClick={() => navigate(user?.dashboardPath || '/my-dashboard')}
+                    title="Go to Home Dashboard"
+                >
+                    <FiHome size={16} />
+                    <span>Home</span>
+                </button>
                 <div className="user-profile-widget">
                     <div className="profile-text-info">
                         <span className="user-disp-name">{user?.role === 'doctor' ? 'DR. ' : ''}{user?.name || 'User'}</span>
@@ -215,10 +223,6 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
                                 <strong>{user?.name}</strong>
                                 <span>{user?.email}</span>
                                 <span className="p-role-badge">{user?.role}</span>
-                            </div>
-                            <div className="p-body">
-                                <div className="p-item"><FiUsers size={14} /> My Profile</div>
-                                <div className="p-item"><FiSettings size={14} /> Account Settings</div>
                             </div>
                             <div className="p-footer">
                                 <button onClick={handleLogout} className="btn-p-logout">
