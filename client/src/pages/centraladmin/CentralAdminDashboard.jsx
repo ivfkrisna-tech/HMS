@@ -39,6 +39,10 @@ const CentralAdminDashboard = () => {
     const [apptMode, setApptMode] = useState('slot'); // 'slot' | 'token'
     const [savingApptMode, setSavingApptMode] = useState(false);
 
+    // Custom Domain management
+    const [customDomainInput, setCustomDomainInput] = useState('');
+    const [savingCustomDomain, setSavingCustomDomain] = useState(false);
+
     // Date Filters
     const [datePreset, setDatePreset] = useState('all'); // all, today, 30, 60, 90, custom
     const [customStartDate, setCustomStartDate] = useState('');
@@ -408,6 +412,7 @@ const CentralAdminDashboard = () => {
     const openHospitalDetail = (h) => {
         setSelectedHospital(h);
         setApptMode(h.appointmentMode || 'slot');
+        setCustomDomainInput(h.customDomain || '');
         setDatePreset('all');
         setCustomStartDate('');
         setCustomEndDate('');
@@ -428,6 +433,24 @@ const CentralAdminDashboard = () => {
             setError(err.response?.data?.message || 'Failed to update appointment mode');
         } finally {
             setSavingApptMode(false);
+        }
+    };
+
+    const handleSaveCustomDomain = async () => {
+        setSavingCustomDomain(true);
+        setError(''); setSuccess('');
+        try {
+            const domain = customDomainInput.trim().toLowerCase();
+            const res = await hospitalAPI.setCustomDomain(selectedHospital._id, domain || null);
+            if (res.success) {
+                setSuccess(res.message);
+                setSelectedHospital(prev => ({ ...prev, customDomain: domain || null }));
+                fetchHospitals();
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update custom domain');
+        } finally {
+            setSavingCustomDomain(false);
         }
     };
 
@@ -743,6 +766,64 @@ const CentralAdminDashboard = () => {
                                     {apptMode === (h.appointmentMode || 'slot') && (
                                         <span style={{ fontSize: '0.85rem', color: '#64748b' }}>No changes to save</span>
                                     )}
+                                </div>
+                            </div>
+
+                            {/* ---- CUSTOM DOMAIN ---- */}
+                            <div className="admin-card" style={{ marginBottom: '20px' }}>
+                                <h3>🌐 Custom Domain</h3>
+                                <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>
+                                    Point the hospital's own domain to this platform via a DNS CNAME record, then enter it here.
+                                    Staff will be able to log in at <strong>their domain</strong> instead of the subdomain.
+                                </p>
+
+                                {/* Current status badge */}
+                                {selectedHospital?.customDomain ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', padding: '10px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px' }}>
+                                        <span style={{ fontSize: '1.1rem' }}>✅</span>
+                                        <div>
+                                            <div style={{ fontWeight: 700, color: '#166534', fontSize: '0.9rem' }}>Active: {selectedHospital.customDomain}</div>
+                                            <div style={{ color: '#4ade80', fontSize: '0.75rem' }}>Hospital accessible at https://{selectedHospital.customDomain}</div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', padding: '10px 14px', background: '#fafafa', border: '1px dashed #cbd5e1', borderRadius: '10px' }}>
+                                        <span style={{ fontSize: '1.1rem' }}>⚪</span>
+                                        <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No custom domain set — using subdomain: <strong>{h.slug}.{import.meta.env.VITE_ROOT_DOMAIN || 'your-domain.com'}</strong></div>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. portal.apex.com"
+                                        value={customDomainInput}
+                                        onChange={e => setCustomDomainInput(e.target.value.toLowerCase().replace(/\s/g, ''))}
+                                        style={{ flex: 1, padding: '9px 14px', border: '1px solid #e2e8f0', borderRadius: '9px', fontSize: '0.88rem', outline: 'none' }}
+                                    />
+                                    <button
+                                        onClick={handleSaveCustomDomain}
+                                        disabled={savingCustomDomain}
+                                        style={{ padding: '9px 20px', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: '#fff', border: 'none', borderRadius: '9px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap', opacity: savingCustomDomain ? 0.6 : 1 }}
+                                    >
+                                        {savingCustomDomain ? 'Saving…' : '💾 Save Domain'}
+                                    </button>
+                                    {selectedHospital?.customDomain && (
+                                        <button
+                                            onClick={() => { setCustomDomainInput(''); }}
+                                            title="Clear domain"
+                                            style={{ padding: '9px 14px', background: '#fee2e2', color: '#991b1b', border: 'none', borderRadius: '9px', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+                                        >
+                                            🗑 Remove
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div style={{ marginTop: '12px', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.78rem', color: '#64748b', lineHeight: 1.7 }}>
+                                    <strong>DNS Setup (hospital's domain registrar):</strong><br />
+                                    Type: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>CNAME</code> &nbsp;
+                                    Name: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>portal</code> &nbsp;
+                                    Value: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>{import.meta.env.VITE_ROOT_DOMAIN || 'your-platform-domain.com'}</code>
                                 </div>
                             </div>
 

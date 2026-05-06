@@ -7,7 +7,7 @@ import DashboardLayout from '../components/layouts/DashboardLayout';
 import ProtectedRoute from '../components/ProtectedRoute';
 import RoleDashboard from '../pages/RoleDashboard';
 import { useAuth } from '../store/hooks';
-import { getSubdomain } from '../utils/subdomain';
+import { getSubdomain, isCustomDomain } from '../utils/subdomain';
 
 // User Pages
 import Services from '../pages/user/Services';
@@ -82,13 +82,14 @@ const RESERVED_SUBDOMAINS = ['admin', 'www', 'api'];
 
 const SmartLogin = () => {
     const subdomain = getSubdomain();
-    if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) return <HospitalLogin />;
+    // Custom domain (portal.apex.com) OR hospital subdomain → hospital login
+    if (isCustomDomain() || (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain))) return <HospitalLogin />;
     return <CentralAdminLogin />;
 };
 
 const SmartDashboardRedirector = () => {
     const subdomain = getSubdomain();
-    if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) return <Navigate to="/my-dashboard" replace />;
+    if (isCustomDomain() || (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain))) return <Navigate to="/my-dashboard" replace />;
     return <Navigate to="/supremeadmin" replace />;
 };
 

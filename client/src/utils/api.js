@@ -202,6 +202,8 @@ export const publicAPI = {
         const url = serviceId ? `/api/doctor?serviceId=${serviceId}` : '/api/doctor';
         return (await apiClient.get(url)).data;
     },
+    // Resolve a custom domain (e.g. "portal.apex.com") to a hospital record — no auth needed
+    resolveDomain: async (domain) => (await apiClient.get(`/api/public/resolve-domain?domain=${encodeURIComponent(domain)}`)).data,
 };
 
 export const uploadAPI = {
@@ -284,6 +286,7 @@ export const testPackageAPI = {
 
 export const hospitalAPI = {
     resolveHospital: async (slug) => (await apiClient.get(`/api/hospitals/resolve/${slug}`)).data,
+    setCustomDomain: async (id, customDomain) => (await apiClient.put(`/api/hospitals/${id}/custom-domain`, { customDomain })).data,
     getHospitals: async () => (await apiClient.get('/api/hospitals')).data,
     createHospital: async (data) => (await apiClient.post('/api/hospitals', data)).data,
     updateHospital: async (id, data) => (await apiClient.put(`/api/hospitals/${id}`, data)).data,

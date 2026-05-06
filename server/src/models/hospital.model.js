@@ -54,6 +54,10 @@ const hospitalSchema = new mongoose.Schema({
     // 'token' : sequential daily token; resets to 1 at midnight; no time selection
     appointmentMode: { type: String, enum: ['slot', 'token'], default: 'slot' },
 
+    // Custom domain — e.g. "portal.apex.com"
+    // Hospital points their domain via CNAME to this server; we resolve the tenant from this field.
+    customDomain: { type: String, default: null, unique: true, sparse: true, lowercase: true, trim: true },
+
     // Hospital admin user reference
     adminUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 

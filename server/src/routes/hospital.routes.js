@@ -945,6 +945,43 @@ router.put('/:id/branding', verifyCentralAdmin, async (req, res) => {
     }
 });
 
+/**
+ * PUT /api/hospitals/:id/custom-domain — Central Admin only
+ * Set or clear the custom domain for a hospital.
+ * Body: { customDomain: "portal.apex.com" }  — pass null/empty to remove.
+ */
+router.put('/:id/custom-domain', verifyCentralAdmin, async (req, res) => {
+    try {
+        const hospital = await Hospital.findById(req.params.id);
+        if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
+
+        const raw = (req.body.customDomain || '').trim().toLowerCase();
+        const newDomain = raw || null;
+
+        if (newDomain) {
+            // Make sure no other hospital already uses this domain
+            const conflict = await Hospital.findOne({ customDomain: newDomain, _id: { $ne: hospital._id } });
+            if (conflict) {
+                return res.status(409).json({
+                    success: false,
+                    message: `Domain "${newDomain}" is already registered to another hospital.`
+                });
+            }
+        }
+
+        hospital.customDomain = newDomain;
+        await hospital.save();
+
+        res.json({
+            success: true,
+            message: newDomain ? `Custom domain set to ${newDomain}` : 'Custom domain removed',
+            customDomain: hospital.customDomain
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // GET STAFF WISE COLLECTIONS
 router.get('/my-hospital/staff-collections', verifyHospitalAdmin, async (req, res) => {
     try {

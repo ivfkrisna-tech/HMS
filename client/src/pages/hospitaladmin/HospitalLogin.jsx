@@ -3,8 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppDispatch, useAuth } from '../../store/hooks';
 import { loginUser, clearError } from '../../store/slices/authSlice';
 import { useBranding } from '../../context/BrandingContext';
-import { getSubdomain } from '../../utils/subdomain';
+import { getSubdomain, isCustomDomain } from '../../utils/subdomain';
 import api from '../../utils/api';
+import { publicAPI } from '../../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiOutlineMail, HiOutlineLockClosed } from 'react-icons/hi';
 import { RiHospitalLine } from 'react-icons/ri';
@@ -32,21 +33,28 @@ const HospitalLogin = () => {
     const [hospitalError, setHospitalError] = useState('');
     const [formData, setFormData] = useState({ email: '', password: '' });
 
-    // Resolve hospital by slug on mount
+    // Resolve hospital — by custom domain OR by slug (subdomain)
     useEffect(() => {
         const resolveHospital = async () => {
             try {
                 setHospitalLoading(true);
-                const res = await api.get(`/api/hospitals/resolve/${hospitalSlug}`);
-                if (res.data.success) {
-                    setHospital(res.data.hospital);
-                    // 🎨 Apply this hospital's specific branding (colors, logo, title) 
-                    // to the login page *before* the user even signs in.
-                    if (res.data.hospital._id) {
-                        loadBranding(res.data.hospital._id);
-                    }
+                let hospitalData = null;
+
+                if (isCustomDomain()) {
+                    // Custom domain: portal.apex.com — resolve by hostname
+                    const res = await publicAPI.resolveDomain(window.location.hostname);
+                    if (res.success) hospitalData = res.hospital;
+                } else if (hospitalSlug) {
+                    // Subdomain: hospitala.medical.in — resolve by slug
+                    const res = await api.get(`/api/hospitals/resolve/${hospitalSlug}`);
+                    if (res.data.success) hospitalData = res.data.hospital;
+                }
+
+                if (hospitalData) {
+                    setHospital(hospitalData);
+                    if (hospitalData._id) loadBranding(hospitalData._id);
                 } else {
-                    setHospitalError('Hospital not found.');
+                    setHospitalError('Hospital not found. Check the URL and try again.');
                 }
             } catch (err) {
                 setHospitalError(
