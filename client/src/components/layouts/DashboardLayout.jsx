@@ -6,7 +6,7 @@ import { useBranding } from '../../context/BrandingContext';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
-    FiFileText, FiPlusSquare, FiDatabase, FiGrid, FiShield
+    FiFileText, FiPlusSquare, FiShield
 } from 'react-icons/fi';
 import './DashboardLayout.css';
 
@@ -73,7 +73,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         }
         if (role === 'cashier') {
             return [
-                { label: 'Billing/Payments', path: '/cashier/billing', icon: <FiFileText /> },
+                { label: 'Billing/Payments', path: '/billing/patient', icon: <FiFileText /> },
             ];
         }
         if (role === 'nurse') {

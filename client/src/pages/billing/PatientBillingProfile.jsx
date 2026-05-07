@@ -32,9 +32,12 @@ const PatientBillingProfile = () => {
         } catch (err) { console.error(err); }
     };
 
+    const calcDaysSince = (dateStr) =>
+        Math.max(1, Math.ceil((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24)));
+
     const enrichAdmissions = (admissions) => admissions.map(adm => {
         if (adm.status === 'Admitted') {
-            const diffDays = Math.max(1, Math.ceil((new Date().getTime() - new Date(adm.admissionDate).getTime()) / (1000 * 60 * 60 * 24)));
+            const diffDays = calcDaysSince(adm.admissionDate);
             let grandTotal = 0;
             adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
                 const fTotal = diffDays * Number(f.pricePerDay || 0);
@@ -45,6 +48,20 @@ const PatientBillingProfile = () => {
         }
         return adm;
     });
+
+    // For pending FacilityCharge records, recalculate total using actual admission days.
+    // If patient is currently admitted, use days-since-admission; otherwise use stored days.
+    const enrichFacilityCharges = (facilityCharges, enrichedAdmissions) => {
+        const activeAdm = enrichedAdmissions.find(a => a.status === 'Admitted');
+        if (!activeAdm) return facilityCharges;
+        const admissionDays = calcDaysSince(activeAdm.admissionDate);
+        return facilityCharges.map(fc => {
+            if (isPending(fc.paymentStatus)) {
+                return { ...fc, days: admissionDays, totalAmount: Number(fc.pricePerDay || 0) * admissionDays };
+            }
+            return fc;
+        });
+    };
 
     const loadPatient = async (identifier) => {
         setLoading(true);
@@ -57,7 +74,9 @@ const PatientBillingProfile = () => {
             const res = await billingAPI.getPatientBills(identifier);
             if (res.success) {
                 setPatient(res.patient);
-                setBilling({ ...res.billing, admissions: enrichAdmissions(res.billing.admissions || []) });
+                const enrichedAdmissions = enrichAdmissions(res.billing.admissions || []);
+                const enrichedFacility = enrichFacilityCharges(res.billing.facilityCharges || [], enrichedAdmissions);
+                setBilling({ ...res.billing, admissions: enrichedAdmissions, facilityCharges: enrichedFacility });
             }
         } catch (err) {
             setError(err.response?.data?.message || 'Patient not found');
@@ -144,7 +163,10 @@ const PatientBillingProfile = () => {
             });
             setSuccessMsg(`Payment of ${fmt(total)} processed successfully via ${paymentMode}.`);
             const res = await billingAPI.getPatientBills(patient._id);
-            if (res.success) setBilling({ ...res.billing, admissions: enrichAdmissions(res.billing.admissions || []) });
+            if (res.success) {
+                const ea = enrichAdmissions(res.billing.admissions || []);
+                setBilling({ ...res.billing, admissions: ea, facilityCharges: enrichFacilityCharges(res.billing.facilityCharges || [], ea) });
+            }
             setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [] });
         } catch (err) {
             alert(err.response?.data?.message || 'Payment failed');
@@ -159,7 +181,10 @@ const PatientBillingProfile = () => {
         try {
             await admissionAPI.dischargePatient(admissionId);
             const res = await billingAPI.getPatientBills(patient._id);
-            if (res.success) setBilling({ ...res.billing, admissions: enrichAdmissions(res.billing.admissions || []) });
+            if (res.success) {
+                const ea = enrichAdmissions(res.billing.admissions || []);
+                setBilling({ ...res.billing, admissions: ea, facilityCharges: enrichFacilityCharges(res.billing.facilityCharges || [], ea) });
+            }
         } catch (err) {
             alert(err.response?.data?.message || 'Discharge failed');
         } finally {

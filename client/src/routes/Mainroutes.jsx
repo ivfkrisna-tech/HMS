@@ -53,7 +53,6 @@ import HospitalLogin from '../pages/hospitaladmin/HospitalLogin';
 import HospitalAdminQuestionLibrary from '../pages/hospitaladmin/HospitalAdminQuestionLibrary';
 
 // Cashier Routing
-import CashierDashboard from '../pages/cashier/CashierDashboard';
 
 // Legacy Admin Auth (keep for backward-compat)
 import AdminLogin from '../pages/administration/AdminLogin';
@@ -194,7 +193,7 @@ const MainRoutes = () => {
                             {/* Patient Billing Profile — receptionist + accountant + admin */}
                             <Route path="billing/patient" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_manage', 'appointment_manage']} allowedRoles={['accountant', 'cashier', 'reception', 'receptionist', 'centraladmin', 'superadmin', 'hospitaladmin']}><PatientBillingProfile /></ProtectedRoute>} />
                         {/* Cashier / Billing */}
-                        <Route path="cashier/billing" element={<ProtectedRoute requiredPermissions={['billing_view', 'billing_manage']} allowedRoles={['billing', 'cashier', 'centraladmin', 'superadmin', 'hospitaladmin']}><CashierDashboard /></ProtectedRoute>} />
+                        <Route path="cashier/billing" element={<Navigate to="/billing/patient" replace />} />
 
                         {/* Supreme Admin remains outside of hospital slugs */}
                         <Route path="/supremeadmin" element={<ProtectedRoute allowedRoles={['centraladmin', 'superadmin']}><CentralAdminDashboard /></ProtectedRoute>} />
