@@ -44,7 +44,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         if (role === 'doctor') {
             return [
                 { label: 'My Patients', path: '/doctor/dashboard', icon: <FiUsers /> },
-                { label: 'All Appointments', path: '/doctor/patients', icon: <FiCalendar /> },
+                { label: 'All Appointments', path: '/doctor/patients?tab=all', icon: <FiCalendar /> },
             ];
         }
         if (role.includes('reception')) {

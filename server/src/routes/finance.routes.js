@@ -9,12 +9,12 @@ const { getTenantModels } = require('../db/tenantModels');
 const verifyFinanceAccess = async (req, res, next) => {
     try {
         await verifyToken(req, res, () => {
-            const role = req.user.role ? req.user.role.toLowerCase() : '';
-            const dynRoleStr = req.user._roleData?.name ? req.user._roleData.name.toLowerCase() : '';
+            const role = String(req.user.role || '').toLowerCase();
+            const dynRoleStr = String(req.user._roleData?.name || '').toLowerCase();
             const permissions = req.user._roleData?.permissions || [];
-            
+
             const allowed = ['accountant', 'billing', 'cashier', 'centraladmin', 'superadmin', 'hospitaladmin', 'admin'];
-            
+
             const hasAccess = allowed.some(keyword => dynRoleStr.includes(keyword) || role.includes(keyword));
             
             if (hasAccess || permissions.includes('*') || permissions.includes('finance_access')) {
@@ -33,7 +33,7 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
         const { startDate, endDate, hospitalId } = req.query;
 
         // Determine target hospital ID
-        const role = req.user.role ? req.user.role.toLowerCase() : '';
+        const role = String(req.user.role || '').toLowerCase();
         let targetHospitalId;
 
         if (role === 'superadmin' || role === 'centraladmin') {

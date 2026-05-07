@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doctorAPI, labTestAPI, questionLibraryAPI, hospitalAPI, testPackageAPI } from '../../utils/api';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import './DoctorPatientDetails.css';
 import DynamicQuestionForm from '../../components/DynamicQuestionForm';

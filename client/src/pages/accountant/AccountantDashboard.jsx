@@ -126,10 +126,6 @@ const AccountantDashboard = () => {
                     <h1>Finance & Accounting Dashboard</h1>
                     <p>Track revenues, costs, and profits across operations</p>
                 </div>
-                <div className="acc-user-info">
-                    <span>👋 {currentUser.name} (Accountant)</span>
-                    <button className="logout-btn" onClick={handleLogout}>Logout</button>
-                </div>
             </header>
 
             {/* Patient Billing Quick Access */}

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { doctorAPI, uploadAPI } from '../../utils/api';
 
 const Patient = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState('today');
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'today');
     const [vitalsPatient, setVitalsPatient] = useState(null);
     const [uploadPatient, setUploadPatient] = useState(null);
     const [uploadFile, setUploadFile] = useState(null);

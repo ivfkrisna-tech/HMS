@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
 import { getSubdomain } from '../../utils/subdomain';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Webcam from 'react-webcam';
 import './ReceptionDashboard.css';
@@ -1169,7 +1169,15 @@ const ReceptionDashboard = () => {
                         <tbody>
                             {appointments.map(apt => (
                                 <tr key={apt._id} style={apt.isHospitalized ? { backgroundColor: '#fdf2f8' } : {}}>
-                                    <td>{apt.userId?.name}<br /><small>{apt.userId?.phone}</small></td>
+                                    <td>
+                                        <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{apt.userId?.name}</div>
+                                        {apt.userId?.fertilityProfile?.partnerFirstName && (
+                                            <div style={{ fontSize: '0.78rem', color: '#6366f1', marginTop: '2px' }}>
+                                                👫 {[apt.userId.fertilityProfile.partnerTitle, apt.userId.fertilityProfile.partnerFirstName, apt.userId.fertilityProfile.partnerLastName].filter(Boolean).join(' ')}
+                                            </div>
+                                        )}
+                                        <small style={{ color: '#64748b' }}>{apt.userId?.phone}</small>
+                                    </td>
                                     <td>{apt.doctorName}</td>
                                     <td>
                                         {apt.tokenNumber != null

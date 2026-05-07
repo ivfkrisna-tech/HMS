@@ -270,7 +270,7 @@ router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (
         }
 
         const appointments = await Appointment.find(queryFilter)
-            .populate('userId', 'name email phone patientId')
+            .populate('userId', 'name email phone patientId avatar fertilityProfile')
             .populate('doctorId', 'name')
             .sort({ tokenNumber: 1, appointmentTime: 1 })
             .lean();

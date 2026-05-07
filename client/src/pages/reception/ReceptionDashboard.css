@@ -424,20 +424,15 @@
 
 /* ---- Form Footer ---- */
 .form-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
+  position: static;
+  margin-top: 24px;
+  padding: 18px 24px;
   background: var(--glass-white);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  padding: 14px 24px;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
+  border-top: 2px solid var(--gray-200);
+  border-radius: 0 0 12px 12px;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  z-index: 100;
-  border-top: 1px solid var(--gray-200);
 }
 
 /* ---- Responsive ---- */

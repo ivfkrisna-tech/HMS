@@ -95,8 +95,11 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
 
         // Use patient._id (ObjectId) for all queries — tenant models use ObjectId for patientId,
         // passing an MRN string causes a "Cast to ObjectId failed" error.
-        const [appointments, labReports, pharmacyOrders, facilityCharges, admissions] = await Promise.all([
+        const [appointments, allAppointments, labReports, pharmacyOrders, facilityCharges, admissions] = await Promise.all([
             Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $in: pendingStatuses } })
+                .select('appointmentDate appointmentTime amount paymentStatus serviceName doctorName status createdAt').lean(),
+            // All appointments (including paid) for read-only history display
+            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $nin: pendingStatuses } })
                 .select('appointmentDate appointmentTime amount paymentStatus serviceName doctorName status createdAt').lean(),
             LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $in: pendingStatuses } })
                 .select('testNames testName amount price paymentStatus testStatus createdAt').lean(),
@@ -118,8 +121,9 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 phone: patient.phone,
                 gender: patient.gender,
                 dob: patient.dob,
+                avatar: patient.avatar || null,
             },
-            billing: { appointments, labReports, pharmacyOrders, facilityCharges, admissions }
+            billing: { appointments, paidAppointments: allAppointments, labReports, pharmacyOrders, facilityCharges, admissions }
         });
 
     } catch (error) {

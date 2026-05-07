@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { patientAPI } from '../../utils/api';
-import jsPDF from 'jspdf';
+import { patientAPI, admissionAPI } from '../../utils/api';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import './UnifiedPatientProfile.css';
 
@@ -10,6 +10,7 @@ const UnifiedPatientProfile = () => {
     const navigate = useNavigate();
     const [patientData, setPatientData] = useState(null);
     const [timeline, setTimeline] = useState([]);
+    const [admissions, setAdmissions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -28,7 +29,14 @@ const UnifiedPatientProfile = () => {
                 setLoading(false);
             }
         };
+        const fetchAdmissions = async () => {
+            try {
+                const res = await admissionAPI.getPatientAdmissions(patientId);
+                if (res.success) setAdmissions(res.admissions || []);
+            } catch (err) { /* admissions are optional — fail silently */ }
+        };
         fetchProfile();
+        fetchAdmissions();
     }, [patientId]);
 
     const calculateMetrics = () => {
@@ -42,6 +50,8 @@ const UnifiedPatientProfile = () => {
         };
 
         const now = new Date();
+        const isPaid = (status) => (status || '').toLowerCase() === 'paid';
+        const isPending = (status) => ['pending', 'unpaid', ''].includes((status || '').toLowerCase());
 
         timeline.forEach(item => {
             const data = item.data;
@@ -51,18 +61,27 @@ const UnifiedPatientProfile = () => {
                     metrics.upcomingAppointments++;
                 }
                 const amt = Number(data.amount) || 0;
-                if (data.paymentStatus === 'paid') metrics.totalPaid += amt;
-                else if (data.paymentStatus === 'pending') metrics.totalDue += amt;
+                if (isPaid(data.paymentStatus)) metrics.totalPaid += amt;
+                else if (isPending(data.paymentStatus)) metrics.totalDue += amt;
             } else if (item.type === 'labReport') {
-                if (data.status === 'completed') metrics.completedLabs++;
+                if ((data.status || '').toLowerCase() === 'completed') metrics.completedLabs++;
                 else metrics.pendingLabs++;
                 const amt = Number(data.amount) || 0;
-                if (data.paymentStatus === 'paid') metrics.totalPaid += amt;
-                else if (data.paymentStatus === 'pending') metrics.totalDue += amt;
+                if (isPaid(data.paymentStatus)) metrics.totalPaid += amt;
+                else if (isPending(data.paymentStatus)) metrics.totalDue += amt;
             } else if (item.type === 'pharmacyOrder') {
                 const amt = Number(data.totalAmount) || 0;
-                if (data.paymentStatus === 'paid') metrics.totalPaid += amt;
-                else if (data.paymentStatus === 'pending') metrics.totalDue += amt;
+                if (isPaid(data.paymentStatus)) metrics.totalPaid += amt;
+                else if (isPending(data.paymentStatus)) metrics.totalDue += amt;
+            }
+        });
+
+        // Include active admission charges in pending dues
+        admissions.forEach(adm => {
+            if (isPaid(adm.paymentStatus)) {
+                metrics.totalPaid += Number(adm.totalAmount) || 0;
+            } else if (adm.status === 'Admitted') {
+                metrics.totalDue += Number(adm.totalAmount) || 0;
             }
         });
 
@@ -242,8 +261,11 @@ const UnifiedPatientProfile = () => {
             {/* Header Profile Card */}
             <div className="upp-header-card">
                 <div className="upp-identity">
-                    <div className="upp-avatar">
-                        {(patientData.name || 'P')[0].toUpperCase()}
+                    <div className="upp-avatar" style={{ overflow: 'hidden', padding: 0 }}>
+                        {patientData.avatar
+                            ? <img src={patientData.avatar} alt={patientData.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                            : (patientData.name || 'P')[0].toUpperCase()
+                        }
                     </div>
                     <div className="upp-info">
                         <h1>{patientData.name || 'Unknown Patient'}</h1>
@@ -444,6 +466,46 @@ const UnifiedPatientProfile = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* Uploaded Documents & Reports */}
+                    <div className="upp-section">
+                        <h3>📁 Reports &amp; Documents</h3>
+                        {(patientData.fertilityProfile?.previousReports || []).length === 0 ? (
+                            <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>No documents uploaded yet.</p>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {(patientData.fertilityProfile.previousReports).map((doc, i) => (
+                                    <div key={i} style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>📄 {doc.fileName || `Document ${i + 1}`}</div>
+                                            {doc.date && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{new Date(doc.date).toLocaleDateString('en-IN')}</div>}
+                                        </div>
+                                        {doc.url && (
+                                            <a href={doc.url} target="_blank" rel="noreferrer" style={{ color: '#3b82f6', fontSize: '12px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>👁 View</a>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Lab Report Files from Timeline */}
+                    {timeline.filter(t => t.type === 'labReport' && t.data.reportFileUrl).length > 0 && (
+                        <div className="upp-section">
+                            <h3>🧪 Lab Report Files</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {timeline.filter(t => t.type === 'labReport' && t.data.reportFileUrl).map((t, i) => (
+                                    <div key={i} style={{ padding: '10px 12px', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <div style={{ fontWeight: 600, fontSize: '13px', color: '#0369a1' }}>{(t.data.testNames || []).join(', ') || 'Lab Report'}</div>
+                                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{new Date(t.date).toLocaleDateString('en-IN')}</div>
+                                        </div>
+                                        <a href={t.data.reportFileUrl} target="_blank" rel="noreferrer" style={{ color: '#0369a1', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>👁 View</a>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="upp-section">
                         <h3>Recent Finances</h3>

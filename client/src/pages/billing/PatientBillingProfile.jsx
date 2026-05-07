@@ -253,7 +253,12 @@ const PatientBillingProfile = () => {
                 <>
                     {/* Patient Card */}
                     <div className="patient-info-card">
-                        <div className="patient-avatar">{patient.name?.charAt(0)?.toUpperCase()}</div>
+                        <div className="patient-avatar" style={{ overflow: 'hidden', padding: 0 }}>
+                            {patient.avatar
+                                ? <img src={patient.avatar} alt={patient.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                                : patient.name?.charAt(0)?.toUpperCase()
+                            }
+                        </div>
                         <div className="patient-details">
                             <h2>{patient.name}</h2>
                             <div className="patient-meta">
@@ -356,6 +361,30 @@ const PatientBillingProfile = () => {
                                             <td>{a.serviceName || 'Consultation'}</td>
                                             <td><span className={`status-badge status-${a.status}`}>{a.status}</span></td>
                                             <td className="amount-cell">{fmt(a.amount)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* Paid Appointments — read-only info */}
+                    {(billing.paidAppointments || []).length > 0 && (
+                        <div className="billing-section" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                            <div className="section-header">
+                                <h3 style={{ color: '#15803d' }}>✅ Appointment Fees Collected ({billing.paidAppointments.length})</h3>
+                                <span style={{ fontSize: '0.78rem', color: '#15803d', fontStyle: 'italic' }}>Paid at reception — for reference only</span>
+                            </div>
+                            <table className="billing-table">
+                                <thead><tr><th>Date</th><th>Doctor</th><th>Service</th><th>Mode</th><th>Amount</th></tr></thead>
+                                <tbody>
+                                    {billing.paidAppointments.map(a => (
+                                        <tr key={a._id}>
+                                            <td>{fmtDate(a.appointmentDate)}{a.appointmentTime && ` ${a.appointmentTime}`}</td>
+                                            <td>{a.doctorName || '—'}</td>
+                                            <td>{a.serviceName || 'Consultation'}</td>
+                                            <td><span className="paid-badge">Paid</span></td>
+                                            <td className="amount-cell" style={{ color: '#15803d' }}>{fmt(a.amount)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
