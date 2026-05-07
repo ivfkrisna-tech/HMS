@@ -50,9 +50,12 @@ const RoleDashboard = () => {
     const roleName = user.role || 'Staff';
     // Filter out buttons that should be hidden from the dashboard
     const HIDDEN_NAV_LABELS = ['book existing patient', 'system revenue analytics'];
-    const navLinks = (user.navLinks || []).filter(
-        link => !HIDDEN_NAV_LABELS.includes((link.label || '').toLowerCase().trim())
-    );
+    const isReception = (roleName || '').toLowerCase().includes('recep');
+    const navLinks = (user.navLinks || []).filter(link => {
+        if (HIDDEN_NAV_LABELS.includes((link.label || '').toLowerCase().trim())) return false;
+        if (isReception && link.path === '/billing/patient') return false;
+        return true;
+    });
     const permissions = user.permissions || [];
 
     // Get time-based greeting

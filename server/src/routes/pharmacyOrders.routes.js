@@ -88,11 +88,12 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                 }
 
                 if (invItem) {
-                    item.price = invItem.sellingPrice || 0;
-                    totalAmount += invItem.sellingPrice || 0;
-                    // Decrement stock
+                    const qty = item.quantity || item.qty || 1;
+                    item.price = (invItem.sellingPrice || 0) * qty;
+                    totalAmount += item.price;
+                    // Decrement stock by actual quantity dispensed
                     if (invItem.stock > 0) {
-                        invItem.stock = Math.max(0, invItem.stock - 1);
+                        invItem.stock = Math.max(0, invItem.stock - qty);
                         await invItem.save();
                     }
                 }

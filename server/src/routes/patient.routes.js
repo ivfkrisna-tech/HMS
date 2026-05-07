@@ -88,9 +88,11 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
         const hFilter = hid ? { hospitalId: hid } : {};
 
         const [visits, labs, pharmacies, appointments] = await Promise.all([
-            ClinicalVisit.find({ $or: [{ patientId: realUserId }, { patientId: patientIdStr }], ...hFilter }).lean(),
-            LabReport.find({ userId: realUserId, ...hFilter }).lean(),
-            PharmacyOrder.find({ userId: realUserId, ...hFilter }).lean(),
+            // ClinicalVisit.patientId is ObjectId — only query with realUserId to avoid CastError
+            ClinicalVisit.find({ patientId: realUserId, ...hFilter }).lean(),
+            LabReport.find({ $or: [{ userId: realUserId }, { patientId: realUserId }], ...hFilter }).lean(),
+            PharmacyOrder.find({ $or: [{ userId: realUserId }, { patientId: realUserId }], ...hFilter }).lean(),
+            // Appointment.patientId is String — can safely use patientIdStr
             Appointment.find({ $or: [{ userId: realUserId }, { patientId: patientIdStr }], ...hFilter }).lean()
         ]);
 

@@ -44,8 +44,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         if (role === 'doctor') {
             return [
                 { label: 'My Patients', path: '/doctor/dashboard', icon: <FiUsers /> },
-                { label: 'Appointments', path: '/doctor/patients', icon: <FiCalendar /> },
-                { label: 'All Cases', path: '/doctor/cases', icon: <FiClipboard /> },
+                { label: 'All Appointments', path: '/doctor/patients', icon: <FiCalendar /> },
             ];
         }
         if (role.includes('reception')) {
@@ -169,6 +168,9 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
         return (name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     };
 
+    const userRole = (user?.role || '').toLowerCase();
+    const isCentralAdmin = userRole === 'centraladmin' || userRole === 'superadmin';
+
     return (
         <header className="erp-topbar">
             <div className="topbar-left">
@@ -196,14 +198,16 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
             </div>
 
             <div className="topbar-right">
-                <button
-                    className="topbar-home-btn"
-                    onClick={() => navigate(user?.dashboardPath || '/my-dashboard')}
-                    title="Go to Home Dashboard"
-                >
-                    <FiHome size={16} />
-                    <span>Home</span>
-                </button>
+                {!isCentralAdmin && (
+                    <button
+                        className="topbar-home-btn"
+                        onClick={() => navigate(user?.dashboardPath || '/my-dashboard')}
+                        title="Go to Home Dashboard"
+                    >
+                        <FiHome size={16} />
+                        <span>Home</span>
+                    </button>
+                )}
                 <div className="user-profile-widget">
                     <div className="profile-text-info">
                         <span className="user-disp-name">{user?.role === 'doctor' ? 'DR. ' : ''}{user?.name || 'User'}</span>

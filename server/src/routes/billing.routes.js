@@ -93,12 +93,14 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
 
         const pendingStatuses = ['pending', 'Pending', 'PENDING', 'Unpaid'];
 
+        // Use patient._id (ObjectId) for all queries — tenant models use ObjectId for patientId,
+        // passing an MRN string causes a "Cast to ObjectId failed" error.
         const [appointments, labReports, pharmacyOrders, facilityCharges, admissions] = await Promise.all([
-            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient.patientId }], paymentStatus: { $in: pendingStatuses } })
+            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $in: pendingStatuses } })
                 .select('appointmentDate appointmentTime amount paymentStatus serviceName doctorName status createdAt').lean(),
-            LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient.patientId }], paymentStatus: { $in: pendingStatuses } })
-                .select('testNames amount paymentStatus testStatus createdAt').lean(),
-            PharmacyOrder.find({ $or: [{ userId: patient._id }, { patientId: patient.patientId }], paymentStatus: { $in: pendingStatuses } })
+            LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $in: pendingStatuses } })
+                .select('testNames testName amount price paymentStatus testStatus createdAt').lean(),
+            PharmacyOrder.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $in: pendingStatuses } })
                 .select('items totalAmount paymentStatus orderStatus createdAt').lean(),
             FacilityCharge.find({ patientId: patient._id, paymentStatus: { $in: pendingStatuses } })
                 .select('facilityName pricePerDay days totalAmount paymentStatus createdAt').lean(),

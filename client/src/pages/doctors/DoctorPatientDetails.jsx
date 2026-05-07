@@ -206,8 +206,12 @@ const DoctorPatientDetails = () => {
             };
             await doctorAPI.updateSession(appointmentId, payload);
 
-            // 3. Generate Prescription PDF automatically
-            generatePrescriptionPDF();
+            // 3. Generate Prescription PDF — wrapped so a PDF error never blocks the save
+            try {
+                generatePrescriptionPDF();
+            } catch (pdfErr) {
+                console.error('PDF generation error:', pdfErr);
+            }
 
             alert("✅ Session saved & prescription generated!");
             navigate('/doctor/patients');
@@ -562,6 +566,7 @@ const DoctorPatientDetails = () => {
     const tabs = [
         { id: 'overview', label: 'Overview', icon: '📋' },
         { id: 'history', label: 'Past Visits', icon: '📜' },
+        { id: 'documents', label: 'Reports', icon: '📁' },
     ];
 
     // Dynamic Form Tabs Injection
@@ -816,6 +821,35 @@ const DoctorPatientDetails = () => {
                             </div>
                         )
                     ))}
+
+                    {/* DOCUMENTS / REPORTS TAB */}
+                    {activeTab === 'documents' && (
+                        <div className="dpd-tab-panel">
+                            <h3 className="dpd-panel-title">📁 Uploaded Reports &amp; Documents</h3>
+                            {(patient.fertilityProfile?.previousReports || []).length === 0 ? (
+                                <div className="dpd-empty-hist"><p>No documents uploaded for this patient.</p></div>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px' }}>
+                                    {(patient.fertilityProfile?.previousReports || []).map((doc, i) => (
+                                        <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
+                                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#1e293b', marginBottom: '6px' }}>
+                                                📄 {doc.fileName || `Document ${i + 1}`}
+                                            </div>
+                                            <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '10px' }}>
+                                                {doc.date ? new Date(doc.date).toLocaleDateString('en-IN') : ''}
+                                            </div>
+                                            {doc.url && (
+                                                <a href={doc.url} target="_blank" rel="noreferrer"
+                                                   style={{ color: '#3b82f6', fontSize: '0.82rem', fontWeight: 600, textDecoration: 'none' }}>
+                                                    👁 View Document
+                                                </a>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -221,8 +221,7 @@ const HospitalLogin = () => {
                                 </form>
 
                                 <div className="auth-footer-note" style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                                    <img src="/logo.png" alt="Krisna IVF" style={{ height: '18px', objectFit: 'contain' }} />
-                                    <span>Safe & Secure Industrial-Grade Clinical System</span>
+                                    <span>Safe &amp; Secure Industrial-Grade Clinical System</span>
                                 </div>
                             </div>
                         </div>
