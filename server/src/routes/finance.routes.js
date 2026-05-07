@@ -80,13 +80,17 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
         let LabReport = require('../models/labReport.model');
         let PharmacyOrder = require('../models/pharmacyOrder.model');
         let Inventory = require('../models/inventory.model');
-        
+        let FacilityCharge = require('../models/facilityCharge.model');
+        let Admission = require('../models/admission.model');
+
         if (req.tenantDb) {
             const tenantModels = getTenantModels(req.tenantDb);
             Appointment = tenantModels.Appointment || Appointment;
             LabReport = tenantModels.LabReport || LabReport;
             PharmacyOrder = tenantModels.PharmacyOrder || PharmacyOrder;
-            Inventory = tenantModels.Inventory || Inventory; // Fallback to master if tenant doesn't have it
+            Inventory = tenantModels.Inventory || Inventory;
+            FacilityCharge = tenantModels.FacilityCharge || FacilityCharge;
+            Admission = tenantModels.Admission || Admission;
         }
 
         // 1. Consultations Revenue
@@ -136,9 +140,25 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
 
         const totalMedicineProfit = totalMedicineRevenue - totalMedicineCost;
 
-        // 4. Overall Totals
-        const totalRevenue = totalConsultationRevenue + totalLabRevenue + totalMedicineRevenue;
-        const totalProfit = totalConsultationRevenue + totalLabRevenue + totalMedicineProfit;
+        // 4. Facility Charges Revenue
+        const facilityCharges = await FacilityCharge.find({
+            paymentStatus: { $in: ['Paid', 'paid', 'PAID'] },
+            ...dateFilter,
+            ...hospitalFilter
+        });
+        const totalFacilityRevenue = facilityCharges.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0);
+
+        // 5. Admissions Revenue
+        const admissions = await Admission.find({
+            paymentStatus: { $in: ['Paid', 'paid', 'PAID'] },
+            ...dateFilter,
+            ...hospitalFilter
+        });
+        const totalAdmissionRevenue = admissions.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0);
+
+        // Overall Totals
+        const totalRevenue = totalConsultationRevenue + totalLabRevenue + totalMedicineRevenue + totalFacilityRevenue + totalAdmissionRevenue;
+        const totalProfit = totalConsultationRevenue + totalLabRevenue + totalMedicineProfit + totalFacilityRevenue + totalAdmissionRevenue;
 
         res.json({
             success: true,
@@ -158,6 +178,14 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
                     revenue: totalMedicineRevenue,
                     cost: totalMedicineCost,
                     profit: totalMedicineProfit
+                },
+                facilityCharges: {
+                    count: facilityCharges.length,
+                    revenue: totalFacilityRevenue
+                },
+                admissions: {
+                    count: admissions.length,
+                    revenue: totalAdmissionRevenue
                 }
             }
         });

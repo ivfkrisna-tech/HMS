@@ -22,17 +22,20 @@ const AccountantDashboard = () => {
     const [customEndDate, setCustomEndDate] = useState('');
 
     useEffect(() => {
-        // Validate access
-        const role = currentUser?.role ? currentUser.role.toLowerCase() : '';
+        // role can be a human-readable string OR a raw ObjectId string for custom roles
+        const role = String(currentUser?.role || '').toLowerCase();
+        const dynRole = String(currentUser?._roleData?.name || currentUser?.roleName || '').toLowerCase();
         const permissions = currentUser?.permissions || [];
-        const hasAccess = ['accountant', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(role) || permissions.includes('finance_view');
+        const hasAccess = ['accountant', 'centraladmin', 'superadmin', 'hospitaladmin', 'billing', 'cashier', 'admin'].some(r =>
+            role.includes(r) || dynRole.includes(r)
+        ) || permissions.includes('finance_view') || permissions.includes('*');
 
         if (!hasAccess) {
-            navigate('/dashboard');
+            navigate('/my-dashboard');
         } else {
             fetchStats('all');
         }
-    }, [navigate, currentUser]);
+    }, [navigate]);
 
     const fetchStats = async (preset = datePreset, start = customStartDate, end = customEndDate) => {
         try {
@@ -224,6 +227,20 @@ const AccountantDashboard = () => {
                             <div className="acc-kpi-value">{formatCurrency(stats.medicines.profit)}</div>
                             <div className="acc-kpi-label">Pharmacy Net Margin</div>
                             <div className="acc-kpi-sub">Medicine profit after buy-cost</div>
+                        </div>
+
+                        <div className="acc-kpi-card" style={{ background: 'linear-gradient(135deg, #7c3aed, #5b21b6)' }}>
+                            <div className="acc-kpi-icon">🏨</div>
+                            <div className="acc-kpi-value">{formatCurrency(stats.facilityCharges?.revenue || 0)}</div>
+                            <div className="acc-kpi-label">Facility Charges</div>
+                            <div className="acc-kpi-sub">{stats.facilityCharges?.count || 0} Paid Charges</div>
+                        </div>
+
+                        <div className="acc-kpi-card" style={{ background: 'linear-gradient(135deg, #0891b2, #0e7490)' }}>
+                            <div className="acc-kpi-icon">🛏️</div>
+                            <div className="acc-kpi-value">{formatCurrency(stats.admissions?.revenue || 0)}</div>
+                            <div className="acc-kpi-label">Admissions</div>
+                            <div className="acc-kpi-sub">{stats.admissions?.count || 0} Settled Stays</div>
                         </div>
                     </div>
                 </>

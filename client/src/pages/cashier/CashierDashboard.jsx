@@ -156,11 +156,12 @@ const CashierDashboard = () => {
         setProcessingPayment(true);
         setError('');
 
-        const appointmentIds = (billingData.appointments || []).map(a => a._id);
-        const labReportIds = (billingData.labReports || []).map(l => l._id);
-        const pharmacyOrderIds = (billingData.pharmacyOrders || []).map(p => p._id);
-        const facilityChargeIds = (billingData.facilityCharges || []).map(f => f._id);
-        const admissionIds = (billingData.admissions || []).map(a => a._id);
+        const isPending = (s) => (s || '').toLowerCase() !== 'paid';
+        const appointmentIds = (billingData.appointments || []).filter(a => isPending(a.paymentStatus)).map(a => a._id);
+        const labReportIds = (billingData.labReports || []).filter(l => isPending(l.paymentStatus)).map(l => l._id);
+        const pharmacyOrderIds = (billingData.pharmacyOrders || []).filter(p => isPending(p.paymentStatus)).map(p => p._id);
+        const facilityChargeIds = (billingData.facilityCharges || []).filter(f => isPending(f.paymentStatus)).map(f => f._id);
+        const admissionIds = (billingData.admissions || []).filter(a => isPending(a.paymentStatus)).map(a => a._id);
 
         try {
             const res = await billingAPI.processPayment({
@@ -186,11 +187,12 @@ const CashierDashboard = () => {
     const formatCurrency = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
 
     // Calculates
-    const totalAppointments = (billingData.appointments || []).reduce((sum, a) => sum + (a.amount || 0), 0);
-    const totalLab = (billingData.labReports || []).reduce((sum, l) => sum + (l.amount || 0), 0);
-    const totalPharmacy = (billingData.pharmacyOrders || []).reduce((sum, p) => sum + (p.totalAmount || 0), 0);
-    const totalFacilities = (billingData.facilityCharges || []).reduce((sum, f) => sum + (f.totalAmount || 0), 0);
-    const totalAdmissions = (billingData.admissions || []).filter(a => a.paymentStatus !== 'Paid').reduce((sum, a) => sum + (a.totalAmount || 0), 0);
+    const pendingOnly = (arr) => (arr || []).filter(x => (x.paymentStatus || '').toLowerCase() !== 'paid');
+    const totalAppointments = pendingOnly(billingData.appointments).reduce((sum, a) => sum + (a.amount || 0), 0);
+    const totalLab = pendingOnly(billingData.labReports).reduce((sum, l) => sum + (l.amount || 0), 0);
+    const totalPharmacy = pendingOnly(billingData.pharmacyOrders).reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+    const totalFacilities = pendingOnly(billingData.facilityCharges).reduce((sum, f) => sum + (f.totalAmount || 0), 0);
+    const totalAdmissions = pendingOnly(billingData.admissions).reduce((sum, a) => sum + (a.totalAmount || 0), 0);
     const grandTotal = totalAppointments + totalLab + totalPharmacy + totalFacilities + totalAdmissions;
 
     const hasBills = grandTotal > 0;

@@ -5,6 +5,8 @@ import './PatientBillingProfile.css';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const isPaid = (status) => (status || '').toLowerCase() === 'paid';
+const isPending = (status) => !isPaid(status);
 
 const PatientBillingProfile = () => {
     const navigate = useNavigate();
@@ -18,27 +20,33 @@ const PatientBillingProfile = () => {
     const [paying, setPaying] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [dischargingId, setDischargingId] = useState(null);
-
     const [searchResults, setSearchResults] = useState([]);
 
     const handleSearchChange = async (e) => {
         const val = e.target.value;
         setSearchQuery(val);
-        if (val.length < 2) {
-            setSearchResults([]);
-            return;
-        }
+        if (val.length < 2) { setSearchResults([]); return; }
         try {
             const res = await billingAPI.searchPatients(val);
             if (res.success) setSearchResults(res.patients);
-        } catch (err) {
-            console.error(err);
-        }
+        } catch (err) { console.error(err); }
     };
 
-    const handleSelectPatient = async (patient) => {
-        setSearchQuery(patient.mrn || patient.phone || patient.name);
-        setSearchResults([]);
+    const enrichAdmissions = (admissions) => admissions.map(adm => {
+        if (adm.status === 'Admitted') {
+            const diffDays = Math.max(1, Math.ceil((new Date().getTime() - new Date(adm.admissionDate).getTime()) / (1000 * 60 * 60 * 24)));
+            let grandTotal = 0;
+            adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
+                const fTotal = diffDays * Number(f.pricePerDay || 0);
+                grandTotal += fTotal;
+                return { ...f, days: diffDays, totalAmount: fTotal };
+            });
+            adm.totalAmount = grandTotal;
+        }
+        return adm;
+    });
+
+    const loadPatient = async (identifier) => {
         setLoading(true);
         setError('');
         setPatient(null);
@@ -46,23 +54,10 @@ const PatientBillingProfile = () => {
         setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [] });
         setSuccessMsg('');
         try {
-            const res = await billingAPI.getPatientBills(patient._id);
+            const res = await billingAPI.getPatientBills(identifier);
             if (res.success) {
                 setPatient(res.patient);
-                res.billing.admissions = res.billing.admissions.map(adm => {
-                    if (adm.status === 'Admitted') {
-                        const diffDays = Math.max(1, Math.ceil((new Date().getTime() - new Date(adm.admissionDate).getTime()) / (1000 * 60 * 60 * 24)));
-                        let grandTotal = 0;
-                        adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
-                            const fTotal = diffDays * Number(f.pricePerDay || 0);
-                            grandTotal += fTotal;
-                            return { ...f, days: diffDays, totalAmount: fTotal };
-                        });
-                        adm.totalAmount = grandTotal;
-                    }
-                    return adm;
-                });
-                setBilling(res.billing);
+                setBilling({ ...res.billing, admissions: enrichAdmissions(res.billing.admissions || []) });
             }
         } catch (err) {
             setError(err.response?.data?.message || 'Patient not found');
@@ -71,40 +66,17 @@ const PatientBillingProfile = () => {
         }
     };
 
-    const handleSearch = async (e) => {
+    const handleSelectPatient = (p) => {
+        setSearchQuery(p.mrn || p.phone || p.name);
+        setSearchResults([]);
+        loadPatient(p._id);
+    };
+
+    const handleSearch = (e) => {
         e.preventDefault();
         if (!searchQuery.trim()) return;
         setSearchResults([]);
-        setLoading(true);
-        setError('');
-        setPatient(null);
-        setBilling(null);
-        setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [] });
-        setSuccessMsg('');
-        try {
-            const res = await billingAPI.getPatientBills(searchQuery.trim());
-            if (res.success) {
-                setPatient(res.patient);
-                res.billing.admissions = res.billing.admissions.map(adm => {
-                    if (adm.status === 'Admitted') {
-                        const diffDays = Math.max(1, Math.ceil((new Date().getTime() - new Date(adm.admissionDate).getTime()) / (1000 * 60 * 60 * 24)));
-                        let grandTotal = 0;
-                        adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
-                            const fTotal = diffDays * Number(f.pricePerDay || 0);
-                            grandTotal += fTotal;
-                            return { ...f, days: diffDays, totalAmount: fTotal };
-                        });
-                        adm.totalAmount = grandTotal;
-                    }
-                    return adm;
-                });
-                setBilling(res.billing);
-            }
-        } catch (err) {
-            setError(err.response?.data?.message || 'Patient not found');
-        } finally {
-            setLoading(false);
-        }
+        loadPatient(searchQuery.trim());
     };
 
     const toggle = (category, id) => {
@@ -123,31 +95,42 @@ const PatientBillingProfile = () => {
         });
     };
 
-    const totalSelected = () => {
-        if (!billing) return 0;
-        let total = 0;
-        billing.appointments.filter(a => selected.appointments.includes(a._id)).forEach(a => total += (a.amount || 0));
-        billing.labReports.filter(l => selected.labReports.includes(l._id)).forEach(l => total += (l.amount || l.price || 0));
-        billing.pharmacyOrders.filter(p => selected.pharmacyOrders.includes(p._id)).forEach(p => total += (p.totalAmount || 0));
-        billing.facilityCharges.filter(f => selected.facilityCharges.includes(f._id)).forEach(f => total += (f.totalAmount || 0));
-        billing.admissions.filter(a => selected.admissions.includes(a._id)).forEach(a => total += (a.totalAmount || 0));
-        return total;
-    };
-
     const pendingTotal = () => {
         if (!billing) return 0;
-        let total = 0;
-        billing.appointments.forEach(a => total += (a.amount || 0));
-        billing.labReports.forEach(l => total += (l.amount || l.price || 0));
-        billing.pharmacyOrders.forEach(p => total += (p.totalAmount || 0));
-        billing.facilityCharges.forEach(f => total += (f.totalAmount || 0));
-        billing.admissions.filter(a => a.paymentStatus !== 'Paid').forEach(a => total += (a.totalAmount || 0));
-        return total;
+        let t = 0;
+        (billing.appointments || []).filter(a => isPending(a.paymentStatus)).forEach(a => t += (a.amount || 0));
+        (billing.labReports || []).filter(l => isPending(l.paymentStatus)).forEach(l => t += (l.amount || l.price || 0));
+        (billing.pharmacyOrders || []).filter(p => isPending(p.paymentStatus)).forEach(p => t += (p.totalAmount || 0));
+        (billing.facilityCharges || []).filter(f => isPending(f.paymentStatus)).forEach(f => t += (f.totalAmount || 0));
+        (billing.admissions || []).filter(a => a.status === 'Admitted' && isPending(a.paymentStatus)).forEach(a => t += (a.totalAmount || 0));
+        return t;
+    };
+
+    const paidTotal = () => {
+        if (!billing) return 0;
+        let t = 0;
+        (billing.appointments || []).filter(a => isPaid(a.paymentStatus)).forEach(a => t += (a.amount || 0));
+        (billing.labReports || []).filter(l => isPaid(l.paymentStatus)).forEach(l => t += (l.amount || l.price || 0));
+        (billing.pharmacyOrders || []).filter(p => isPaid(p.paymentStatus)).forEach(p => t += (p.totalAmount || 0));
+        (billing.facilityCharges || []).filter(f => isPaid(f.paymentStatus)).forEach(f => t += (f.totalAmount || 0));
+        (billing.admissions || []).filter(a => isPaid(a.paymentStatus)).forEach(a => t += (a.totalAmount || 0));
+        return t;
+    };
+
+    const totalSelected = () => {
+        if (!billing) return 0;
+        let t = 0;
+        (billing.appointments || []).filter(a => selected.appointments.includes(a._id)).forEach(a => t += (a.amount || 0));
+        (billing.labReports || []).filter(l => selected.labReports.includes(l._id)).forEach(l => t += (l.amount || l.price || 0));
+        (billing.pharmacyOrders || []).filter(p => selected.pharmacyOrders.includes(p._id)).forEach(p => t += (p.totalAmount || 0));
+        (billing.facilityCharges || []).filter(f => selected.facilityCharges.includes(f._id)).forEach(f => t += (f.totalAmount || 0));
+        (billing.admissions || []).filter(a => selected.admissions.includes(a._id)).forEach(a => t += (a.totalAmount || 0));
+        return t;
     };
 
     const handlePay = async () => {
         const total = totalSelected();
-        if (total === 0) return alert('Select at least one item to pay.');
+        if (total === 0) return alert('Select at least one pending item to pay.');
         if (!window.confirm(`Process payment of ${fmt(total)} via ${paymentMode}?`)) return;
         setPaying(true);
         try {
@@ -160,9 +143,8 @@ const PatientBillingProfile = () => {
                 paymentMode,
             });
             setSuccessMsg(`Payment of ${fmt(total)} processed successfully via ${paymentMode}.`);
-            // Reload billing
             const res = await billingAPI.getPatientBills(patient._id);
-            if (res.success) setBilling(res.billing);
+            if (res.success) setBilling({ ...res.billing, admissions: enrichAdmissions(res.billing.admissions || []) });
             setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [] });
         } catch (err) {
             alert(err.response?.data?.message || 'Payment failed');
@@ -177,22 +159,7 @@ const PatientBillingProfile = () => {
         try {
             await admissionAPI.dischargePatient(admissionId);
             const res = await billingAPI.getPatientBills(patient._id);
-            if (res.success) {
-                res.billing.admissions = res.billing.admissions.map(adm => {
-                    if (adm.status === 'Admitted') {
-                        const diffDays = Math.max(1, Math.ceil((new Date().getTime() - new Date(adm.admissionDate).getTime()) / (1000 * 60 * 60 * 24)));
-                        let grandTotal = 0;
-                        adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
-                            const fTotal = diffDays * Number(f.pricePerDay || 0);
-                            grandTotal += fTotal;
-                            return { ...f, days: diffDays, totalAmount: fTotal };
-                        });
-                        adm.totalAmount = grandTotal;
-                    }
-                    return adm;
-                });
-                setBilling(res.billing);
-            }
+            if (res.success) setBilling({ ...res.billing, admissions: enrichAdmissions(res.billing.admissions || []) });
         } catch (err) {
             alert(err.response?.data?.message || 'Discharge failed');
         } finally {
@@ -202,6 +169,12 @@ const PatientBillingProfile = () => {
 
     const activeAdmissions = billing?.admissions?.filter(a => a.status === 'Admitted') || [];
     const pastAdmissions = billing?.admissions?.filter(a => a.status === 'Discharged') || [];
+    const hasPending = pendingTotal() > 0;
+
+    const pendingAppts = (billing?.appointments || []).filter(a => isPending(a.paymentStatus));
+    const pendingLabs = (billing?.labReports || []).filter(l => isPending(l.paymentStatus));
+    const pendingPharmacy = (billing?.pharmacyOrders || []).filter(p => isPending(p.paymentStatus));
+    const pendingFacility = (billing?.facilityCharges || []).filter(f => isPending(f.paymentStatus));
 
     return (
         <div className="billing-profile-page">
@@ -228,11 +201,7 @@ const PatientBillingProfile = () => {
                     </button>
                 </form>
                 {searchResults.length > 0 && (
-                    <div style={{
-                        position: 'absolute', top: '100%', left: 0, right: 0,
-                        background: 'white', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        zIndex: 1000, maxHeight: '300px', overflowY: 'auto', borderRadius: '8px', marginTop: '4px'
-                    }}>
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 1000, maxHeight: '300px', overflowY: 'auto', borderRadius: '8px', marginTop: '4px' }}>
                         {searchResults.map(p => (
                             <div key={p._id} style={{ padding: '12px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => handleSelectPatient(p)}>
                                 <div>
@@ -269,8 +238,22 @@ const PatientBillingProfile = () => {
                             </div>
                         </div>
                         <div className="patient-outstanding">
-                            <div className="outstanding-label">Total Outstanding</div>
-                            <div className="outstanding-amount">{fmt(pendingTotal())}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'right' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Grand Total Bill</div>
+                                    <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{fmt(pendingTotal() + paidTotal())}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                    <div style={{ fontSize: '0.78rem' }}>
+                                        <span style={{ opacity: 0.75 }}>Paid: </span>
+                                        <span style={{ color: '#86efac', fontWeight: 700 }}>{fmt(paidTotal())}</span>
+                                    </div>
+                                    <div style={{ fontSize: '0.78rem' }}>
+                                        <span style={{ opacity: 0.75 }}>Balance: </span>
+                                        <span style={{ color: '#fca5a5', fontWeight: 700 }}>{fmt(pendingTotal())}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -295,13 +278,12 @@ const PatientBillingProfile = () => {
                                                     type="checkbox"
                                                     checked={selected.admissions.includes(adm._id)}
                                                     onChange={() => toggle('admissions', adm._id)}
-                                                    disabled={adm.paymentStatus === 'Paid'}
+                                                    disabled={isPaid(adm.paymentStatus)}
                                                 />
-                                                {adm.paymentStatus === 'Paid' ? (
-                                                    <span className="paid-badge">Paid</span>
-                                                ) : (
-                                                    <span>Mark for payment</span>
-                                                )}
+                                                {isPaid(adm.paymentStatus)
+                                                    ? <span className="paid-badge">Paid</span>
+                                                    : <span>Mark for payment</span>
+                                                }
                                             </label>
                                             <button
                                                 className="btn-discharge"
@@ -314,9 +296,7 @@ const PatientBillingProfile = () => {
                                     </div>
                                     {adm.selectedFacilities?.length > 0 && (
                                         <table className="facility-table">
-                                            <thead>
-                                                <tr><th>Facility</th><th>Rate/Day</th><th>Days</th><th>Amount</th></tr>
-                                            </thead>
+                                            <thead><tr><th>Facility</th><th>Rate/Day</th><th>Days</th><th>Amount</th></tr></thead>
                                             <tbody>
                                                 {adm.selectedFacilities.map((f, i) => (
                                                     <tr key={i}>
@@ -345,46 +325,33 @@ const PatientBillingProfile = () => {
                     {billing.appointments.length > 0 && (
                         <div className="billing-section">
                             <div className="section-header">
-                                <h3>OPD Consultations ({billing.appointments.length} pending)</h3>
-                                <button className="btn-select-all" onClick={() => toggleAll('appointments', billing.appointments.map(a => a._id))}>
-                                    {billing.appointments.every(a => selected.appointments.includes(a._id)) ? 'Deselect All' : 'Select All'}
-                                </button>
+                                <h3>
+                                    OPD Consultations
+                                    {pendingAppts.length > 0 && <span style={{ color: '#dc2626', fontSize: '0.82rem', marginLeft: 8 }}>{pendingAppts.length} pending</span>}
+                                    {billing.appointments.length - pendingAppts.length > 0 && <span style={{ color: '#16a34a', fontSize: '0.82rem', marginLeft: 8 }}>{billing.appointments.length - pendingAppts.length} paid</span>}
+                                </h3>
+                                {pendingAppts.length > 0 && (
+                                    <button className="btn-select-all" onClick={() => toggleAll('appointments', pendingAppts.map(a => a._id))}>
+                                        {pendingAppts.every(a => selected.appointments.includes(a._id)) ? 'Deselect All' : 'Select All Pending'}
+                                    </button>
+                                )}
                             </div>
                             <table className="billing-table">
                                 <thead><tr><th></th><th>Date</th><th>Doctor</th><th>Service</th><th>Status</th><th>Amount</th></tr></thead>
                                 <tbody>
                                     {billing.appointments.map(a => (
-                                        <tr key={a._id} className={selected.appointments.includes(a._id) ? 'selected-row' : ''}>
-                                            <td><input type="checkbox" checked={selected.appointments.includes(a._id)} onChange={() => toggle('appointments', a._id)} /></td>
+                                        <tr key={a._id} style={isPaid(a.paymentStatus) ? { background: '#f0fdf4' } : selected.appointments.includes(a._id) ? { background: '#eff6ff' } : {}}>
+                                            <td>
+                                                {isPaid(a.paymentStatus)
+                                                    ? <span className="paid-badge">PAID</span>
+                                                    : <input type="checkbox" checked={selected.appointments.includes(a._id)} onChange={() => toggle('appointments', a._id)} />
+                                                }
+                                            </td>
                                             <td>{fmtDate(a.appointmentDate)}{a.appointmentTime && ` ${a.appointmentTime}`}</td>
                                             <td>{a.doctorName || '—'}</td>
                                             <td>{a.serviceName || 'Consultation'}</td>
-                                            <td><span className={`status-badge status-${a.status}`}>{a.status}</span></td>
-                                            <td className="amount-cell">{fmt(a.amount)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {/* Paid Appointments — read-only info */}
-                    {(billing.paidAppointments || []).length > 0 && (
-                        <div className="billing-section" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                            <div className="section-header">
-                                <h3 style={{ color: '#15803d' }}>✅ Appointment Fees Collected ({billing.paidAppointments.length})</h3>
-                                <span style={{ fontSize: '0.78rem', color: '#15803d', fontStyle: 'italic' }}>Paid at reception — for reference only</span>
-                            </div>
-                            <table className="billing-table">
-                                <thead><tr><th>Date</th><th>Doctor</th><th>Service</th><th>Mode</th><th>Amount</th></tr></thead>
-                                <tbody>
-                                    {billing.paidAppointments.map(a => (
-                                        <tr key={a._id}>
-                                            <td>{fmtDate(a.appointmentDate)}{a.appointmentTime && ` ${a.appointmentTime}`}</td>
-                                            <td>{a.doctorName || '—'}</td>
-                                            <td>{a.serviceName || 'Consultation'}</td>
-                                            <td><span className="paid-badge">Paid</span></td>
-                                            <td className="amount-cell" style={{ color: '#15803d' }}>{fmt(a.amount)}</td>
+                                            <td><span className={`status-badge status-${(a.status || '').toLowerCase()}`}>{a.status}</span></td>
+                                            <td className="amount-cell" style={isPaid(a.paymentStatus) ? { color: '#16a34a' } : {}}>{fmt(a.amount)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -396,21 +363,32 @@ const PatientBillingProfile = () => {
                     {billing.labReports.length > 0 && (
                         <div className="billing-section">
                             <div className="section-header">
-                                <h3>Lab Tests ({billing.labReports.length} pending)</h3>
-                                <button className="btn-select-all" onClick={() => toggleAll('labReports', billing.labReports.map(l => l._id))}>
-                                    {billing.labReports.every(l => selected.labReports.includes(l._id)) ? 'Deselect All' : 'Select All'}
-                                </button>
+                                <h3>
+                                    Lab Tests
+                                    {pendingLabs.length > 0 && <span style={{ color: '#dc2626', fontSize: '0.82rem', marginLeft: 8 }}>{pendingLabs.length} pending</span>}
+                                    {billing.labReports.length - pendingLabs.length > 0 && <span style={{ color: '#16a34a', fontSize: '0.82rem', marginLeft: 8 }}>{billing.labReports.length - pendingLabs.length} paid</span>}
+                                </h3>
+                                {pendingLabs.length > 0 && (
+                                    <button className="btn-select-all" onClick={() => toggleAll('labReports', pendingLabs.map(l => l._id))}>
+                                        {pendingLabs.every(l => selected.labReports.includes(l._id)) ? 'Deselect All' : 'Select All Pending'}
+                                    </button>
+                                )}
                             </div>
                             <table className="billing-table">
                                 <thead><tr><th></th><th>Date</th><th>Tests</th><th>Status</th><th>Amount</th></tr></thead>
                                 <tbody>
                                     {billing.labReports.map(l => (
-                                        <tr key={l._id} className={selected.labReports.includes(l._id) ? 'selected-row' : ''}>
-                                            <td><input type="checkbox" checked={selected.labReports.includes(l._id)} onChange={() => toggle('labReports', l._id)} /></td>
+                                        <tr key={l._id} style={isPaid(l.paymentStatus) ? { background: '#f0fdf4' } : selected.labReports.includes(l._id) ? { background: '#eff6ff' } : {}}>
+                                            <td>
+                                                {isPaid(l.paymentStatus)
+                                                    ? <span className="paid-badge">PAID</span>
+                                                    : <input type="checkbox" checked={selected.labReports.includes(l._id)} onChange={() => toggle('labReports', l._id)} />
+                                                }
+                                            </td>
                                             <td>{fmtDate(l.createdAt)}</td>
                                             <td>{Array.isArray(l.testNames) ? l.testNames.join(', ') : (l.testName || '—')}</td>
-                                            <td><span className={`status-badge`}>{l.testStatus || l.status || 'Pending'}</span></td>
-                                            <td className="amount-cell">{fmt(l.amount || l.price)}</td>
+                                            <td><span className="status-badge">{l.testStatus || l.status || 'Pending'}</span></td>
+                                            <td className="amount-cell" style={isPaid(l.paymentStatus) ? { color: '#16a34a' } : {}}>{fmt(l.amount || l.price)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -422,21 +400,32 @@ const PatientBillingProfile = () => {
                     {billing.pharmacyOrders.length > 0 && (
                         <div className="billing-section">
                             <div className="section-header">
-                                <h3>Pharmacy Orders ({billing.pharmacyOrders.length} pending)</h3>
-                                <button className="btn-select-all" onClick={() => toggleAll('pharmacyOrders', billing.pharmacyOrders.map(p => p._id))}>
-                                    {billing.pharmacyOrders.every(p => selected.pharmacyOrders.includes(p._id)) ? 'Deselect All' : 'Select All'}
-                                </button>
+                                <h3>
+                                    Pharmacy Orders
+                                    {pendingPharmacy.length > 0 && <span style={{ color: '#dc2626', fontSize: '0.82rem', marginLeft: 8 }}>{pendingPharmacy.length} pending</span>}
+                                    {billing.pharmacyOrders.length - pendingPharmacy.length > 0 && <span style={{ color: '#16a34a', fontSize: '0.82rem', marginLeft: 8 }}>{billing.pharmacyOrders.length - pendingPharmacy.length} paid</span>}
+                                </h3>
+                                {pendingPharmacy.length > 0 && (
+                                    <button className="btn-select-all" onClick={() => toggleAll('pharmacyOrders', pendingPharmacy.map(p => p._id))}>
+                                        {pendingPharmacy.every(p => selected.pharmacyOrders.includes(p._id)) ? 'Deselect All' : 'Select All Pending'}
+                                    </button>
+                                )}
                             </div>
                             <table className="billing-table">
-                                <thead><tr><th></th><th>Date</th><th>Items</th><th>Order Status</th><th>Amount</th></tr></thead>
+                                <thead><tr><th></th><th>Date</th><th>Medicines</th><th>Order Status</th><th>Amount</th></tr></thead>
                                 <tbody>
                                     {billing.pharmacyOrders.map(p => (
-                                        <tr key={p._id} className={selected.pharmacyOrders.includes(p._id) ? 'selected-row' : ''}>
-                                            <td><input type="checkbox" checked={selected.pharmacyOrders.includes(p._id)} onChange={() => toggle('pharmacyOrders', p._id)} /></td>
+                                        <tr key={p._id} style={isPaid(p.paymentStatus) ? { background: '#f0fdf4' } : selected.pharmacyOrders.includes(p._id) ? { background: '#eff6ff' } : {}}>
+                                            <td>
+                                                {isPaid(p.paymentStatus)
+                                                    ? <span className="paid-badge">PAID</span>
+                                                    : <input type="checkbox" checked={selected.pharmacyOrders.includes(p._id)} onChange={() => toggle('pharmacyOrders', p._id)} />
+                                                }
+                                            </td>
                                             <td>{fmtDate(p.createdAt)}</td>
                                             <td>{Array.isArray(p.items) ? p.items.map(i => i.medicineName || i.name).filter(Boolean).join(', ') : '—'}</td>
                                             <td><span className="status-badge">{p.orderStatus || 'Pending'}</span></td>
-                                            <td className="amount-cell">{fmt(p.totalAmount)}</td>
+                                            <td className="amount-cell" style={isPaid(p.paymentStatus) ? { color: '#16a34a' } : {}}>{fmt(p.totalAmount)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -448,22 +437,33 @@ const PatientBillingProfile = () => {
                     {billing.facilityCharges.length > 0 && (
                         <div className="billing-section">
                             <div className="section-header">
-                                <h3>Facility Charges ({billing.facilityCharges.length} pending)</h3>
-                                <button className="btn-select-all" onClick={() => toggleAll('facilityCharges', billing.facilityCharges.map(f => f._id))}>
-                                    {billing.facilityCharges.every(f => selected.facilityCharges.includes(f._id)) ? 'Deselect All' : 'Select All'}
-                                </button>
+                                <h3>
+                                    Facility Charges
+                                    {pendingFacility.length > 0 && <span style={{ color: '#dc2626', fontSize: '0.82rem', marginLeft: 8 }}>{pendingFacility.length} pending</span>}
+                                    {billing.facilityCharges.length - pendingFacility.length > 0 && <span style={{ color: '#16a34a', fontSize: '0.82rem', marginLeft: 8 }}>{billing.facilityCharges.length - pendingFacility.length} paid</span>}
+                                </h3>
+                                {pendingFacility.length > 0 && (
+                                    <button className="btn-select-all" onClick={() => toggleAll('facilityCharges', pendingFacility.map(f => f._id))}>
+                                        {pendingFacility.every(f => selected.facilityCharges.includes(f._id)) ? 'Deselect All' : 'Select All Pending'}
+                                    </button>
+                                )}
                             </div>
                             <table className="billing-table">
                                 <thead><tr><th></th><th>Date</th><th>Facility</th><th>Rate/Day</th><th>Days</th><th>Amount</th></tr></thead>
                                 <tbody>
                                     {billing.facilityCharges.map(f => (
-                                        <tr key={f._id} className={selected.facilityCharges.includes(f._id) ? 'selected-row' : ''}>
-                                            <td><input type="checkbox" checked={selected.facilityCharges.includes(f._id)} onChange={() => toggle('facilityCharges', f._id)} /></td>
+                                        <tr key={f._id} style={isPaid(f.paymentStatus) ? { background: '#f0fdf4' } : selected.facilityCharges.includes(f._id) ? { background: '#eff6ff' } : {}}>
+                                            <td>
+                                                {isPaid(f.paymentStatus)
+                                                    ? <span className="paid-badge">PAID</span>
+                                                    : <input type="checkbox" checked={selected.facilityCharges.includes(f._id)} onChange={() => toggle('facilityCharges', f._id)} />
+                                                }
+                                            </td>
                                             <td>{fmtDate(f.createdAt)}</td>
                                             <td>{f.facilityName}</td>
                                             <td>{fmt(f.pricePerDay)}</td>
                                             <td>{f.days}</td>
-                                            <td className="amount-cell">{fmt(f.totalAmount)}</td>
+                                            <td className="amount-cell" style={isPaid(f.paymentStatus) ? { color: '#16a34a' } : {}}>{fmt(f.totalAmount)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -486,8 +486,8 @@ const PatientBillingProfile = () => {
                                             {adm.ward && <span className="badge-ward"> Ward: {adm.ward}</span>}
                                             {adm.bedNumber && <span className="badge-bed"> Bed: {adm.bedNumber}</span>}
                                         </div>
-                                        <span className={adm.paymentStatus === 'Paid' ? 'paid-badge' : 'pending-badge'}>
-                                            {adm.paymentStatus === 'Paid' ? 'Paid' : `Pending — ${fmt(adm.totalAmount)}`}
+                                        <span className={isPaid(adm.paymentStatus) ? 'paid-badge' : 'pending-badge'}>
+                                            {isPaid(adm.paymentStatus) ? 'Paid' : `Pending — ${fmt(adm.totalAmount)}`}
                                         </span>
                                     </div>
                                     {adm.selectedFacilities?.length > 0 && (
@@ -502,26 +502,32 @@ const PatientBillingProfile = () => {
                         </div>
                     )}
 
-                    {/* No pending bills */}
-                    {billing.appointments.length === 0 && billing.labReports.length === 0 &&
+                    {/* Empty state */}
+                    {!hasPending && billing.appointments.length === 0 && billing.labReports.length === 0 &&
                         billing.pharmacyOrders.length === 0 && billing.facilityCharges.length === 0 &&
                         activeAdmissions.length === 0 && (
-                        <div className="no-bills">No pending bills found for this patient.</div>
+                        <div className="no-bills">No billing records found for this patient.</div>
                     )}
 
                     {/* Payment Panel */}
-                    {(billing.appointments.length > 0 || billing.labReports.length > 0 ||
-                        billing.pharmacyOrders.length > 0 || billing.facilityCharges.length > 0 ||
-                        activeAdmissions.length > 0) && (
+                    {hasPending && (
                         <div className="payment-panel">
                             <div className="payment-summary">
                                 <div className="payment-row">
-                                    <span>Selected Amount:</span>
-                                    <strong className="selected-amount">{fmt(totalSelected())}</strong>
+                                    <span style={{ minWidth: 140 }}>Grand Total Bill:</span>
+                                    <strong>{fmt(pendingTotal() + paidTotal())}</strong>
                                 </div>
                                 <div className="payment-row">
-                                    <span>Total Outstanding:</span>
-                                    <strong>{fmt(pendingTotal())}</strong>
+                                    <span style={{ minWidth: 140 }}>Already Paid:</span>
+                                    <strong style={{ color: '#16a34a' }}>{fmt(paidTotal())}</strong>
+                                </div>
+                                <div className="payment-row">
+                                    <span style={{ minWidth: 140 }}>Balance Due:</span>
+                                    <strong style={{ color: '#dc2626', fontSize: '1.1rem' }}>{fmt(pendingTotal())}</strong>
+                                </div>
+                                <div className="payment-row" style={{ borderTop: '1px solid #e2e8f0', paddingTop: 6, marginTop: 4 }}>
+                                    <span style={{ minWidth: 140 }}>Selected to Pay:</span>
+                                    <strong className="selected-amount">{fmt(totalSelected())}</strong>
                                 </div>
                             </div>
                             <div className="payment-controls">

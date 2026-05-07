@@ -91,22 +91,20 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
 
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
 
-        const pendingStatuses = ['pending', 'Pending', 'PENDING', 'Unpaid'];
-
-        // Use patient._id (ObjectId) for all queries — tenant models use ObjectId for patientId,
-        // passing an MRN string causes a "Cast to ObjectId failed" error.
-        const [appointments, allAppointments, labReports, pharmacyOrders, facilityCharges, admissions] = await Promise.all([
-            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $in: pendingStatuses } })
-                .select('appointmentDate appointmentTime amount paymentStatus serviceName doctorName status createdAt').lean(),
-            // All appointments (including paid) for read-only history display
-            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $nin: pendingStatuses } })
-                .select('appointmentDate appointmentTime amount paymentStatus serviceName doctorName status createdAt').lean(),
-            LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $in: pendingStatuses } })
-                .select('testNames testName amount price paymentStatus testStatus createdAt').lean(),
-            PharmacyOrder.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], paymentStatus: { $in: pendingStatuses } })
-                .select('items totalAmount paymentStatus orderStatus createdAt').lean(),
-            FacilityCharge.find({ patientId: patient._id, paymentStatus: { $in: pendingStatuses } })
-                .select('facilityName pricePerDay days totalAmount paymentStatus createdAt').lean(),
+        // Return ALL records for every category — frontend splits paid vs pending by paymentStatus field
+        const [appointments, labReports, pharmacyOrders, facilityCharges, admissions] = await Promise.all([
+            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }] })
+                .select('appointmentDate appointmentTime amount paymentStatus paymentMode serviceName doctorName status createdAt')
+                .sort({ appointmentDate: -1 }).lean(),
+            LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient._id }] })
+                .select('testNames testName amount price paymentStatus paymentMode testStatus createdAt')
+                .sort({ createdAt: -1 }).lean(),
+            PharmacyOrder.find({ $or: [{ userId: patient._id }, { patientId: patient._id }] })
+                .select('items totalAmount paymentStatus orderStatus createdAt')
+                .sort({ createdAt: -1 }).lean(),
+            FacilityCharge.find({ patientId: patient._id })
+                .select('facilityName pricePerDay days totalAmount paymentStatus createdAt')
+                .sort({ createdAt: -1 }).lean(),
             Admission.find({ patientId: patient._id })
                 .sort({ admissionDate: -1 }).lean(),
         ]);
@@ -123,7 +121,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 dob: patient.dob,
                 avatar: patient.avatar || null,
             },
-            billing: { appointments, paidAppointments: allAppointments, labReports, pharmacyOrders, facilityCharges, admissions }
+            billing: { appointments, labReports, pharmacyOrders, facilityCharges, admissions }
         });
 
     } catch (error) {
