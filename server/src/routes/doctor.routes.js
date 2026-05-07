@@ -370,7 +370,7 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
 
             let pId = appointment.patientId;
             let pName = 'Patient';
-            if (!pId || !appointment.userId.name) {
+            if (!pId || !appointment.userId?.name) {
                 const pUser = await User.findById(appointment.userId);
                 if (pUser) {
                     pId = pUser.patientId;
@@ -387,7 +387,10 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
             const TestPackage = require('../models/testPackage.model');
             
             const allTests = await LabTest.find();
-            const selectedPkgs = await TestPackage.find({ _id: { $in: selectedPackages || [] } }).populate('tests');
+            const parsedPackages = selectedPackages
+                ? (typeof selectedPackages === 'string' ? JSON.parse(selectedPackages) : selectedPackages)
+                : [];
+            const selectedPkgs = await TestPackage.find({ _id: { $in: parsedPackages } }).populate('tests');
             
             let totalAmount = 0;
             const hidStr = (req.user.hospitalId || appointment.hospitalId || '').toString();

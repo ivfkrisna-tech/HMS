@@ -93,9 +93,7 @@ export const doctorAPI = {
                 formData.append(key, data[key]);
             }
         });
-        const response = await apiClient.patch(`/api/doctor/appointments/${id}/prescription`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        const response = await apiClient.patch(`/api/doctor/appointments/${id}/prescription`, formData);
         return response.data;
     },
     getLabs: async () => {
