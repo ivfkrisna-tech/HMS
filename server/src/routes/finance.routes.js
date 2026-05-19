@@ -17,7 +17,7 @@ const verifyFinanceAccess = async (req, res, next) => {
 
             const hasAccess = allowed.some(keyword => dynRoleStr.includes(keyword) || role.includes(keyword));
             
-            if (hasAccess || permissions.includes('*') || permissions.includes('finance_access')) {
+            if (hasAccess || permissions.includes('*') || permissions.includes('finance_access') || permissions.includes('finance_view')) {
                 return next();
             }
             return res.status(403).json({ success: false, message: `Finance access required. Role: ${dynRoleStr || role}` });

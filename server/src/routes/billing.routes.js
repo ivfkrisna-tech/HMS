@@ -55,14 +55,29 @@ router.get('/search-patients', verifyBillingAccess, async (req, res) => {
         if (!query) return res.json({ success: true, patients: [] });
 
         const regex = new RegExp(query, 'i');
-        const patients = await MasterUser.find({
+        const searchFilter = {
             $or: [
                 { name: regex },
                 { phone: regex },
                 { mrn: regex },
                 { patientId: regex }
             ]
-        }).select('name phone mrn patientId dob gender').limit(10).lean();
+        };
+
+        let patients = await MasterUser.find(searchFilter)
+            .select('name phone mrn patientId dob gender').limit(10).lean();
+
+        // Also search tenant DB if results are sparse
+        if (patients.length < 10 && req.tenantDb) {
+            const { User: TenantUser } = getModels(req);
+            const tenantPatients = await TenantUser.find(searchFilter)
+                .select('name phone mrn patientId dob gender').limit(10 - patients.length).lean();
+            // Merge, avoiding duplicates by _id
+            const existingIds = new Set(patients.map(p => String(p._id)));
+            for (const p of tenantPatients) {
+                if (!existingIds.has(String(p._id))) patients.push(p);
+            }
+        }
 
         res.json({ success: true, patients });
     } catch (err) {
@@ -79,7 +94,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         const mongoose = require('mongoose');
         const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
         
-        const patient = await MasterUser.findOne({
+        const searchQuery = {
             $or: [
                 ...(isObjectId ? [{ _id: identifier }] : []),
                 { mrn: identifier },
@@ -87,7 +102,15 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 { phone: identifier },
                 { name: { $regex: identifier, $options: 'i' } }
             ]
-        });
+        };
+
+        let patient = await MasterUser.findOne(searchQuery);
+
+        // If not found in master DB, try tenant DB (patients registered per-hospital)
+        if (!patient && req.tenantDb) {
+            const { User: TenantUser } = getModels(req);
+            patient = await TenantUser.findOne(searchQuery);
+        }
 
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
 
@@ -124,29 +147,6 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             billing: { appointments, labReports, pharmacyOrders, facilityCharges, admissions }
         });
 
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// 1.5 Search Patients for Dropdown — tenant-scoped
-router.get('/search-patients', verifyBillingAccess, async (req, res) => {
-    try {
-        const { query } = req.query;
-        if (!query || query.length < 2) return res.json({ success: true, patients: [] });
-
-        // Use MasterUser for searching across all patients
-        const patients = await MasterUser.find({
-            role: 'patient',
-            $or: [
-                { name: { $regex: query, $options: 'i' } },
-                { phone: { $regex: query, $options: 'i' } },
-                { mrn: { $regex: query, $options: 'i' } },
-                { patientId: { $regex: query, $options: 'i' } }
-            ]
-        }).select('name phone mrn patientId email dob').limit(10).lean();
-
-        res.json({ success: true, patients });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
