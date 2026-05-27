@@ -23,12 +23,20 @@ function getBaseClusterUri() {
     const fullUri = process.env.MONGODB_URL;
     if (!fullUri) throw new Error('MONGODB_URL is not defined in .env');
 
-    // Remove the database name and query params, keep the cluster URI
-    // Works for both mongodb+srv:// and mongodb:// formats
-    const url = new URL(fullUri);
-    // Return scheme + auth + host only (no path/database, no query)
-    const base = `${url.protocol}//${url.username}:${url.password}@${url.host}`;
-    return base;
+    let mainPart = fullUri;
+    const qIndex = fullUri.indexOf('?');
+    if (qIndex !== -1) {
+        mainPart = fullUri.substring(0, qIndex);
+    }
+
+    const protocolIndex = mainPart.indexOf('://');
+    const startSearchIndex = protocolIndex !== -1 ? protocolIndex + 3 : 0;
+
+    const lastSlashIndex = mainPart.lastIndexOf('/');
+    if (lastSlashIndex !== -1 && lastSlashIndex >= startSearchIndex) {
+        return mainPart.substring(0, lastSlashIndex);
+    }
+    return mainPart;
 }
 
 /**
@@ -60,7 +68,22 @@ async function getTenantConnection(hospitalId) {
     }
 
     const baseUri = getBaseClusterUri();
-    const tenantUri = `${baseUri}/${dbName}?retryWrites=true&w=majority`;
+    const fullUri = process.env.MONGODB_URL;
+    let queryParams = '';
+    const qIndex = fullUri.indexOf('?');
+    if (qIndex !== -1) {
+        queryParams = fullUri.substring(qIndex + 1);
+    }
+
+    let tenantUri = `${baseUri}/${dbName}`;
+    if (queryParams) {
+        let qParams = queryParams;
+        if (!qParams.includes('retryWrites=')) qParams += '&retryWrites=true';
+        if (!qParams.includes('w=')) qParams += '&w=majority';
+        tenantUri += `?${qParams}`;
+    } else {
+        tenantUri += `?retryWrites=true&w=majority`;
+    }
 
     console.log(`🏥 Opening tenant DB connection: ${dbName}`);
 

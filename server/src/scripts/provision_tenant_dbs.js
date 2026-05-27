@@ -22,14 +22,41 @@ function sanitizeDbName(hospitalId) {
 }
 
 function getBaseClusterUri() {
-    const url = new URL(MONGODB_URL);
-    return `${url.protocol}//${url.username}:${url.password}@${url.host}`;
+    let mainPart = MONGODB_URL;
+    const qIndex = MONGODB_URL.indexOf('?');
+    if (qIndex !== -1) {
+        mainPart = MONGODB_URL.substring(0, qIndex);
+    }
+
+    const protocolIndex = mainPart.indexOf('://');
+    const startSearchIndex = protocolIndex !== -1 ? protocolIndex + 3 : 0;
+
+    const lastSlashIndex = mainPart.lastIndexOf('/');
+    if (lastSlashIndex !== -1 && lastSlashIndex >= startSearchIndex) {
+        return mainPart.substring(0, lastSlashIndex);
+    }
+    return mainPart;
 }
 
 async function provisionTenantDb(hospital) {
     const dbName = sanitizeDbName(String(hospital._id));
     const baseUri = getBaseClusterUri();
-    const tenantUri = `${baseUri}/${dbName}?retryWrites=true&w=majority`;
+    
+    let queryParams = '';
+    const qIndex = MONGODB_URL.indexOf('?');
+    if (qIndex !== -1) {
+        queryParams = MONGODB_URL.substring(qIndex + 1);
+    }
+
+    let tenantUri = `${baseUri}/${dbName}`;
+    if (queryParams) {
+        let qParams = queryParams;
+        if (!qParams.includes('retryWrites=')) qParams += '&retryWrites=true';
+        if (!qParams.includes('w=')) qParams += '&w=majority';
+        tenantUri += `?${qParams}`;
+    } else {
+        tenantUri += `?retryWrites=true&w=majority`;
+    }
 
     const conn = mongoose.createConnection(tenantUri, {
         serverSelectionTimeoutMS: 30000,

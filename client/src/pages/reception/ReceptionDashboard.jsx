@@ -51,26 +51,19 @@ const ReceptionDashboard = () => {
         doctorId: '', date: new Date().toISOString().split('T')[0], bookedSlots: []
     });
 
-    // SIMPLIFIED INTAKE STATE (Removed medical history)
+    // SIMPLIFIED INTAKE STATE
     const [intakeForm, setIntakeForm] = useState({
-        // Identity
         title: 'Mrs.', firstName: '', middleName: '', lastName: '',
         dob: '', age: '', gender: 'Female', mobile: '', email: '',
         address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
-
-        // Partner
         partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '', partnerRelation: 'Husband',
-
-        // Vitals / Payment (Reception Duties)
         height: '', weight: '', bmi: '', bloodGroup: '',
         consultationFee: '',
-
-        // Assignment
         department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: '',
-        referralType: '', reasonForVisit: '', paymentMethod: 'Cash'
+        referralType: '', reasonForVisit: '', paymentMethod: 'Cash',
+        transactionId: ''
     });
 
-    const [paymentScreenshot, setPaymentScreenshot] = useState(null);
     const [patientPhoto, setPatientPhoto] = useState(null);
     const [showWebcam, setShowWebcam] = useState(false);
     const webcamRef = React.useRef(null);
@@ -83,20 +76,17 @@ const ReceptionDashboard = () => {
     useEffect(() => {
         if (viewMode === 'intake') {
             if (patientIdParam && patientIdParam !== selectedPatientId) {
-                // We should fetch/find the patient and set the form
-                // For now, if they are in search results or appointments, we find them
                 const patient = appointments.find(a => (a.userId?._id || a.patientId) === patientIdParam)?.userId 
                               || searchResults.find(p => p._id === patientIdParam);
                 if (patient) {
-                    handleEditPatient(patient, true); // true = skip nav
+                    handleEditPatient(patient, true);
                 }
             } else if (!patientIdParam) {
-                handleNewWalkIn(true); // true = skip nav
+                handleNewWalkIn(true);
             }
         }
     }, [viewMode, patientIdParam, appointments, searchResults]);
 
-    // Sync Consultation Fee when hospital context is loaded
     useEffect(() => {
         if (viewMode === 'intake' && hospitalContext && !intakeForm.consultationFee) {
             setIntakeForm(prev => ({
@@ -125,7 +115,6 @@ const ReceptionDashboard = () => {
         }
     }, [availabilityCheck.doctorId, availabilityCheck.date]);
 
-    // Sync Form with Widget
     useEffect(() => {
         if (intakeForm.doctor && intakeForm.visitDate) {
             if (intakeForm.doctor !== availabilityCheck.doctorId || intakeForm.visitDate !== availabilityCheck.date) {
@@ -136,7 +125,6 @@ const ReceptionDashboard = () => {
         }
     }, [intakeForm.doctor, intakeForm.visitDate]);
 
-    // Fetch next token number when doctor + date selected and hospital is in token mode
     useEffect(() => {
         const isTokenMode = hospitalContext?.appointmentMode === 'token';
         if (!isTokenMode || !intakeForm.doctor || !intakeForm.visitDate || !hospitalContext?._id) {
@@ -204,8 +192,6 @@ const ReceptionDashboard = () => {
     };
 
     const handleNewWalkIn = (skipNav = false) => {
-        // If called from an event handler (like onClick), skipNav will be an event object.
-        // We only want to skip navigation if skipNav is explicitly true.
         if (skipNav !== true) setSearchParams({ mode: 'intake' });
         setSelectedPatientId(null);
         setOtpSent(false);
@@ -220,7 +206,7 @@ const ReceptionDashboard = () => {
             height: '', weight: '', bmi: '', bloodGroup: '',
             paymentStatus: 'Pending', consultationFee: hospitalContext?.appointmentFee ?? '500',
             department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: '',
-            referralType: '', reasonForVisit: '', paymentMethod: 'Cash'
+            referralType: '', reasonForVisit: '', paymentMethod: 'Cash', transactionId: ''
         });
     };
 
@@ -245,7 +231,8 @@ const ReceptionDashboard = () => {
             avatar: patient.avatar || '',
             ...p,
             consultationFee: hospitalContext?.appointmentFee ?? '500',
-            department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: ''
+            department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: '',
+            transactionId: ''
         }));
     };
 
@@ -283,7 +270,7 @@ const ReceptionDashboard = () => {
             });
             alert(`Patient admitted successfully!`);
             setHospitalizeModal({ open: false, appointment: null });
-            fetchAppointments(); // Refresh to show hospitalized status
+            fetchAppointments();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to admit patient');
         } finally {
@@ -301,7 +288,6 @@ const ReceptionDashboard = () => {
         }
     };
 
-    // ─── RECEIPT PDF GENERATOR ────────────────────────────────────────────────
     const generateReceiptPDF = (apt, paymentMethodOverride) => {
         const doc = new jsPDF();
         const hName = hospitalContext?.name || 'HOSPITAL';
@@ -410,14 +396,11 @@ const ReceptionDashboard = () => {
         }
 
         if (name === 'visitDate') {
-            // Prevent past dates
             if (value < todayStr) return;
-            // Reset time slot when date changes (past slot may no longer be valid)
             setIntakeForm(prev => ({ ...prev, visitDate: value, visitTime: '' }));
             return;
         }
 
-        // BMI Calculation
         if (name === 'height' || name === 'weight') {
             const h = name === 'height' ? value : intakeForm.height;
             const w = name === 'weight' ? value : intakeForm.weight;
@@ -441,7 +424,7 @@ const ReceptionDashboard = () => {
             const res = await receptionAPI.sendAadhaarOTP(intakeForm.aadhaar);
             if (res.success) {
                 setOtpSent(true);
-                alert(res.message); // "OTP Sent (Use 123456)"
+                alert(res.message);
             }
         } catch (err) {
             alert(err.response?.data?.message || "Failed to send OTP");
@@ -461,7 +444,6 @@ const ReceptionDashboard = () => {
                 const kyc = res.data;
                 alert(`✅ Verification Successful: ${kyc.fullName}`);
 
-                // Auto-populate
                 setIntakeForm(prev => ({
                     ...prev,
                     isAadhaarVerified: true,
@@ -471,7 +453,6 @@ const ReceptionDashboard = () => {
                     gender: kyc.gender,
                     address: kyc.address
                 }));
-                // Reset OTP UI
                 setOtpSent(false);
                 setAadhaarOtp('');
             }
@@ -491,15 +472,14 @@ const ReceptionDashboard = () => {
             setSaving(false); return;
         }
 
-        if (intakeForm.doctor && intakeForm.visitTime && intakeForm.paymentMethod !== 'Cash' && !paymentScreenshot) {
-            alert(`Please upload a payment screenshot/proof for ${intakeForm.paymentMethod} payment before booking.`);
+        if (intakeForm.doctor && intakeForm.visitTime && intakeForm.paymentMethod !== 'Cash' && !intakeForm.transactionId) {
+            alert(`Please enter a UPI ID / Transaction ID for ${intakeForm.paymentMethod} payment before booking.`);
             setSaving(false); return;
         }
 
         try {
             let userId = selectedPatientId;
 
-            // 1. Register/Find User
             const regRes = await receptionAPI.registerPatient({
                 name: `${intakeForm.firstName} ${intakeForm.lastName}`.trim(),
                 email: intakeForm.email,
@@ -515,7 +495,6 @@ const ReceptionDashboard = () => {
             let finalAvatar = intakeForm.avatar;
             if (patientPhoto && patientPhoto.startsWith('data:image')) {
                 try {
-                    // Use atob-based conversion — more reliable than fetch() for data URLs
                     const parts = patientPhoto.split(';base64,');
                     const mime = parts[0].split(':')[1] || 'image/jpeg';
                     const binary = atob(parts[1]);
@@ -528,35 +507,22 @@ const ReceptionDashboard = () => {
                     const upRes = await uploadAPI.uploadImages(fd);
                     if (upRes.success && upRes.files?.length > 0) {
                         finalAvatar = upRes.files[0].url;
-                    } else {
-                        console.warn('Photo upload response missing URL', upRes);
                     }
                 } catch (e) {
                     console.error('Photo upload failed', e);
-                    alert('Photo upload failed — patient will be saved without photo. Check your connection and try again.');
                 }
             }
 
-            // 2. Update Profile (Vitals + Basic Info + Aadhaar + Avatar)
             const updatePayload = { ...intakeForm };
             if (finalAvatar) updatePayload.avatar = finalAvatar;
 
             await receptionAPI.updateIntake(userId, updatePayload);
 
-            // 3. Book Appointment (optional when editing existing patient)
             const isTokenMode = hospitalContext?.appointmentMode === 'token';
             if (intakeForm.doctor && intakeForm.visitDate && (intakeForm.visitTime || isTokenMode)) {
-                // Upload payment screenshot if non-cash and screenshot provided
-                let screenshotNote = '';
-                if (intakeForm.paymentMethod !== 'Cash' && paymentScreenshot) {
-                    try {
-                        const fd = new FormData();
-                        fd.append('images', paymentScreenshot);
-                        const upRes = await uploadAPI.uploadImages(fd);
-                        if (upRes.success && upRes.files?.length > 0) {
-                            screenshotNote = ` | Screenshot: ${upRes.files[0].url}`;
-                        }
-                    } catch { /* non-fatal */ }
+                let textNote = '';
+                if (intakeForm.paymentMethod !== 'Cash' && intakeForm.transactionId) {
+                    textNote = ` | Transaction ID: ${intakeForm.transactionId}`;
                 }
 
                 const bookingRes = await receptionAPI.bookAppointment({
@@ -564,14 +530,14 @@ const ReceptionDashboard = () => {
                     doctorId: intakeForm.doctor,
                     date: intakeForm.visitDate,
                     time: isTokenMode ? undefined : intakeForm.visitTime,
-                    notes: `Walk-in. Vitals: ${intakeForm.height}cm/${intakeForm.weight}kg. Reason: ${intakeForm.reasonForVisit}${screenshotNote}`,
+                    notes: `Walk-in. Vitals: ${intakeForm.height}cm/${intakeForm.weight}kg. Reason: ${intakeForm.reasonForVisit}${textNote}`,
                     paymentMethod: intakeForm.paymentMethod,
                     paymentStatus: 'Paid',
-                    amount: intakeForm.consultationFee
+                    amount: intakeForm.consultationFee,
+                    transactionId: intakeForm.transactionId
                 });
 
                 if (bookingRes.success) {
-                    // --- Dynamic Receipt PDF (generate BEFORE alert so it isn't blocked) ---
                     const doc = new jsPDF();
                     const hName = hospitalContext?.name || 'HOSPITAL';
                     const hAddr = [hospitalContext?.address, hospitalContext?.city, hospitalContext?.state].filter(Boolean).join(', ');
@@ -581,7 +547,6 @@ const ReceptionDashboard = () => {
                     const selectedDoc = doctorsList.find(d => d._id === intakeForm.doctor);
                     let y = 18;
 
-                    // Hospital header
                     doc.setFontSize(18); doc.setFont('helvetica', 'bold');
                     doc.text(hName, 105, y, { align: 'center' }); y += 7;
                     if (hAddr) {
@@ -613,6 +578,7 @@ const ReceptionDashboard = () => {
                                 : ['Date & Time', `${intakeForm.visitDate} @ ${intakeForm.visitTime}`],
                             ['Consultation Fee', `Rs. ${Number(intakeForm.consultationFee || 0).toLocaleString('en-IN')}`],
                             ['Payment Method', intakeForm.paymentMethod || 'Cash'],
+                            ['Txn / UPI ID', intakeForm.transactionId || 'N/A'],
                             ['Payment Status', 'PAID'],
                         ],
                         theme: 'grid',
@@ -636,15 +602,15 @@ const ReceptionDashboard = () => {
                         ? ` Token #${bookingRes.appointment.tokenNumber} assigned.` : '';
                     alert(`Patient Registered & Assigned to Doctor!${tokenMsg}`);
 
-                    setPaymentScreenshot(null);
+                    // Re-fetch the active state directly after successfully creating the booking record
                     fetchAppointments();
                     setSearchParams({});
                 } else {
                     alert("Booking Failed: " + bookingRes.message);
                 }
             } else if (selectedPatientId) {
-                // Editing existing patient — profile saved, no appointment needed
                 alert("✅ Patient details updated successfully!");
+                fetchAppointments();
                 setSearchParams({});
             } else {
                 alert("Please select a Doctor and Time Slot to complete the registration.");
@@ -661,7 +627,7 @@ const ReceptionDashboard = () => {
         <div className="intake-full-page">
                 <div className="context-bar">
                     <h3>{selectedPatientId ? 'Edit Patient Details' : 'New Registration'}</h3>
-                    <button className="btn-cancel" onClick={() => setSearchParams({})}>Close ✖</button>
+                    <button className="btn-cancel" type="button" onClick={() => setSearchParams({})}>Close ✖</button>
                 </div>
                 <div className="intake-container">
                     <form onSubmit={handleSave}>
@@ -700,7 +666,6 @@ const ReceptionDashboard = () => {
                                 </div>
                             </div>
 
-                            {/* AADHAAR NUMBER FIELD */}
                             <div className="form-row" style={{ alignItems: 'flex-end', backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px dashed #22c55e', gap: '15px' }}>
                                 <div className="field" style={{ flex: 2 }}>
                                     <label>Aadhaar Number</label>
@@ -798,18 +763,15 @@ const ReceptionDashboard = () => {
                             {intakeForm.paymentMethod !== 'Cash' && (
                                 <div className="form-row" style={{ marginTop: '6px' }}>
                                     <div className="field" style={{ flex: 1 }}>
-                                        <label>Payment Screenshot / Proof <span style={{ color: '#ef4444', fontSize: '12px' }}>*Required for {intakeForm.paymentMethod}</span></label>
+                                        <label>UPI ID / Transaction ID <span style={{ color: '#ef4444', fontSize: '12px' }}>*Required for {intakeForm.paymentMethod}</span></label>
                                         <input
-                                            type="file"
-                                            accept="image/*,application/pdf"
-                                            onChange={e => setPaymentScreenshot(e.target.files[0])}
-                                            style={{ padding: '8px', border: '2px dashed #6366f1', borderRadius: '8px', background: '#f5f3ff', width: '100%' }}
+                                            type="text"
+                                            name="transactionId"
+                                            placeholder="Enter UPI Reference / UTN / Txn ID"
+                                            value={intakeForm.transactionId}
+                                            onChange={handleInputChange}
+                                            style={{ padding: '10px', border: '2px solid #6366f1', borderRadius: '8px', background: '#f5f3ff', width: '100%', boxSizing: 'border-box', fontWeight: '600' }}
                                         />
-                                        {paymentScreenshot && (
-                                            <span style={{ fontSize: '12px', color: '#059669', marginTop: '4px', display: 'block' }}>
-                                                ✅ {paymentScreenshot.name}
-                                            </span>
-                                        )}
                                     </div>
                                 </div>
                             )}
@@ -838,7 +800,6 @@ const ReceptionDashboard = () => {
                             </div>
                             {intakeForm.doctor && (
                                 hospitalContext?.appointmentMode === 'token' ? (
-                                    /* Token mode: show next token number */
                                     <div style={{ margin: '14px 0', padding: '18px 24px', background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderRadius: '12px', border: '2px solid #f59e0b', display: 'flex', alignItems: 'center', gap: '18px' }}>
                                         <span style={{ fontSize: '2.5rem' }}>🎟️</span>
                                         <div>
@@ -854,7 +815,6 @@ const ReceptionDashboard = () => {
                                         </div>
                                     </div>
                                 ) : (
-                                    /* Slot mode: existing time slot grid */
                                     <div className="slot-grid">
                                         {timeSlots.map(time => {
                                             const isBooked = availabilityCheck.bookedSlots.includes(time);
@@ -894,7 +854,6 @@ const ReceptionDashboard = () => {
             </div>
         );
 
-    // PROFILE VIEW MODE
     if (viewMode === 'profile' && profilePatient) {
         const fp = profilePatient.fertilityProfile || {};
         return (
@@ -904,7 +863,6 @@ const ReceptionDashboard = () => {
                     <button className="btn-save" onClick={() => handleEditPatient(profilePatient)} style={{ padding: '10px 24px', fontSize: '1rem' }}>📋 Book Appointment</button>
                 </div>
 
-                {/* Patient Identity Card */}
                 <div style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)', borderRadius: '18px', padding: '28px', color: 'white', marginBottom: '24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '18px', marginBottom: '18px' }}>
                         <div style={{ width: '64px', height: '64px', borderRadius: '18px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', fontWeight: '800' }}>
@@ -921,7 +879,6 @@ const ReceptionDashboard = () => {
                     </div>
                 </div>
 
-                {/* Vitals & Demographics */}
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
                     <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>📋 Demographics & Vitals</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
@@ -943,7 +900,6 @@ const ReceptionDashboard = () => {
                     </div>
                 </div>
 
-                {/* Spouse Info */}
                 {(fp.partnerFirstName || fp.husbandAge) && (
                     <div style={{ background: '#f0fdf4', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #bbf7d0' }}>
                         <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#166534' }}>👫 Spouse / Partner Details</h3>
@@ -963,7 +919,6 @@ const ReceptionDashboard = () => {
                     </div>
                 )}
 
-                {/* Fertility / Clinical profile */}
                 {(fp.chiefComplaint || fp.medicalHistory) && (
                     <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
                         <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>🏥 Clinical Summary</h3>
@@ -974,7 +929,6 @@ const ReceptionDashboard = () => {
                     </div>
                 )}
 
-                {/* Appointment History */}
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
                     <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>📅 Appointment History ({profileAppointments.length})</h3>
                     {profileAppointments.length === 0 ? (
@@ -1073,7 +1027,6 @@ const ReceptionDashboard = () => {
                 </div>
             </div>
 
-            {/* SEARCH SECTION */}
             <div className="search-section card" style={{ padding: '20px', marginBottom: '20px', position: 'relative' }}>
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <input
@@ -1124,7 +1077,6 @@ const ReceptionDashboard = () => {
                 )}
             </div>
 
-            {/* Widget Area */}
             <div className="availability-widget card">
                 <h3>📅 Quick Check Availability</h3>
                 <div className="widget-controls">
@@ -1188,7 +1140,6 @@ const ReceptionDashboard = () => {
                                     </td>
                                     <td><span className={`status ${apt.status}`}>{apt.status}</span></td>
                                     <td style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                        {/* Confirm Payment — show when not yet paid */}
                                         {(apt.paymentStatus || '').toLowerCase() !== 'paid' && apt.status !== 'cancelled' && (
                                             <button
                                                 onClick={() => setPaymentModal({ open: true, appointment: apt, method: apt.paymentMethod || 'Cash' })}
@@ -1197,7 +1148,6 @@ const ReceptionDashboard = () => {
                                                 💰 Confirm Payment
                                             </button>
                                         )}
-                                        {/* Print Receipt — show when paid */}
                                         {(apt.paymentStatus || '').toLowerCase() === 'paid' && (
                                             <button
                                                 onClick={() => generateReceiptPDF(apt)}
@@ -1237,7 +1187,6 @@ const ReceptionDashboard = () => {
             </div>
         </div>
 
-        {/* Payment Confirmation Modal */}
         {paymentModal.open && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
                 <div style={{ background: '#fff', borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
@@ -1283,7 +1232,6 @@ const ReceptionDashboard = () => {
             </div>
         )}
 
-        {/* Hospitalize Modal */}
         {hospitalizeModal.open && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
                 <div style={{ background: '#fff', borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '580px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
@@ -1297,7 +1245,6 @@ const ReceptionDashboard = () => {
                         <button onClick={() => setHospitalizeModal({ open: false, appointment: null })} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
                     </div>
 
-                    {/* Bed & Ward */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                         <div>
                             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '5px' }}>Ward / Room</label>
@@ -1331,7 +1278,6 @@ const ReceptionDashboard = () => {
                         />
                     </div>
 
-                    {/* Facilities */}
                     {(hospitalContext?.facilities?.length > 0) ? (
                         <div style={{ marginBottom: '16px' }}>
                             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '10px' }}>
@@ -1363,7 +1309,6 @@ const ReceptionDashboard = () => {
                                     </div>
                                 ))}
                             </div>
-                            {/* Total */}
                             {Object.values(hospitalizeForm.facilityDays).some(d => d > 0) && (
                                 <div style={{ marginTop: '12px', padding: '10px 14px', background: '#eff6ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
                                     <span>Total Facility Cost:</span>
@@ -1405,7 +1350,6 @@ const ReceptionDashboard = () => {
                 </div>
             </div>
         )}
-        {/* Render Modals over Dashboard */}
         {viewMode === 'intake' && renderIntake()}
         {viewMode === 'transactions' && renderTransactions()}
         </>

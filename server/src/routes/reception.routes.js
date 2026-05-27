@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Appointment = require('../models/appointment.model');
 const User = require('../models/user.model');
-const Doctor = require('../models/doctor.model'); // Required to fetch doctor details
+const Doctor = require('../models/doctor.model');
 const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const { getTenantModels } = require('../db/tenantModels');
@@ -14,25 +14,20 @@ const verifyReception = (req, res, next) => {
     const dynamicRoleName = req.user._roleData?.name;
     const permissions = req.user._roleData?.permissions || [];
 
-    // Normalize
     const roleStr = typeof userRole === 'string' ? userRole.toLowerCase() : '';
     const dynRoleStr = dynamicRoleName ? dynamicRoleName.toLowerCase() : '';
 
-    // Expanded Allowed Roles list (Substring Check)
     const allowed = ['reception', 'admin', 'superadmin', 'staff', 'front'];
-
     const hasAccess = allowed.some(keyword => dynRoleStr.includes(keyword) || roleStr.includes(keyword));
 
     if (hasAccess) {
         return next();
     }
 
-    // Also check Permissions if available
     if (permissions.includes('reception_access') || permissions.includes('*')) {
         return next();
     }
 
-    // Expanded debug info in error for troubleshooting
     return res.status(403).json({
         success: false,
         message: `Access denied: Reception access only. Your role: ${dynamicRoleName || userRole}`
@@ -44,17 +39,14 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
     try {
         let { name, email, phone } = req.body;
 
-        // Sanitize — trim whitespace and convert empty strings to undefined
         name = name ? String(name).trim() : undefined;
         phone = phone ? String(phone).trim() : undefined;
-        email = email ? String(email).trim() : undefined; // crucial: empty string -> undefined
+        email = email ? String(email).trim() : undefined;
 
-        // Phone is required for identification, Email is optional
         if (!name || !phone) {
             return res.status(400).json({ success: false, message: 'Name and Phone are required' });
         }
 
-        // Check if patient exists by Phone (or Email if provided)
         const orClauses = [{ phone }];
         if (email) orClauses.push({ email });
 
@@ -66,12 +58,9 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
         let user = await User.findOne(userQuery);
 
         if (user) {
-            // Update name if changed
             user.name = name;
-            // Only update email if provided and different (avoid overwriting with empty)
             if (email && email !== user.email) user.email = email;
 
-            // Backfill PatientId for legacy walk-ins that were created without one
             if (!user.patientId) {
                 user.patientId = 'MRN-' + Date.now() + Math.floor(Math.random() * 1000);
             }
@@ -80,7 +69,6 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             return res.status(200).json({ success: true, message: 'Patient record updated!', user });
         }
 
-        // Create New Walk-in Patient — use collision-resistant ID
         const patientId = 'MRN-' + Date.now() + Math.floor(Math.random() * 1000);
 
         const userData = {
@@ -92,17 +80,14 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             hospitalId: req.user.hospitalId || undefined
         };
 
-        // Only attach email if it actually exists, to prevent duplicate sparse index errors
         if (email) userData.email = email;
 
         const newUser = new User(userData);
-
         await newUser.save();
         res.status(201).json({ success: true, message: 'Patient registered successfully!', user: newUser });
     } catch (error) {
         console.error("Register Error:", error);
         if (error.code === 11000) {
-            // Tell the user exactly which field is duplicated
             const field = Object.keys(error.keyPattern || {})[0] || 'field';
             const friendlyField = field === 'phone' ? 'Phone number'
                 : field === 'email' ? 'Email'
@@ -123,13 +108,9 @@ router.post('/send-aadhaar-otp', verifyToken, verifyReception, async (req, res) 
         const { aadhaarNumber } = req.body;
         if (!/^\d{12}$/.test(aadhaarNumber)) return res.status(400).json({ success: false, message: 'Invalid Aadhaar Format (12 digits required)' });
 
-        // Simulate Check: Reject "9999..."
         if (aadhaarNumber.startsWith('9999')) return res.status(400).json({ success: false, message: 'Verification Failed: Invalid Aadhaar Number (Simulated).' });
 
-        // Simulate API Delay
         await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Simulate Sending OTP
         res.json({ success: true, message: 'OTP sent to mobile linked with Aadhaar (Simulated: Use 123456)' });
     } catch (e) { res.status(500).json({ message: e.message }); }
 });
@@ -138,18 +119,15 @@ router.post('/verify-aadhaar-otp', verifyToken, verifyReception, async (req, res
     try {
         const { aadhaarNumber, otp } = req.body;
 
-        // Mock OTP Validation (Use '123456' for success)
         if (otp !== '123456') {
             return res.status(400).json({ success: false, message: 'Invalid OTP. Try 123456.' });
         }
 
-        // Check if Aadhaar is already linked
         const existingUser = await User.findOne({ aadhaarNumber });
         if (existingUser) {
             return res.status(409).json({ success: false, message: `Aadhaar already linked to patient: ${existingUser.name} (${existingUser.phone})` });
         }
 
-        // Mock KYC Data Return
         const mockKYCData = {
             verified: true,
             fullName: "Simulated Aadhaar User",
@@ -188,7 +166,6 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
         }
 
         const patients = await User.find(queryFilter).select('name phone email patientId fertilityProfile');
-
         res.json({ success: true, patients });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 });
@@ -200,7 +177,6 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         const updates = req.body;
         const updateQuery = {};
 
-        // Map Root fields
         if (updates.firstName || updates.lastName) updateQuery.name = `${updates.firstName || ''} ${updates.lastName || ''}`.trim();
         if (updates.email) updateQuery.email = updates.email;
         if (updates.phone || updates.mobile) updateQuery.phone = updates.phone || updates.mobile;
@@ -209,19 +185,16 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         if (updates.state) updateQuery.state = updates.state;
         if (updates.zipCode) updateQuery.zipCode = updates.zipCode;
 
-        // Update Root Aadhaar Fields
         if (updates.aadhaar) updateQuery.aadhaarNumber = updates.aadhaar;
         if (updates.isAadhaarVerified !== undefined) updateQuery.isAadhaarVerified = updates.isAadhaarVerified;
         if (updates.avatar) updateQuery.avatar = updates.avatar;
 
-        // Map Fertility Profile fields
         const profileFields = [
             'title', 'firstName', 'middleName', 'lastName', 'dob', 'age', 'gender', 'maritalStatus', 'occupation',
             'aadhaar', 'altPhone', 'patientCategory', 'nationality', 'isInternational', 'language', 'languagesKnown',
             'height', 'weight', 'bmi', 'bloodGroup',
             'partnerTitle', 'partnerFirstName', 'partnerLastName', 'partnerDob', 'partnerAge', 'partnerAadhaar',
-            'partnerRelation',
-            'partnerMobile', 'partnerAltPhone', 'partnerEmail', 'partnerAddressSame', 'partnerAddress',
+            'partnerRelation', 'partnerMobile', 'partnerAltPhone', 'partnerEmail', 'partnerAddressSame', 'partnerAddress',
             'partnerArea', 'partnerCity', 'partnerState', 'partnerCountry', 'partnerPinCode', 'partnerNationality',
             'partnerHeight', 'partnerWeight', 'partnerBmi', 'partnerBloodGroup',
             'reasonForVisit', 'speciality', 'doctor', 'referralType', 'visitDate', 'visitTime',
@@ -238,7 +211,7 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
             'usgType', 'afcRight', 'afcLeft', 'amh', 'uterusSize', 'uterusPosition',
             'ovaryRightSize', 'ovaryLeftSize', 'endometriumThickness',
             'diagnosisInfertilityType', 'maleFactor', 'femaleFactor', 'diagnosisYears', 'diagnosisOthers',
-            'doctorNotes', 'prescriptionComments', 'procedureAdvice', 'followUpDate'
+            'doctorNotes', 'prescriptionComments', 'procedureAdvice', 'followUpDate', 'transactionId'
         ];
 
         profileFields.forEach(field => {
@@ -253,20 +226,26 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 });
 
-// 4. APPOINTMENTS
+// 4. APPOINTMENTS (Range Window Safe Query Fix for Active Queue Visibility)
 router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (req, res) => {
     try {
         let queryFilter = {};
         if (req.user.hospitalId) queryFilter.hospitalId = req.user.hospitalId;
 
-        // Default: all active appointments (pending / confirmed) for TODAY
-        // Pass ?all=true to get full history
         if (req.query.all !== 'true') {
             queryFilter.status = { $nin: ['cancelled', 'completed'] };
             
-            // Generate today's date in YYYY-MM-DD format based on local time or UTC as standard in this app
-            const today = new Date().toLocaleDateString('en-CA'); // Outputs YYYY-MM-DD locally
-            queryFilter.appointmentDate = today;
+            // Re-instantiated clean date objects directly to prevent native int mutation values from being passed to Mongoose
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+
+            const endOfToday = new Date();
+            endOfToday.setHours(23, 59, 59, 999);
+
+            queryFilter.appointmentDate = {
+                $gte: startOfToday,
+                $lte: endOfToday
+            };
         }
 
         const appointments = await Appointment.find(queryFilter)
@@ -275,8 +254,7 @@ router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (
             .sort({ tokenNumber: 1, appointmentTime: 1 })
             .lean();
 
-        // Cross-reference active admissions to flag hospitalized patients
-        let Admission = require('../models/admission.model'); // fallback
+        let Admission = require('../models/admission.model');
         if (req.tenantDb) Admission = getTenantModels(req.tenantDb).Admission;
         
         const patientIds = [...new Set(appointments.map(a => a.userId?._id).filter(Boolean))];
@@ -307,6 +285,7 @@ router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async
     await appt.save();
     res.json({ success: true });
 });
+
 router.patch('/appointments/:id/cancel', verifyToken, verifyReception, async (req, res) => {
     const cancelQuery = { _id: req.params.id };
     if (req.user.hospitalId) cancelQuery.hospitalId = req.user.hospitalId;
@@ -318,7 +297,7 @@ router.patch('/appointments/:id/cancel', verifyToken, verifyReception, async (re
 // 6. BOOK APPOINTMENT (NEW: Assign Doctor)
 router.post('/book-appointment', verifyToken, verifyReception, async (req, res) => {
     try {
-        const { patientId, doctorId, date, time, notes, paymentMethod, paymentStatus, amount } = req.body;
+        const { patientId, doctorId, date, time, notes, paymentMethod, paymentStatus, amount, transactionId } = req.body;
 
         if (!patientId || !doctorId || !date) {
             return res.status(400).json({ success: false, message: 'Missing booking details' });
@@ -338,7 +317,6 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
 
         const hospitalId = req.user.hospitalId || patient.hospitalId;
 
-        // Determine appointment mode
         const Hospital = require('../models/hospital.model');
         const hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode') : null;
         const isTokenMode = hospital?.appointmentMode === 'token';
@@ -347,12 +325,11 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
         let tokenNumber = null;
 
         const startOfDay = new Date(date);
-        startOfDay.setUTCHours(0, 0, 0, 0);
+        startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(date);
-        endOfDay.setUTCHours(23, 59, 59, 999);
+        endOfDay.setHours(23, 59, 59, 999);
 
         if (isTokenMode) {
-            // Token mode: assign next sequential token for this doctor on this date
             const count = await Appointment.countDocuments({
                 doctorId: doctor._id,
                 appointmentDate: { $gte: startOfDay, $lte: endOfDay },
@@ -361,7 +338,6 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             tokenNumber = count + 1;
             finalTime = `token-${tokenNumber}`;
         } else {
-            // Slot mode: time required, check double-booking
             if (!time) {
                 return res.status(400).json({ success: false, message: 'Appointment time is required for slot-based booking' });
             }
@@ -396,6 +372,10 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             bookedBy: req.user._id
         });
 
+        if (transactionId) {
+            newAppointment.transactionId = transactionId;
+        }
+
         await newAppointment.save();
         res.json({ success: true, message: 'Appointment booked successfully!', appointment: newAppointment, tokenNumber });
 
@@ -423,7 +403,7 @@ router.patch('/appointments/:id/confirm-payment', verifyToken, verifyReception, 
     }
 });
 
-// 7. PATIENT CHECK-IN (Reception to Doctor/Clinic Workflow)
+// 7. PATIENT CHECK-IN
 router.post('/check-in', verifyToken, verifyReception, async (req, res) => {
     try {
         const { patientId, appointmentId } = req.body;
@@ -433,10 +413,8 @@ router.post('/check-in', verifyToken, verifyReception, async (req, res) => {
         }
 
         const ClinicalVisit = require('../models/clinicalVisit.model');
-        const Notification = require('../models/notification.model');
         const io = req.app.get('io');
 
-        // Create clinical visit for today
         const visit = new ClinicalVisit({
             patientId,
             appointmentId: appointmentId || null,
@@ -445,11 +423,9 @@ router.post('/check-in', verifyToken, verifyReception, async (req, res) => {
         await visit.save();
 
         if (appointmentId) {
-            // Update appointment status
-            await Appointment.findByIdAndUpdate(appointmentId, { status: 'completed' }); // Or maybe a new status like 'in_progress'
+            await Appointment.findByIdAndUpdate(appointmentId, { status: 'completed' });
         }
 
-        // Emit socket event to update Reception/Doctor grids
         if (io) {
             io.emit('patient_status_changed', { visitId: visit._id, patientId, status: 'check_in', appointmentId });
         }

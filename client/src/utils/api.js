@@ -26,6 +26,7 @@ apiClient.interceptors.response.use(
             // CIRCULAR DEPENDENCY FIX:
             // Instead of dispatching logout action here, we simply clear storage and redirect.
             // The authSlice will pick up the initial state from localStorage on reload.
+            const identityField = localStorage.getItem('user');
             localStorage.removeItem('token');
             localStorage.removeItem('user');
 

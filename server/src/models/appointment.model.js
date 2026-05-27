@@ -8,14 +8,14 @@ const pharmacyItemSchema = new mongoose.Schema({
 }, { _id: false });
 
 const vitalsSchema = new mongoose.Schema({
-    weight:     { type: String, default: '' },  // kg
-    height:     { type: String, default: '' },  // cm
-    bmi:        { type: String, default: '' },
-    bp:         { type: String, default: '' },  // e.g. 120/80
+    weight:      { type: String, default: '' },  // kg
+    height:      { type: String, default: '' },  // cm
+    bmi:         { type: String, default: '' },
+    bp:          { type: String, default: '' },  // e.g. 120/80
     temperature:{ type: String, default: '' },  // °F
-    pulse:      { type: String, default: '' },  // bpm
-    spo2:       { type: String, default: '' },  // %
-    rr:         { type: String, default: '' },  // breaths/min
+    pulse:       { type: String, default: '' },  // bpm
+    spo2:        { type: String, default: '' },  // %
+    rr:          { type: String, default: '' },  // breaths/min
 }, { _id: false });
 
 const appointmentSchema = new mongoose.Schema({
@@ -58,6 +58,10 @@ const appointmentSchema = new mongoose.Schema({
     },
     paymentStatus: { type: String, enum: ['pending', 'paid', 'refunded', 'Paid', 'Pending'], default: 'pending' },
     paymentMethod: { type: String, default: 'Cash' },
+    
+    // Dedicated field to save the UPI text input / Reference ID from the reception registration dashboard
+    transactionId: { type: String, default: '', trim: true },
+    
     amount: { type: Number, default: 0 },
     bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 

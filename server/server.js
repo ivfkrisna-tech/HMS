@@ -17,6 +17,10 @@ const server = http.createServer(app);
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+    
+    // Support multi-tenant subdomains during development (e.g., http://kindle-womb-ivf-centre.localhost:5173)
+    if (/^https?:\/\/[\w-]+\.localhost(:\d+)?$/.test(origin)) return true;
+
     if (origin === 'https://medical365.in') return true;
     if (origin === 'https://www.medical365.in') return true;
     if (/^https:\/\/[\w-]+\.medical365\.in$/.test(origin)) return true;

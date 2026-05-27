@@ -13,7 +13,8 @@ const verifyFinanceAccess = async (req, res, next) => {
             const dynRoleStr = String(req.user._roleData?.name || '').toLowerCase();
             const permissions = req.user._roleData?.permissions || [];
 
-            const allowed = ['accountant', 'billing', 'cashier', 'centraladmin', 'superadmin', 'hospitaladmin', 'admin'];
+            // Added 'reception' and 'receptionist' to the allowed array list keyword references
+            const allowed = ['accountant', 'billing', 'cashier', 'centraladmin', 'superadmin', 'hospitaladmin', 'admin', 'reception', 'receptionist'];
 
             const hasAccess = allowed.some(keyword => dynRoleStr.includes(keyword) || role.includes(keyword));
             

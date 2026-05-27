@@ -26,7 +26,7 @@ const AccountantDashboard = () => {
         const role = String(currentUser?.role || '').toLowerCase();
         const dynRole = String(currentUser?._roleData?.name || currentUser?.roleName || '').toLowerCase();
         const permissions = currentUser?.permissions || [];
-        const hasAccess = ['accountant', 'centraladmin', 'superadmin', 'hospitaladmin', 'billing', 'cashier', 'admin'].some(r =>
+        const hasAccess = ['accountant', 'centraladmin', 'superadmin', 'hospitaladmin', 'billing', 'cashier', 'admin', 'reception', 'receptionist'].some(r =>
             role.includes(r) || dynRole.includes(r)
         ) || permissions.includes('finance_view') || permissions.includes('*');
 
