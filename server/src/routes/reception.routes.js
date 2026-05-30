@@ -37,7 +37,7 @@ const verifyReception = (req, res, next) => {
 // 1. REGISTER (WALK-IN)
 router.post('/register', verifyToken, verifyReception, async (req, res) => {
     try {
-        let { name, email, phone } = req.body;
+        let { name, email, phone, linkedPatientId, relationLabel } = req.body;
 
         name = name ? String(name).trim() : undefined;
         phone = phone ? String(phone).trim() : undefined;
@@ -66,6 +66,12 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             }
 
             await user.save();
+
+            // Apply symmetric link if requested
+            if (linkedPatientId) {
+                await _applySymmetricLink(String(user._id), String(linkedPatientId), relationLabel || 'Related');
+            }
+
             return res.status(200).json({ success: true, message: 'Patient record updated!', user });
         }
 
@@ -84,6 +90,12 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
 
         const newUser = new User(userData);
         await newUser.save();
+
+        // Apply symmetric link if requested
+        if (linkedPatientId) {
+            await _applySymmetricLink(String(newUser._id), String(linkedPatientId), relationLabel || 'Related');
+        }
+
         res.status(201).json({ success: true, message: 'Patient registered successfully!', user: newUser });
     } catch (error) {
         console.error("Register Error:", error);
@@ -170,6 +182,34 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 });
 
+// ─── HELPER: Symmetric Link ──────────────────────────────────────────────────
+/**
+ * Creates a bidirectional link between two patients.
+ * Safe to call multiple times — skips if the link already exists.
+ * @param {string} idA - MongoDB ObjectId string of patient A
+ * @param {string} idB - MongoDB ObjectId string of patient B
+ * @param {string} label - Relation label (e.g. 'Husband', 'Wife')
+ */
+async function _applySymmetricLink(idA, idB, label) {
+    if (!idA || !idB || idA === idB) return;
+    const labelAB = label || 'Related';
+    // Reverse label map for the opposite direction
+    const reverseMap = {
+        Husband: 'Wife', Wife: 'Husband',
+        Father: 'Child', Mother: 'Child', Son: 'Parent', Daughter: 'Parent',
+        Brother: 'Sibling', Sister: 'Sibling', Sibling: 'Sibling',
+        Child: 'Parent', Parent: 'Child',
+    };
+    const labelBA = reverseMap[labelAB] || labelAB;
+
+    await User.findByIdAndUpdate(idA, {
+        $addToSet: { linkedPatients: { patientId: idB, relationLabel: labelAB } }
+    });
+    await User.findByIdAndUpdate(idB, {
+        $addToSet: { linkedPatients: { patientId: idA, relationLabel: labelBA } }
+    });
+}
+
 // 3. UPDATE INTAKE
 router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => {
     try {
@@ -222,8 +262,125 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
 
         const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateQuery }, { new: true, runValidators: false });
         if (!updatedUser) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+        // Apply symmetric link if a linkedPatientId is supplied during intake update
+        if (updates.linkedPatientId) {
+            await _applySymmetricLink(userId, String(updates.linkedPatientId), updates.relationLabel || 'Related');
+        }
+
         res.json({ success: true, message: 'Updated', user: updatedUser });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+});
+
+// ─── LINK PATIENTS (POST) ─────────────────────────────────────────────────────
+// Links two existing patients bidirectionally.
+// Body: { patientId, linkedPatientId, relationLabel }
+router.post('/link-patients', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const { patientId, linkedPatientId, relationLabel } = req.body;
+        if (!patientId || !linkedPatientId) {
+            return res.status(400).json({ success: false, message: 'patientId and linkedPatientId are required' });
+        }
+        if (String(patientId) === String(linkedPatientId)) {
+            return res.status(400).json({ success: false, message: 'A patient cannot be linked to themselves' });
+        }
+        const [pA, pB] = await Promise.all([
+            User.findById(patientId),
+            User.findById(linkedPatientId),
+        ]);
+        if (!pA) return res.status(404).json({ success: false, message: 'Patient not found' });
+        if (!pB) return res.status(404).json({ success: false, message: 'Linked patient not found' });
+
+        await _applySymmetricLink(String(pA._id), String(pB._id), relationLabel || 'Related');
+        res.json({ success: true, message: `${pA.name} and ${pB.name} are now linked.` });
+    } catch (error) {
+        console.error('Link patients error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ─── UNLINK PATIENTS (DELETE) ─────────────────────────────────────────────────
+// Removes the bidirectional link between two patients.
+// Params: :patientId, :linkedId
+router.delete('/link-patients/:patientId/:linkedId', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const { patientId, linkedId } = req.params;
+        await User.findByIdAndUpdate(patientId, {
+            $pull: { linkedPatients: { patientId: linkedId } }
+        });
+        await User.findByIdAndUpdate(linkedId, {
+            $pull: { linkedPatients: { patientId: patientId } }
+        });
+        res.json({ success: true, message: 'Patients unlinked successfully.' });
+    } catch (error) {
+        console.error('Unlink patients error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ─── LINKED RECORDS (GET) ─────────────────────────────────────────────────────
+// Returns the merged appointment + lab + pharmacy + visit records for a patient
+// AND all of their linked patients, labeled with patient name.
+router.get('/linked-records/:patientId', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const { patientId } = req.params;
+        const patient = await User.findById(patientId)
+            .populate('linkedPatients.patientId', 'name phone patientId')
+            .lean();
+
+        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+        const hFilter = req.user.hospitalId ? { hospitalId: req.user.hospitalId } : {};
+        const LabReport = require('../models/labReport.model');
+        const PharmacyOrder = require('../models/pharmacyOrder.model');
+        const ClinicalVisit = require('../models/clinicalVisit.model');
+
+        // Gather all subject IDs: this patient + all linked patients
+        const subjects = [
+            { id: patient._id, patientIdStr: patient.patientId, name: patient.name },
+            ...(patient.linkedPatients || []).map(lp => ({
+                id: lp.patientId?._id || lp.patientId,
+                patientIdStr: lp.patientId?.patientId || '',
+                name: lp.patientId?.name || 'Linked Patient',
+                relationLabel: lp.relationLabel,
+            }))
+        ];
+
+        const allRecords = await Promise.all(subjects.map(async (subj) => {
+            const subjId = subj.id;
+            const subjPidStr = subj.patientIdStr;
+            const [appointments, labs, pharmacy, visits] = await Promise.all([
+                Appointment.find({ $or: [{ userId: subjId }, { patientId: subjPidStr }], ...hFilter })
+                    .populate('doctorId', 'name').sort({ appointmentDate: -1 }).limit(50).lean(),
+                LabReport.find({ $or: [{ userId: subjId }, { patientId: subjId }], ...hFilter })
+                    .sort({ createdAt: -1 }).limit(30).lean(),
+                PharmacyOrder.find({ $or: [{ userId: subjId }, { patientId: subjId }], ...hFilter })
+                    .sort({ createdAt: -1 }).limit(30).lean(),
+                ClinicalVisit.find({ patientId: subjId, ...hFilter })
+                    .sort({ createdAt: -1 }).limit(30).lean(),
+            ]);
+            return { patient: subj, appointments, labs, pharmacy, visits };
+        }));
+
+        res.json({ success: true, subjects: allRecords });
+    } catch (error) {
+        console.error('Linked records error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ─── GET LINKED PATIENTS (GET) ─────────────────────────────────────────────────
+// Returns a patient's linked patients with their basic info.
+router.get('/linked-patients/:patientId', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const patient = await User.findById(req.params.patientId)
+            .populate('linkedPatients.patientId', 'name phone patientId email avatar fertilityProfile')
+            .lean();
+        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+        res.json({ success: true, linkedPatients: patient.linkedPatients || [] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 });
 
 // 4. APPOINTMENTS (Range Window Safe Query Fix for Active Queue Visibility)

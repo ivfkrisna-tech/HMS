@@ -161,7 +161,28 @@ export const receptionAPI = {
     verifyAadhaarOTP: async (aadhaarNumber, otp) => {
         const response = await apiClient.post('/api/reception/verify-aadhaar-otp', { aadhaarNumber, otp });
         return response.data;
-    }
+    },
+    // ─── Linked Patient APIs ───────────────────────────────────────────────────
+    /** Link two existing patients bidirectionally */
+    linkPatients: async (patientId, linkedPatientId, relationLabel = 'Related') => {
+        const response = await apiClient.post('/api/reception/link-patients', { patientId, linkedPatientId, relationLabel });
+        return response.data;
+    },
+    /** Remove a bidirectional link between two patients */
+    unlinkPatients: async (patientId, linkedId) => {
+        const response = await apiClient.delete(`/api/reception/link-patients/${patientId}/${linkedId}`);
+        return response.data;
+    },
+    /** Fetch merged records for a patient and all their linked patients */
+    getLinkedRecords: async (patientId) => {
+        const response = await apiClient.get(`/api/reception/linked-records/${patientId}`);
+        return response.data;
+    },
+    /** Fetch just the linked patients list for a patient */
+    getLinkedPatients: async (patientId) => {
+        const response = await apiClient.get(`/api/reception/linked-patients/${patientId}`);
+        return response.data;
+    },
 };
 
 export const adminAPI = {

@@ -39,6 +39,14 @@ const userSchema = new mongoose.Schema({
     partner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     fertilityProfile: { type: mongoose.Schema.Types.Mixed, default: {} },
 
+    // Linked Patients — bidirectional family/relation links (e.g. husband ↔ wife)
+    // Each entry stores the linked patient's User _id and a human-readable relation label.
+    // The link is always kept symmetric: linking A→B automatically creates B→A.
+    linkedPatients: [{
+        patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        relationLabel: { type: String, trim: true, default: 'Related' },
+    }],
+
     services: [String],
     departments: { type: [String], default: ['IVF'] },
 

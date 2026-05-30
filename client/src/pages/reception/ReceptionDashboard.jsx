@@ -72,6 +72,17 @@ const ReceptionDashboard = () => {
     const [aadhaarOtp, setAadhaarOtp] = useState('');
     const [hospitalContext, setHospitalContext] = useState(null);
 
+    // ─── Linked Patient state ────────────────────────────────────────────────
+    const [linkSearch, setLinkSearch] = useState('');
+    const [linkSearchResults, setLinkSearchResults] = useState([]);
+    const [linkedPatientSelection, setLinkedPatientSelection] = useState(null); // { _id, name, phone, patientId }
+    const [linkRelation, setLinkRelation] = useState('Husband');
+    const [profileLinkedPatients, setProfileLinkedPatients] = useState([]);
+    const [profileLinkedRecords, setProfileLinkedRecords] = useState([]);
+    const [linkedRecordsTab, setLinkedRecordsTab] = useState('appointments'); // 'appointments'|'labs'|'pharmacy'
+    const [loadingLinkedRecords, setLoadingLinkedRecords] = useState(false);
+    const linkSearchTimeout = React.useRef(null);
+
     // Initialize form when mode changes to intake or when patientId changes
     useEffect(() => {
         if (viewMode === 'intake') {
@@ -95,6 +106,15 @@ const ReceptionDashboard = () => {
             }));
         }
     }, [viewMode, hospitalContext]);
+
+    // Load linked patients whenever a profile is viewed
+    useEffect(() => {
+        if (viewMode === 'profile' && profilePatient?._id) {
+            fetchProfileLinkedPatients(profilePatient._id);
+            fetchProfileLinkedRecords(profilePatient._id);
+        }
+    }, [viewMode, profilePatient?._id]);
+
 
     useEffect(() => {
         const fetchHospital = async () => {
@@ -198,6 +218,11 @@ const ReceptionDashboard = () => {
         setAadhaarOtp('');
         setVerifyingAadhaar(false);
         setPatientPhoto(null);
+        // Reset link state
+        setLinkSearch('');
+        setLinkSearchResults([]);
+        setLinkedPatientSelection(null);
+        setLinkRelation('Husband');
         setIntakeForm({
             title: 'Mrs.', firstName: '', middleName: '', lastName: '',
             dob: '', age: '', gender: 'Female', mobile: '', email: '',
@@ -217,6 +242,11 @@ const ReceptionDashboard = () => {
         setAadhaarOtp('');
         setVerifyingAadhaar(false);
         setPatientPhoto(patient.avatar || null);
+        // Reset link state for new edit session
+        setLinkSearch('');
+        setLinkSearchResults([]);
+        setLinkedPatientSelection(null);
+        setLinkRelation('Husband');
         const p = patient.fertilityProfile || {};
         const getVal = (val) => val || '';
 
@@ -234,6 +264,68 @@ const ReceptionDashboard = () => {
             department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: '',
             transactionId: ''
         }));
+    };
+
+    // ─── Link search handler ─────────────────────────────────────────────────
+    const handleLinkSearchChange = (e) => {
+        const val = e.target.value;
+        setLinkSearch(val);
+        setLinkedPatientSelection(null);
+        clearTimeout(linkSearchTimeout.current);
+        if (val.length < 2) { setLinkSearchResults([]); return; }
+        linkSearchTimeout.current = setTimeout(async () => {
+            try {
+                const res = await receptionAPI.searchPatients(val);
+                if (res.success) {
+                    // Exclude the currently-being-registered patient from results
+                    setLinkSearchResults((res.patients || []).filter(p => p._id !== selectedPatientId));
+                }
+            } catch (err) { console.error(err); }
+        }, 300);
+    };
+
+    const handleSelectLinkedPatient = (patient) => {
+        setLinkedPatientSelection(patient);
+        setLinkSearch(`${patient.name} (${patient.patientId || patient.phone})`);
+        setLinkSearchResults([]);
+    };
+
+    const handleClearLinkedPatient = () => {
+        setLinkedPatientSelection(null);
+        setLinkSearch('');
+        setLinkSearchResults([]);
+    };
+
+    // ─── Unlink from profile view ─────────────────────────────────────────────
+    const handleUnlinkPatient = async (profileId, linkedId) => {
+        if (!window.confirm('Remove the link between these patients?')) return;
+        try {
+            const res = await receptionAPI.unlinkPatients(profileId, linkedId);
+            if (res.success) {
+                setProfileLinkedPatients(prev => prev.filter(lp => String(lp.patientId?._id) !== String(linkedId)));
+                // Also refresh merged records
+                fetchProfileLinkedRecords(profileId);
+                alert('✅ ' + res.message);
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to unlink.');
+        }
+    };
+
+    // ─── Fetch linked patients for profile view ───────────────────────────────
+    const fetchProfileLinkedPatients = async (patientId) => {
+        try {
+            const res = await receptionAPI.getLinkedPatients(patientId);
+            if (res.success) setProfileLinkedPatients(res.linkedPatients || []);
+        } catch (err) { console.error(err); }
+    };
+
+    const fetchProfileLinkedRecords = async (patientId) => {
+        setLoadingLinkedRecords(true);
+        try {
+            const res = await receptionAPI.getLinkedRecords(patientId);
+            if (res.success) setProfileLinkedRecords(res.subjects || []);
+        } catch (err) { console.error(err); } finally { setLoadingLinkedRecords(false); }
     };
 
     const handleViewProfile = (patient) => {
@@ -480,11 +572,19 @@ const ReceptionDashboard = () => {
         try {
             let userId = selectedPatientId;
 
-            const regRes = await receptionAPI.registerPatient({
+            const regPayload = {
                 name: `${intakeForm.firstName} ${intakeForm.lastName}`.trim(),
                 email: intakeForm.email,
                 phone: intakeForm.mobile,
-            });
+            };
+
+            // Attach linked patient info to registration payload if selected
+            if (linkedPatientSelection) {
+                regPayload.linkedPatientId = linkedPatientSelection._id;
+                regPayload.relationLabel = linkRelation;
+            }
+
+            const regRes = await receptionAPI.registerPatient(regPayload);
 
             if (regRes.success && regRes.user) {
                 userId = regRes.user._id;
@@ -664,6 +764,95 @@ const ReceptionDashboard = () => {
                                         </button>
                                     )}
                                 </div>
+                            </div>
+
+                            {/* ─── Link to Existing Patient ─────────────────────────────── */}
+                            <div style={{ margin: '14px 0', padding: '16px', background: 'linear-gradient(135deg, #eff6ff, #f0fdf4)', borderRadius: '10px', border: '2px dashed #6366f1' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                    <span style={{ fontSize: '1.2rem' }}>🔗</span>
+                                    <span style={{ fontWeight: 700, color: '#4338ca', fontSize: '0.95rem' }}>Link to Existing Patient <span style={{ fontWeight: 400, color: '#64748b', fontSize: '0.82rem' }}>(Optional)</span></span>
+                                </div>
+
+                                {linkedPatientSelection ? (
+                                    /* ── Selected state ── */
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: '#e0f2fe', borderRadius: '8px', padding: '10px 14px', border: '1.5px solid #38bdf8' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <span style={{ fontSize: '1.4rem' }}>🔗</span>
+                                            <div>
+                                                <div style={{ fontWeight: 700, color: '#0369a1', fontSize: '0.95rem' }}>
+                                                    {linkedPatientSelection.name}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: '#0284c7' }}>
+                                                    MRN: {linkedPatientSelection.patientId || 'N/A'} &nbsp;•&nbsp; 📱 {linkedPatientSelection.phone}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                            <select
+                                                value={linkRelation}
+                                                onChange={e => setLinkRelation(e.target.value)}
+                                                style={{ padding: '6px 10px', border: '1.5px solid #38bdf8', borderRadius: '6px', fontSize: '0.85rem', background: 'white' }}
+                                            >
+                                                <option value="Husband">Husband</option>
+                                                <option value="Wife">Wife</option>
+                                                <option value="Father">Father</option>
+                                                <option value="Mother">Mother</option>
+                                                <option value="Son">Son</option>
+                                                <option value="Daughter">Daughter</option>
+                                                <option value="Brother">Brother</option>
+                                                <option value="Sister">Sister</option>
+                                                <option value="Sibling">Sibling</option>
+                                                <option value="Child">Child</option>
+                                                <option value="Parent">Parent</option>
+                                                <option value="Related">Related</option>
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={handleClearLinkedPatient}
+                                                style={{ padding: '6px 10px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
+                                            >
+                                                ✕ Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* ── Search state ── */
+                                    <div style={{ position: 'relative' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="🔍 Search by Name, Phone or MRN to link a patient..."
+                                            value={linkSearch}
+                                            onChange={handleLinkSearchChange}
+                                            style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #c7d2fe', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'white' }}
+                                        />
+                                        {linkSearchResults.length > 0 && (
+                                            <div style={{
+                                                position: 'absolute', top: '42px', left: 0, right: 0, background: 'white',
+                                                border: '1.5px solid #e0e7ff', boxShadow: '0 8px 24px rgba(99,102,241,0.12)',
+                                                borderRadius: '8px', zIndex: 2000, maxHeight: '220px', overflowY: 'auto'
+                                            }}>
+                                                {linkSearchResults.map(p => (
+                                                    <div
+                                                        key={p._id}
+                                                        onClick={() => handleSelectLinkedPatient(p)}
+                                                        style={{ padding: '10px 14px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                        onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
+                                                        onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                                                    >
+                                                        <div>
+                                                            <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{p.name}</div>
+                                                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>MRN: {p.patientId || 'N/A'} &nbsp;•&nbsp; 📱 {p.phone}</div>
+                                                        </div>
+                                                        <span style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 600 }}>Select →</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {linkSearch.length >= 2 && linkSearchResults.length === 0 && (
+                                            <div style={{ marginTop: '6px', fontSize: '0.8rem', color: '#94a3b8' }}>No matching patients found.</div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="form-row" style={{ alignItems: 'flex-end', backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px dashed #22c55e', gap: '15px' }}>
@@ -951,6 +1140,163 @@ const ReceptionDashboard = () => {
                         </div>
                     )}
                 </div>
+
+                {/* ─── Linked Patients Panel ─────────────────────────────────── */}
+                <div style={{ background: 'linear-gradient(135deg, #eff6ff, #f0fdf4)', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '2px solid #a5b4fc' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#4338ca', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            🔗 Linked Patients
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, background: '#e0e7ff', color: '#4338ca', borderRadius: '12px', padding: '2px 10px' }}>
+                                {profileLinkedPatients.length}
+                            </span>
+                        </h3>
+                        <button
+                            onClick={() => { setLinkedPatientSelection(null); handleEditPatient(profilePatient); }}
+                            style={{ padding: '6px 14px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
+                        >
+                            + Link Another Patient
+                        </button>
+                    </div>
+
+                    {profileLinkedPatients.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '0.9rem' }}>
+                            No linked patients yet. Use "+ Link Another Patient" to create a link.
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {profileLinkedPatients.map((lp, i) => {
+                                const lpData = lp.patientId;
+                                if (!lpData) return null;
+                                return (
+                                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: 'white', borderRadius: '10px', padding: '12px 16px', border: '1.5px solid #c7d2fe' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '1.1rem', flexShrink: 0 }}>
+                                                {(lpData.name || 'P')[0].toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>{lpData.name}</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>MRN: {lpData.patientId || 'N/A'} &nbsp;•&nbsp; 📱 {lpData.phone}</div>
+                                                <span style={{ fontSize: '0.75rem', fontWeight: 700, background: '#e0e7ff', color: '#4338ca', borderRadius: '10px', padding: '2px 8px', display: 'inline-block', marginTop: '4px' }}>
+                                                    {lp.relationLabel || 'Related'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                                            <button
+                                                onClick={() => navigate(`/patient/${lpData._id}`)}
+                                                style={{ padding: '6px 12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '7px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
+                                            >
+                                                👁 View
+                                            </button>
+                                            <button
+                                                onClick={() => handleEditPatient(lpData)}
+                                                style={{ padding: '6px 12px', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: '7px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
+                                            >
+                                                📋 Book
+                                            </button>
+                                            <button
+                                                onClick={() => handleUnlinkPatient(profilePatient._id, String(lpData._id))}
+                                                style={{ padding: '6px 12px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '7px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
+                                            >
+                                                🔓 Unlink
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* ─── Merged Records (Linked Patients' History) ─────────────── */}
+                {profileLinkedPatients.length > 0 && (
+                    <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
+                        <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            🗂️ Linked Patient Records
+                            {loadingLinkedRecords && <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 400 }}>Loading...</span>}
+                        </h3>
+
+                        {/* Tab switcher */}
+                        <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                            {[['appointments', '📅 Appointments'], ['labs', '🧪 Lab Reports'], ['pharmacy', '💊 Pharmacy']].map(([tab, label]) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setLinkedRecordsTab(tab)}
+                                    style={{
+                                        padding: '6px 14px', borderRadius: '20px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', border: 'none',
+                                        background: linkedRecordsTab === tab ? '#1d4ed8' : '#f1f5f9',
+                                        color: linkedRecordsTab === tab ? 'white' : '#475569',
+                                    }}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {profileLinkedRecords.length === 0 && !loadingLinkedRecords && (
+                            <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px' }}>No records found.</p>
+                        )}
+
+                        {profileLinkedRecords.map((subj, si) => (
+                            <div key={si} style={{ marginBottom: '16px' }}>
+                                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>{subj.patient.name}</span>
+                                    {subj.patient.relationLabel && (
+                                        <span style={{ background: '#e0e7ff', color: '#4338ca', borderRadius: '10px', padding: '1px 8px', fontWeight: 700, textTransform: 'capitalize' }}>
+                                            {subj.patient.relationLabel}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {linkedRecordsTab === 'appointments' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {(subj.appointments || []).length === 0 ? (
+                                            <p style={{ color: '#94a3b8', fontSize: '0.85rem', padding: '8px 0' }}>No appointments.</p>
+                                        ) : (subj.appointments || []).map(apt => (
+                                            <div key={apt._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                <div>
+                                                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{new Date(apt.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                                                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Dr. {apt.doctorName || '-'} • {apt.serviceName || 'Consultation'}</div>
+                                                </div>
+                                                <span style={{
+                                                    padding: '3px 10px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize',
+                                                    background: apt.status === 'confirmed' ? '#dcfce7' : apt.status === 'completed' ? '#dbeafe' : '#fef3c7',
+                                                    color: apt.status === 'confirmed' ? '#166534' : apt.status === 'completed' ? '#1e40af' : '#92400e'
+                                                }}>{apt.status}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {linkedRecordsTab === 'labs' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {(subj.labs || []).length === 0 ? (
+                                            <p style={{ color: '#94a3b8', fontSize: '0.85rem', padding: '8px 0' }}>No lab reports.</p>
+                                        ) : (subj.labs || []).map(lr => (
+                                            <div key={lr._id} style={{ padding: '10px 14px', background: '#fefce8', borderRadius: '8px', border: '1px solid #fde68a' }}>
+                                                <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{lr.testName || 'Lab Report'}</div>
+                                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{new Date(lr.createdAt).toLocaleDateString('en-IN')} • {lr.status || 'Pending'}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {linkedRecordsTab === 'pharmacy' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {(subj.pharmacy || []).length === 0 ? (
+                                            <p style={{ color: '#94a3b8', fontSize: '0.85rem', padding: '8px 0' }}>No pharmacy orders.</p>
+                                        ) : (subj.pharmacy || []).map(po => (
+                                            <div key={po._id} style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac' }}>
+                                                <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Pharmacy Order</div>
+                                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{new Date(po.createdAt).toLocaleDateString('en-IN')} • {po.status || 'Pending'}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         );
     }
