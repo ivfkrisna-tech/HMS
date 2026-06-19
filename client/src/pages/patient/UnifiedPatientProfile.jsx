@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { patientAPI, admissionAPI } from '../../utils/api';
+import { patientAPI, admissionAPI, uploadAPI, receptionAPI } from '../../utils/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import './UnifiedPatientProfile.css';
@@ -13,6 +13,53 @@ const UnifiedPatientProfile = () => {
     const [admissions, setAdmissions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+
+    const [consentForm, setConsentForm] = useState({ name: '', file: null });
+    const [uploadingConsent, setUploadingConsent] = useState(false);
+
+    const handleConsentFileChange = (e) => {
+        setConsentForm(prev => ({ ...prev, file: e.target.files[0] }));
+    };
+
+    const handleSaveConsent = async () => {
+        if (!consentForm.name || !consentForm.file) {
+            alert("Please enter Consent Name and select a file.");
+            return;
+        }
+        setUploadingConsent(true);
+        try {
+            const formData = new FormData();
+            formData.append('images', consentForm.file);
+            const uploadRes = await uploadAPI.uploadImages(formData);
+            
+            if (uploadRes.success && uploadRes.files && uploadRes.files.length > 0) {
+                const newConsent = {
+                    consentName: consentForm.name,
+                    fileUrl: uploadRes.files[0].url,
+                    fileType: uploadRes.files[0].mimetype || 'document',
+                    uploadedAt: new Date().toISOString()
+                };
+                
+                const updatedConsents = [...(patientData.consents || []), newConsent];
+                const res = await receptionAPI.updateIntake(patientData._id, { consents: updatedConsents });
+                
+                if (res.success) {
+                    setPatientData(prev => ({ ...prev, consents: updatedConsents }));
+                    setConsentForm({ name: '', file: null });
+                    alert("Consent saved successfully!");
+                } else {
+                    alert(res.message || "Failed to update patient profile.");
+                }
+            } else {
+                alert("File upload failed.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error saving consent.");
+        } finally {
+            setUploadingConsent(false);
+        }
+    };
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -276,6 +323,42 @@ const UnifiedPatientProfile = () => {
                             <span className="upp-tag">{patientData.gender || 'Unknown'} - {patientData.dob ? new Date().getFullYear() - new Date(patientData.dob).getFullYear() : (profile.age || '-')} yrs</span>
                             {patientData.email && <span className="upp-tag">✉️ {patientData.email}</span>}
                         </div>
+                        { (patientData.houseNumber || patientData.street || patientData.city || patientData.state || patientData.pincode || patientData.address) && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '0.9rem', marginTop: '8px' }}>
+                                <span>📍</span>
+                                <span>
+                                    {[
+                                        patientData.houseNumber,
+                                        patientData.street,
+                                        patientData.address,
+                                        patientData.city,
+                                        patientData.state,
+                                        patientData.pincode
+                                    ].filter(Boolean).join(', ')}
+                                </span>
+                            </div>
+                        )}
+                        {patientData.sourceInformation?.sourceType && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#64748b', fontSize: '0.9rem', marginTop: '12px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontWeight: 600, color: '#475569' }}>📢 Source: {patientData.sourceInformation.sourceType}</div>
+                                {patientData.sourceInformation.sourceType === 'Newspaper' && patientData.sourceInformation.newspaperName && <div>📰 Newspaper: {patientData.sourceInformation.newspaperName}</div>}
+                                {patientData.sourceInformation.sourceType === 'Camp' && (
+                                    <>
+                                        {patientData.sourceInformation.campName && <div>🏕️ Camp Name: {patientData.sourceInformation.campName}</div>}
+                                        {patientData.sourceInformation.campLocation && <div>📍 Location: {patientData.sourceInformation.campLocation}</div>}
+                                        {patientData.sourceInformation.reference && <div>👤 Reference: {patientData.sourceInformation.reference}</div>}
+                                    </>
+                                )}
+                                {patientData.sourceInformation.sourceType === 'Family & Friends' && patientData.sourceInformation.referencePersonName && <div>👤 Reference Person: {patientData.sourceInformation.referencePersonName}</div>}
+                                {patientData.sourceInformation.sourceType === 'Doctor Reference' && (
+                                    <>
+                                        {patientData.sourceInformation.doctorName && <div>👨‍⚕️ Doctor: {patientData.sourceInformation.doctorName}</div>}
+                                        {patientData.sourceInformation.hospitalName && <div>🏥 Hospital: {patientData.sourceInformation.hospitalName}</div>}
+                                    </>
+                                )}
+                                {patientData.sourceInformation.sourceType === 'Others' && patientData.sourceInformation.description && <div>📝 Description: {patientData.sourceInformation.description}</div>}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="upp-actions">
@@ -464,6 +547,67 @@ const UnifiedPatientProfile = () => {
                                     ))}
                                 </ul>
                             )}
+                        </div>
+                    </div>
+
+                    {/* Patient Consent Information */}
+                    <div className="upp-section">
+                        <h3>📋 Patient Consent Information</h3>
+                        
+                        <h4 style={{ fontSize: '14px', marginBottom: '12px', color: '#1e293b' }}>Consent Records</h4>
+                        {(patientData.consents || []).length === 0 ? (
+                            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>No consents uploaded yet.</p>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                                {(patientData.consents).map((c, i) => (
+                                    <div key={i} style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <span style={{ fontSize: '1.4rem' }}>{c.fileUrl?.endsWith('.pdf') ? '📄' : '🖼️'}</span>
+                                            <div>
+                                                <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>{c.consentName}</div>
+                                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{new Date(c.uploadedAt).toLocaleDateString('en-IN')}</div>
+                                            </div>
+                                        </div>
+                                        {c.fileUrl && (
+                                            <a href={c.fileUrl} title="View / Download" target="_blank" rel="noreferrer" style={{ background: '#dcfce7', color: '#166534', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', fontSize: '14px', textDecoration: 'none' }}>
+                                                👁
+                                            </a>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <h4 style={{ fontSize: '14px', marginBottom: '12px', color: '#1e293b' }}>Add New Consent</h4>
+                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Consent Name</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Enter Consent Name" 
+                                        value={consentForm.name}
+                                        onChange={(e) => setConsentForm(prev => ({...prev, name: e.target.value}))}
+                                        style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Upload Consent File</label>
+                                    <input 
+                                        type="file" 
+                                        accept=".pdf, .jpg, .jpeg, .png"
+                                        onChange={handleConsentFileChange}
+                                        style={{ width: '100%', padding: '5px 0', fontSize: '14px' }}
+                                    />
+                                </div>
+                                <button 
+                                    onClick={handleSaveConsent}
+                                    disabled={uploadingConsent}
+                                    style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: '6px', cursor: uploadingConsent ? 'not-allowed' : 'pointer', fontWeight: '600', width: '100%', marginTop: '4px', opacity: uploadingConsent ? 0.7 : 1 }}
+                                >
+                                    {uploadingConsent ? 'Saving...' : 'Save Consent'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 

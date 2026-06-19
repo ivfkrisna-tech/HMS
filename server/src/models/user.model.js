@@ -27,8 +27,12 @@ const userSchema = new mongoose.Schema({
     dob: String,
     gender: String,
     bloodGroup: String,
-    address: String,
+    houseNumber: { type: String, default: null },
+    street: { type: String, default: null },
+    address: String, // Kept for backwards compatibility
     city: String,
+    state: { type: String, default: null },
+    pincode: { type: String, default: null },
 
     // Identity Verification (KYC)
     aadhaarNumber: { type: String, unique: true, sparse: true, trim: true },
@@ -38,6 +42,19 @@ const userSchema = new mongoose.Schema({
     patientType: { type: String, enum: ['Primary', 'Partner'], default: 'Primary' },
     partner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     fertilityProfile: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    // Patient Source Information
+    sourceInformation: {
+        sourceType: { type: String, enum: ['Newspaper', 'Facebook', 'Instagram', 'Camp', 'Family & Friends', 'Doctor Reference', 'Others'], default: null },
+        newspaperName: { type: String, default: null },
+        campName: { type: String, default: null },
+        campLocation: { type: String, default: null },
+        reference: { type: String, default: null },
+        referencePersonName: { type: String, default: null },
+        doctorName: { type: String, default: null },
+        hospitalName: { type: String, default: null },
+        description: { type: String, default: null }
+    },
 
     // Linked Patients — bidirectional family/relation links (e.g. husband ↔ wife)
     // Each entry stores the linked patient's User _id and a human-readable relation label.
@@ -51,7 +68,15 @@ const userSchema = new mongoose.Schema({
     departments: { type: [String], default: ['IVF'] },
 
     // Profile Image
-    avatar: { type: String, default: null }
+    avatar: { type: String, default: null },
+
+    // --- PATIENT CONSENT INFORMATION ---
+    consents: [{
+        consentName: { type: String, required: true },
+        fileUrl: { type: String, default: null },
+        fileType: { type: String, default: null },
+        uploadedAt: { type: Date, default: Date.now }
+    }]
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

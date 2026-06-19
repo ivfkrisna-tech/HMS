@@ -177,7 +177,7 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
             queryFilter.hospitalId = req.user.hospitalId;
         }
 
-        const patients = await User.find(queryFilter).select('name phone email patientId fertilityProfile');
+        const patients = await User.find(queryFilter).select('name phone email patientId avatar houseNumber street address city state pincode sourceInformation fertilityProfile');
         res.json({ success: true, patients });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 });
@@ -221,13 +221,18 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         if (updates.email) updateQuery.email = updates.email;
         if (updates.phone || updates.mobile) updateQuery.phone = updates.phone || updates.mobile;
         if (updates.address) updateQuery.address = updates.address;
-        if (updates.city) updateQuery.city = updates.city;
-        if (updates.state) updateQuery.state = updates.state;
-        if (updates.zipCode) updateQuery.zipCode = updates.zipCode;
+        if (updates.houseNumber !== undefined) updateQuery.houseNumber = updates.houseNumber;
+        if (updates.street !== undefined) updateQuery.street = updates.street;
+        if (updates.city !== undefined) updateQuery.city = updates.city;
+        if (updates.state !== undefined) updateQuery.state = updates.state;
+        if (updates.pincode !== undefined) updateQuery.pincode = updates.pincode;
+        if (updates.zipCode !== undefined) updateQuery.zipCode = updates.zipCode;
 
         if (updates.aadhaar) updateQuery.aadhaarNumber = updates.aadhaar;
         if (updates.isAadhaarVerified !== undefined) updateQuery.isAadhaarVerified = updates.isAadhaarVerified;
         if (updates.avatar) updateQuery.avatar = updates.avatar;
+        if (updates.consents) updateQuery.consents = updates.consents;
+        if (updates.sourceInformation !== undefined) updateQuery.sourceInformation = updates.sourceInformation;
 
         const profileFields = [
             'title', 'firstName', 'middleName', 'lastName', 'dob', 'age', 'gender', 'maritalStatus', 'occupation',
@@ -406,7 +411,7 @@ router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (
         }
 
         const appointments = await Appointment.find(queryFilter)
-            .populate('userId', 'name email phone patientId avatar fertilityProfile')
+            .populate('userId', 'name email phone patientId avatar houseNumber street address city state pincode sourceInformation fertilityProfile')
             .populate('doctorId', 'name')
             .sort({ tokenNumber: 1, appointmentTime: 1 })
             .lean();

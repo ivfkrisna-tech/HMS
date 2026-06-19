@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doctorAPI } from '../../utils/api';
+import { doctorAPI, uploadAPI } from '../../utils/api';
 
 const PatientProfile = () => {
     const { patientId } = useParams();
@@ -12,6 +12,9 @@ const PatientProfile = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('overview');
+
+    const [consentForm, setConsentForm] = useState({ name: '', file: null });
+    const [uploadingConsent, setUploadingConsent] = useState(false);
 
     useEffect(() => {
         if (patientId) fetchProfile();
@@ -41,6 +44,50 @@ const PatientProfile = () => {
 
     const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
     const age = patient?.dob ? Math.floor((Date.now() - new Date(patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+
+    const handleConsentFileChange = (e) => {
+        setConsentForm(prev => ({ ...prev, file: e.target.files[0] }));
+    };
+
+    const handleSaveConsent = async () => {
+        if (!consentForm.name || !consentForm.file) {
+            alert("Please enter Consent Name and select a file.");
+            return;
+        }
+        setUploadingConsent(true);
+        try {
+            const formData = new FormData();
+            formData.append('images', consentForm.file);
+            const uploadRes = await uploadAPI.uploadImages(formData);
+            
+            if (uploadRes.success && uploadRes.files && uploadRes.files.length > 0) {
+                const newConsent = {
+                    consentName: consentForm.name,
+                    fileUrl: uploadRes.files[0].url,
+                    fileType: uploadRes.files[0].mimetype || 'document',
+                    uploadedAt: new Date().toISOString()
+                };
+                
+                const updatedConsents = [...(patient.consents || []), newConsent];
+                const res = await doctorAPI.updatePatientProfile(patientId, { consents: updatedConsents });
+                
+                if (res.success) {
+                    setPatient(prev => ({ ...prev, consents: updatedConsents }));
+                    setConsentForm({ name: '', file: null });
+                    alert("Consent saved successfully!");
+                } else {
+                    alert(res.message || "Failed to update patient profile.");
+                }
+            } else {
+                alert("File upload failed.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error saving consent.");
+        } finally {
+            setUploadingConsent(false);
+        }
+    };
 
     // ─── STYLES ─────────────────────────────────────────────
     const C = {
@@ -447,9 +494,72 @@ const PatientProfile = () => {
 
     const renderDocuments = () => {
         const reports = fp.previousReports || [];
+        const consents = patient?.consents || [];
         return (
-            <div style={C.card}>
-                <h4 style={C.cardTitle}>📁 Uploaded Medical Documents</h4>
+            <>
+                <div style={C.card}>
+                    <h4 style={C.cardTitle}>📋 Patient Consent Information</h4>
+                    <h5 style={{ margin: '0 0 12px', color: '#f8fafc', fontSize: '0.9rem' }}>Consent Records</h5>
+                    {consents.length === 0 ? (
+                        <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '20px' }}>No consents uploaded yet.</p>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+                            {consents.map((c, i) => (
+                                <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontSize: '1.6rem' }}>{c.fileUrl?.endsWith('.pdf') ? '📄' : '🖼️'}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ color: '#f8fafc', fontWeight: '700', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {c.consentName}
+                                        </div>
+                                        <div style={{ color: '#64748b', fontSize: '0.72rem', marginTop: '2px' }}>
+                                            {new Date(c.uploadedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </div>
+                                    </div>
+                                    {c.fileUrl && (
+                                        <a href={c.fileUrl} title="View / Download" target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(16,185,129,0.15)', color: '#6ee7b7', width: '36px', height: '36px', borderRadius: '8px', textDecoration: 'none', fontSize: '1.1rem' }}>
+                                            👁
+                                        </a>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <h5 style={{ margin: '0 0 12px', color: '#f8fafc', fontSize: '0.9rem' }}>Add New Consent</h5>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <div style={C.fieldGroup}>
+                                <label style={C.fieldLabel}>Consent Name</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="Enter Consent Name" 
+                                    value={consentForm.name}
+                                    onChange={(e) => setConsentForm(prev => ({...prev, name: e.target.value}))}
+                                    style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '10px 14px', borderRadius: '8px', width: '100%', outline: 'none' }}
+                                />
+                            </div>
+                            <div style={C.fieldGroup}>
+                                <label style={C.fieldLabel}>Upload Consent File</label>
+                                <input 
+                                    type="file" 
+                                    accept=".pdf, .jpg, .jpeg, .png"
+                                    onChange={handleConsentFileChange}
+                                    style={{ background: 'transparent', color: '#fff', padding: '6px 0', width: '100%' }}
+                                />
+                            </div>
+                            <button 
+                                onClick={handleSaveConsent}
+                                disabled={uploadingConsent}
+                                style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: uploadingConsent ? 'not-allowed' : 'pointer', fontWeight: '700', width: '100%', opacity: uploadingConsent ? 0.7 : 1 }}
+                            >
+                                {uploadingConsent ? 'Saving...' : 'Save Consent'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style={C.card}>
+                    <h4 style={C.cardTitle}>📁 Uploaded Medical Documents</h4>
                 {reports.length === 0 ? (
                     <div style={C.empty}>
                         <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>📂</div>
@@ -485,6 +595,7 @@ const PatientProfile = () => {
                     </div>
                 )}
             </div>
+            </>
         );
     };
 
@@ -560,6 +671,42 @@ const PatientProfile = () => {
                             {patient.bloodGroup && <span style={C.idBadge('rgba(239,68,68,0.15)', '#fca5a5')}>🩸 {patient.bloodGroup}</span>}
                             <span style={C.idBadge('rgba(255,255,255,0.06)', '#94a3b8')}>Since {formatDate(patient.createdAt)}</span>
                         </div>
+                        { (patient.houseNumber || patient.street || patient.city || patient.state || patient.pincode || patient.address) && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.82rem', marginTop: '12px' }}>
+                                <span>📍</span>
+                                <span>
+                                    {[
+                                        patient.houseNumber,
+                                        patient.street,
+                                        patient.address,
+                                        patient.city,
+                                        patient.state,
+                                        patient.pincode
+                                    ].filter(Boolean).join(', ')}
+                                </span>
+                            </div>
+                        )}
+                        {patient.sourceInformation?.sourceType && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#94a3b8', fontSize: '0.82rem', marginTop: '12px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                <div style={{ fontWeight: 600, color: '#e2e8f0' }}>📢 Source: {patient.sourceInformation.sourceType}</div>
+                                {patient.sourceInformation.sourceType === 'Newspaper' && patient.sourceInformation.newspaperName && <div>📰 Newspaper: {patient.sourceInformation.newspaperName}</div>}
+                                {patient.sourceInformation.sourceType === 'Camp' && (
+                                    <>
+                                        {patient.sourceInformation.campName && <div>🏕️ Camp Name: {patient.sourceInformation.campName}</div>}
+                                        {patient.sourceInformation.campLocation && <div>📍 Location: {patient.sourceInformation.campLocation}</div>}
+                                        {patient.sourceInformation.reference && <div>👤 Reference: {patient.sourceInformation.reference}</div>}
+                                    </>
+                                )}
+                                {patient.sourceInformation.sourceType === 'Family & Friends' && patient.sourceInformation.referencePersonName && <div>👤 Reference Person: {patient.sourceInformation.referencePersonName}</div>}
+                                {patient.sourceInformation.sourceType === 'Doctor Reference' && (
+                                    <>
+                                        {patient.sourceInformation.doctorName && <div>👨‍⚕️ Doctor: {patient.sourceInformation.doctorName}</div>}
+                                        {patient.sourceInformation.hospitalName && <div>🏥 Hospital: {patient.sourceInformation.hospitalName}</div>}
+                                    </>
+                                )}
+                                {patient.sourceInformation.sourceType === 'Others' && patient.sourceInformation.description && <div>📝 Description: {patient.sourceInformation.description}</div>}
+                            </div>
+                        )}
                         <div style={C.idGrid}>
                             {renderField('Email', patient.email)}
                             {renderField('Address', patient.address)}

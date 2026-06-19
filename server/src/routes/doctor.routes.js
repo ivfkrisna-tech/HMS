@@ -159,9 +159,15 @@ router.get('/patients/:patientId/full-profile', verifyToken, async (req, res) =>
                 bloodGroup: patient.bloodGroup,
                 address: patient.address,
                 city: patient.city,
+                houseNumber: patient.houseNumber,
+                street: patient.street,
+                state: patient.state,
+                pincode: patient.pincode,
+                sourceInformation: patient.sourceInformation,
                 avatar: patient.avatar,
                 aadhaarNumber: patient.aadhaarNumber,
                 isAadhaarVerified: patient.isAadhaarVerified,
+                consents: patient.consents || [],
                 fertilityProfile: patient.fertilityProfile || {},
                 createdAt: patient.createdAt
             },
@@ -187,6 +193,12 @@ router.put('/patients/:patientId/profile', verifyToken, async (req, res) => {
         if (hospitalId) findQuery.hospitalId = hospitalId;
         const user = await User.findOne(findQuery);
         if (!user) return res.status(404).json({ message: 'Patient not found' });
+
+        // Extract and update consents if provided
+        if (updates.consents !== undefined) {
+            user.consents = updates.consents;
+            delete updates.consents;
+        }
 
         // Merge existing profile with updates
         user.fertilityProfile = { ...user.fertilityProfile, ...updates };

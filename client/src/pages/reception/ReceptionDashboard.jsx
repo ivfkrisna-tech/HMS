@@ -56,6 +56,8 @@ const ReceptionDashboard = () => {
         title: 'Mrs.', firstName: '', middleName: '', lastName: '',
         dob: '', age: '', gender: 'Female', mobile: '', email: '',
         address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
+        houseNumber: '', street: '', city: '', state: '', pincode: '',
+        sourceInformation: { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
         partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '', partnerRelation: 'Husband',
         height: '', weight: '', bmi: '', bloodGroup: '',
         consultationFee: '',
@@ -227,6 +229,8 @@ const ReceptionDashboard = () => {
             title: 'Mrs.', firstName: '', middleName: '', lastName: '',
             dob: '', age: '', gender: 'Female', mobile: '', email: '',
             address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
+            houseNumber: '', street: '', city: '', state: '', pincode: '',
+            sourceInformation: { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
             partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '', partnerRelation: 'Husband',
             height: '', weight: '', bmi: '', bloodGroup: '',
             paymentStatus: 'Pending', consultationFee: hospitalContext?.appointmentFee ?? '500',
@@ -259,6 +263,12 @@ const ReceptionDashboard = () => {
             aadhaar: p.aadhaar || '',
             isAadhaarVerified: p.aadhaar ? true : false,
             avatar: patient.avatar || '',
+            houseNumber: patient.houseNumber || '',
+            street: patient.street || '',
+            city: patient.city || '',
+            state: patient.state || '',
+            pincode: patient.pincode || '',
+            sourceInformation: patient.sourceInformation || { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
             ...p,
             consultationFee: hospitalContext?.appointmentFee ?? '500',
             department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: '',
@@ -446,7 +456,7 @@ const ReceptionDashboard = () => {
         const { appointment, method } = paymentModal;
         try {
             await receptionAPI.confirmPayment(appointment._id, method, appointment.amount);
-            generateReceiptPDF({ ...appointment, paymentMethod: method, paymentStatus: 'Paid' }, method);
+            alert('Payment confirmed successfully. You can now download the receipt.');
             setPaymentModal({ open: false, appointment: null, method: 'Cash' });
             fetchAppointments();
         } catch (err) {
@@ -475,6 +485,15 @@ const ReceptionDashboard = () => {
         if (name === 'mobile' || name === 'partnerMobile') {
             const numericValue = value.replace(/\D/g, '').slice(0, 10);
             setIntakeForm(prev => ({ ...prev, [name]: numericValue }));
+            return;
+        }
+
+        if (name.startsWith('source_')) {
+            const field = name.split('_')[1];
+            setIntakeForm(prev => ({
+                ...prev,
+                sourceInformation: { ...prev.sourceInformation, [field]: value }
+            }));
             return;
         }
 
@@ -638,69 +657,9 @@ const ReceptionDashboard = () => {
                 });
 
                 if (bookingRes.success) {
-                    const doc = new jsPDF();
-                    const hName = hospitalContext?.name || 'HOSPITAL';
-                    const hAddr = [hospitalContext?.address, hospitalContext?.city, hospitalContext?.state].filter(Boolean).join(', ');
-                    const hPhone = hospitalContext?.phone || '';
-                    const hEmail = hospitalContext?.email || '';
-                    const issuedBy = currentUser?.name || 'Reception Staff';
-                    const selectedDoc = doctorsList.find(d => d._id === intakeForm.doctor);
-                    let y = 18;
-
-                    doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-                    doc.text(hName, 105, y, { align: 'center' }); y += 7;
-                    if (hAddr) {
-                        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100);
-                        doc.text(hAddr, 105, y, { align: 'center' }); y += 5;
-                    }
-                    if (hPhone || hEmail) {
-                        const contact = [hPhone && `Ph: ${hPhone}`, hEmail && `Email: ${hEmail}`].filter(Boolean).join('  |  ');
-                        doc.setFontSize(9); doc.setTextColor(100);
-                        doc.text(contact, 105, y, { align: 'center' }); y += 5;
-                    }
-                    doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(41, 128, 185);
-                    doc.text('Registration Slip / Receipt', 105, y, { align: 'center' }); y += 5;
-                    doc.setDrawColor(41, 128, 185); doc.setLineWidth(0.5);
-                    doc.line(14, y, 196, y); y += 8;
-                    doc.setTextColor(0); doc.setFont('helvetica', 'normal');
-
-                    autoTable(doc, {
-                        startY: y,
-                        body: [
-                            ['Patient Name', `${intakeForm.firstName} ${intakeForm.lastName}`],
-                            ['MRN / ID', regRes.user?.patientId || bookingRes.appointment?.patientId || 'N/A'],
-                            ['Phone', intakeForm.mobile || '-'],
-                            ['Aadhaar Verified', intakeForm.isAadhaarVerified ? 'YES - Verified' : 'NO'],
-                            ['Department', intakeForm.department || '-'],
-                            ['Doctor', `Dr. ${selectedDoc?.name || '-'}`],
-                            isTokenMode
-                                ? ['Date / Token', `${intakeForm.visitDate}  —  Token #${bookingRes.appointment?.tokenNumber || '?'}`]
-                                : ['Date & Time', `${intakeForm.visitDate} @ ${intakeForm.visitTime}`],
-                            ['Consultation Fee', `Rs. ${Number(intakeForm.consultationFee || 0).toLocaleString('en-IN')}`],
-                            ['Payment Method', intakeForm.paymentMethod || 'Cash'],
-                            ['Txn / UPI ID', intakeForm.transactionId || 'N/A'],
-                            ['Payment Status', 'PAID'],
-                        ],
-                        theme: 'grid',
-                        headStyles: { fillColor: [41, 128, 185] },
-                        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 52 } },
-                        bodyStyles: { fontSize: 10 },
-                        alternateRowStyles: { fillColor: [245, 249, 255] },
-                    });
-
-                    y = doc.lastAutoTable.finalY + 10;
-                    doc.setDrawColor(200); doc.line(14, y, 196, y); y += 6;
-                    doc.setFontSize(8); doc.setTextColor(120);
-                    doc.text(`Issued by: ${issuedBy}`, 14, y);
-                    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 196, y, { align: 'right' });
-                    y += 5;
-                    doc.text('Thank you for choosing ' + hName, 105, y, { align: 'center' });
-                    const receiptPatientId = regRes.user?.patientId || bookingRes.appointment?.patientId || 'Patient';
-                    doc.save(`Receipt_${receiptPatientId}.pdf`);
-
                     const tokenMsg = bookingRes.appointment?.tokenNumber
                         ? ` Token #${bookingRes.appointment.tokenNumber} assigned.` : '';
-                    alert(`Patient Registered & Assigned to Doctor!${tokenMsg}`);
+                    alert(`Patient Registered & Assigned to Doctor!${tokenMsg}\n\nYou can now download the receipt from the active queue.`);
 
                     // Re-fetch the active state directly after successfully creating the booking record
                     fetchAppointments();
@@ -923,6 +882,109 @@ const ReceptionDashboard = () => {
                                     <input name="partnerMobile" value={intakeForm.partnerMobile} onChange={handleInputChange} maxLength="10" />
                                 </div>
                             </div>
+
+                            {/* Address Information Section */}
+                            <h4 style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>Address Information</h4>
+                            <div className="form-row">
+                                <div className="field">
+                                    <label>House No / Flat No / Building Name</label>
+                                    <input name="houseNumber" placeholder="Enter House No, Flat No or Building Name" value={intakeForm.houseNumber} onChange={handleInputChange} />
+                                </div>
+                                <div className="field">
+                                    <label>Street / Area / Locality</label>
+                                    <input name="street" placeholder="Enter Street, Area or Locality" value={intakeForm.street} onChange={handleInputChange} />
+                                </div>
+                            </div>
+                            <div className="form-row">
+                                <div className="field">
+                                    <label>City</label>
+                                    <input name="city" placeholder="Enter City" value={intakeForm.city} onChange={handleInputChange} />
+                                </div>
+                                <div className="field">
+                                    <label>State</label>
+                                    <input name="state" placeholder="Enter State" value={intakeForm.state} onChange={handleInputChange} />
+                                </div>
+                                <div className="field">
+                                    <label>Pincode</label>
+                                    <input name="pincode" placeholder="Enter Pincode" value={intakeForm.pincode} onChange={handleInputChange} />
+                                </div>
+                            </div>
+
+                            {/* Patient Source Information Section */}
+                            <h4 style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>Patient Source Information</h4>
+                            <div className="form-row">
+                                <div className="field">
+                                    <label>How did the patient hear about us?</label>
+                                    <select name="source_sourceType" value={intakeForm.sourceInformation?.sourceType || ''} onChange={handleInputChange}>
+                                        <option value="">Select Source</option>
+                                        <option value="Newspaper">Newspaper</option>
+                                        <option value="Facebook">Facebook</option>
+                                        <option value="Instagram">Instagram</option>
+                                        <option value="Camp">Camp</option>
+                                        <option value="Family & Friends">Family & Friends</option>
+                                        <option value="Doctor Reference">Doctor Reference</option>
+                                        <option value="Others">Others</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {intakeForm.sourceInformation?.sourceType === 'Newspaper' && (
+                                <div className="form-row">
+                                    <div className="field">
+                                        <label>Newspaper Name</label>
+                                        <input name="source_newspaperName" placeholder="Enter Newspaper Name" value={intakeForm.sourceInformation?.newspaperName || ''} onChange={handleInputChange} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {intakeForm.sourceInformation?.sourceType === 'Camp' && (
+                                <div className="form-row">
+                                    <div className="field">
+                                        <label>Camp Name</label>
+                                        <input name="source_campName" placeholder="Enter Camp Name" value={intakeForm.sourceInformation?.campName || ''} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="field">
+                                        <label>Camp Location</label>
+                                        <input name="source_campLocation" placeholder="Enter Camp Location" value={intakeForm.sourceInformation?.campLocation || ''} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="field">
+                                        <label>Reference</label>
+                                        <input name="source_reference" placeholder="Enter Reference" value={intakeForm.sourceInformation?.reference || ''} onChange={handleInputChange} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {intakeForm.sourceInformation?.sourceType === 'Family & Friends' && (
+                                <div className="form-row">
+                                    <div className="field">
+                                        <label>Reference Person Name</label>
+                                        <input name="source_referencePersonName" placeholder="Enter Name" value={intakeForm.sourceInformation?.referencePersonName || ''} onChange={handleInputChange} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {intakeForm.sourceInformation?.sourceType === 'Doctor Reference' && (
+                                <div className="form-row">
+                                    <div className="field">
+                                        <label>Doctor Name</label>
+                                        <input name="source_doctorName" placeholder="Enter Doctor Name" value={intakeForm.sourceInformation?.doctorName || ''} onChange={handleInputChange} />
+                                    </div>
+                                    <div className="field">
+                                        <label>Hospital Name</label>
+                                        <input name="source_hospitalName" placeholder="Enter Hospital Name" value={intakeForm.sourceInformation?.hospitalName || ''} onChange={handleInputChange} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {intakeForm.sourceInformation?.sourceType === 'Others' && (
+                                <div className="form-row">
+                                    <div className="field">
+                                        <label>Description</label>
+                                        <input name="source_description" placeholder="Enter Source Details" value={intakeForm.sourceInformation?.description || ''} onChange={handleInputChange} />
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
 
                         <div className="form-section">
@@ -1032,8 +1094,8 @@ const ReceptionDashboard = () => {
                                     : (() => {
                                         const isTokenMode = hospitalContext?.appointmentMode === 'token';
                                         const canBook = intakeForm.doctor && intakeForm.visitDate && (intakeForm.visitTime || isTokenMode);
-                                        if (selectedPatientId) return canBook ? (isTokenMode ? 'Save & Issue Token + Receipt' : 'Save & Generate Receipt') : 'Save Patient Details';
-                                        return canBook ? (isTokenMode ? 'Register & Issue Token + Receipt' : 'Register & Generate Receipt') : 'Save Patient Details';
+                                        if (selectedPatientId) return canBook ? (isTokenMode ? 'Save & Issue Token' : 'Save & Book Appointment') : 'Save Patient Details';
+                                        return canBook ? (isTokenMode ? 'Register & Issue Token' : 'Register & Book Appointment') : 'Save Patient Details';
                                     })()
                                 }
                             </button>
@@ -1499,7 +1561,7 @@ const ReceptionDashboard = () => {
                                                 onClick={() => generateReceiptPDF(apt)}
                                                 style={{ padding: '4px 10px', fontSize: '12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '5px', cursor: 'pointer', fontWeight: '600' }}
                                             >
-                                                🧾 Print Receipt
+                                                🧾 Download Receipt
                                             </button>
                                         )}
                                         {apt.status !== 'cancelled' && apt.status !== 'completed' && (
@@ -1565,7 +1627,7 @@ const ReceptionDashboard = () => {
                             disabled={confirmingPayment}
                             style={{ flex: 1, padding: '11px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}
                         >
-                            {confirmingPayment ? 'Confirming...' : '✓ Confirm & Print Receipt'}
+                            {confirmingPayment ? 'Confirming...' : '✓ Confirm Payment'}
                         </button>
                         <button
                             onClick={() => setPaymentModal({ open: false, appointment: null, method: 'Cash' })}

@@ -206,14 +206,7 @@ const DoctorPatientDetails = () => {
             };
             await doctorAPI.updateSession(appointmentId, payload);
 
-            // 3. Generate Prescription PDF — wrapped so a PDF error never blocks the save
-            try {
-                generatePrescriptionPDF();
-            } catch (pdfErr) {
-                console.error('PDF generation error:', pdfErr);
-            }
-
-            alert("✅ Session saved & prescription generated!");
+            alert("✅ Session saved successfully!");
             navigate('/doctor/patients');
         } catch (err) {
             alert("Error: " + err.message);
