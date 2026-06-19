@@ -3,11 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { patientAPI, admissionAPI, uploadAPI, receptionAPI } from '../../utils/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useAuth } from '../../store/hooks';
 import './UnifiedPatientProfile.css';
 
 const UnifiedPatientProfile = () => {
     const { id: patientId } = useParams();
     const navigate = useNavigate();
+    const { user: currentUser } = useAuth();
     const [patientData, setPatientData] = useState(null);
     const [timeline, setTimeline] = useState([]);
     const [admissions, setAdmissions] = useState([]);
@@ -365,6 +367,22 @@ const UnifiedPatientProfile = () => {
                     <button className="upp-btn-download" onClick={generatePDF}>
                         📥 Download Full Profile
                     </button>
+                    {(currentUser && (
+                        currentUser?._roleData?.name?.toLowerCase().includes('reception') ||
+                        currentUser?._roleData?.name?.toLowerCase().includes('admin') ||
+                        currentUser?._roleData?.name?.toLowerCase().includes('staff') ||
+                        currentUser?._roleData?.name?.toLowerCase().includes('front') ||
+                        currentUser?.role?.toLowerCase()?.includes('reception') ||
+                        currentUser?.role?.toLowerCase()?.includes('admin') ||
+                        currentUser?.role?.toLowerCase()?.includes('staff') ||
+                        currentUser?.role?.toLowerCase()?.includes('front') ||
+                        currentUser?._roleData?.permissions?.includes('patient_create') ||
+                        currentUser?._roleData?.permissions?.includes('*')
+                    )) && (
+                        <button className="upp-btn-edit" onClick={() => navigate(`/reception/dashboard?mode=intake&patientId=${patientData._id}`)}>
+                            ✏️ Edit Profile
+                        </button>
+                    )}
                 </div>
             </div>
 

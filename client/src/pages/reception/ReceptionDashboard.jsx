@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI } from '../../utils/api';
+import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI, patientAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
 import { getSubdomain } from '../../utils/subdomain';
 import { jsPDF } from 'jspdf';
@@ -93,6 +93,18 @@ const ReceptionDashboard = () => {
                               || searchResults.find(p => p._id === patientIdParam);
                 if (patient) {
                     handleEditPatient(patient, true);
+                } else {
+                    const fetchPatient = async () => {
+                        try {
+                            const res = await patientAPI.getFullHistory(patientIdParam);
+                            if (res.success && res.user) {
+                                handleEditPatient(res.user, true);
+                            }
+                        } catch (err) {
+                            console.error("Error fetching patient for edit:", err);
+                        }
+                    };
+                    fetchPatient();
                 }
             } else if (!patientIdParam) {
                 handleNewWalkIn(true);
@@ -260,14 +272,17 @@ const ReceptionDashboard = () => {
             lastName: getVal(patient.name).split(' ').slice(1).join(' '),
             mobile: getVal(patient.phone),
             email: getVal(patient.email),
-            aadhaar: p.aadhaar || '',
-            isAadhaarVerified: p.aadhaar ? true : false,
+            aadhaar: p.aadhaar || patient.aadhaarNumber || '',
+            isAadhaarVerified: p.aadhaar || patient.isAadhaarVerified ? true : false,
             avatar: patient.avatar || '',
             houseNumber: patient.houseNumber || '',
             street: patient.street || '',
             city: patient.city || '',
             state: patient.state || '',
             pincode: patient.pincode || '',
+            dob: p.dob || patient.dob || '',
+            gender: p.gender || patient.gender || 'Female',
+            bloodGroup: p.bloodGroup || patient.bloodGroup || '',
             sourceInformation: patient.sourceInformation || { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
             ...p,
             consultationFee: hospitalContext?.appointmentFee ?? '500',
@@ -591,24 +606,31 @@ const ReceptionDashboard = () => {
         try {
             let userId = selectedPatientId;
 
-            const regPayload = {
-                name: `${intakeForm.firstName} ${intakeForm.lastName}`.trim(),
-                email: intakeForm.email,
-                phone: intakeForm.mobile,
-            };
+            if (!userId) {
+                const regPayload = {
+                    name: `${intakeForm.firstName} ${intakeForm.lastName}`.trim(),
+                    email: intakeForm.email,
+                    phone: intakeForm.mobile,
+                };
 
-            // Attach linked patient info to registration payload if selected
-            if (linkedPatientSelection) {
-                regPayload.linkedPatientId = linkedPatientSelection._id;
-                regPayload.relationLabel = linkRelation;
-            }
+                // Attach linked patient info to registration payload if selected
+                if (linkedPatientSelection) {
+                    regPayload.linkedPatientId = linkedPatientSelection._id;
+                    regPayload.relationLabel = linkRelation;
+                }
 
-            const regRes = await receptionAPI.registerPatient(regPayload);
+                const regRes = await receptionAPI.registerPatient(regPayload);
 
-            if (regRes.success && regRes.user) {
-                userId = regRes.user._id;
+                if (regRes.success && regRes.user) {
+                    userId = regRes.user._id;
+                } else {
+                    throw new Error(regRes.message || "Registration failed.");
+                }
             } else {
-                throw new Error(regRes.message || "Registration failed.");
+                // If editing existing patient, also apply symmetric link if selected
+                if (linkedPatientSelection) {
+                    await receptionAPI.linkPatients(userId, linkedPatientSelection._id, linkRelation);
+                }
             }
 
             let finalAvatar = intakeForm.avatar;
