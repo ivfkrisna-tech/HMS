@@ -61,6 +61,9 @@ const appointmentSchema = new mongoose.Schema({
     
     // Dedicated field to save the UPI text input / Reference ID from the reception registration dashboard
     transactionId: { type: String, default: '', trim: true },
+
+    paymentProofUrl: { type: String, default: null },
+    paymentProofFileName: { type: String, default: null },
     
     amount: { type: Number, default: 0 },
     bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -94,7 +97,7 @@ const appointmentSchema = new mongoose.Schema({
 
 appointmentSchema.index(
     { doctorId: 1, appointmentDate: 1, appointmentTime: 1 },
-    { unique: true, partialFilterExpression: { status: { $ne: 'cancelled' } } }
+    { unique: false, partialFilterExpression: { status: { $ne: 'cancelled' } } }
 );
 
 const Appointment = mongoose.model('Appointment', appointmentSchema);

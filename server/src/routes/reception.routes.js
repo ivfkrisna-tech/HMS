@@ -6,6 +6,34 @@ const Doctor = require('../models/doctor.model');
 const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const { getTenantModels } = require('../db/tenantModels');
+const { generateNextMRN, generateNextCoupleId } = require('../utils/mrnHelper');
+
+const verifyReceptionOrDoctor = (req, res, next) => {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+
+    const userRole = req.user.role;
+    const dynamicRoleName = req.user._roleData?.name;
+    const permissions = req.user._roleData?.permissions || [];
+
+    const roleStr = typeof userRole === 'string' ? userRole.toLowerCase() : '';
+    const dynRoleStr = dynamicRoleName ? dynamicRoleName.toLowerCase() : '';
+
+    const allowed = ['reception', 'admin', 'superadmin', 'staff', 'front', 'doctor'];
+    const hasAccess = allowed.some(keyword => dynRoleStr.includes(keyword) || roleStr.includes(keyword));
+
+    if (hasAccess) {
+        return next();
+    }
+
+    if (permissions.includes('reception_access') || permissions.includes('*')) {
+        return next();
+    }
+
+    return res.status(403).json({
+        success: false,
+        message: `Access denied: Reception or Doctor access only. Your role: ${dynamicRoleName || userRole}`
+    });
+};
 
 const verifyReception = (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
@@ -62,7 +90,9 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             if (email && email !== user.email) user.email = email;
 
             if (!user.patientId) {
-                user.patientId = 'MRN-' + Date.now() + Math.floor(Math.random() * 1000);
+                const nextMrn = await generateNextMRN(req.user.hospitalId);
+                user.patientId = nextMrn;
+                user.mrn = nextMrn;
             }
 
             await user.save();
@@ -70,18 +100,30 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
             // Apply symmetric link if requested
             if (linkedPatientId) {
                 await _applySymmetricLink(String(user._id), String(linkedPatientId), relationLabel || 'Related');
+                const partner = await User.findById(linkedPatientId);
+                if (partner) {
+                    user.houseNumber = partner.houseNumber;
+                    user.street = partner.street;
+                    user.address = partner.address;
+                    user.city = partner.city;
+                    user.state = partner.state;
+                    user.pincode = partner.pincode;
+                    user.sourceInformation = partner.sourceInformation;
+                    await user.save();
+                }
             }
 
             return res.status(200).json({ success: true, message: 'Patient record updated!', user });
         }
 
-        const patientId = 'MRN-' + Date.now() + Math.floor(Math.random() * 1000);
+        const patientId = await generateNextMRN(req.user.hospitalId);
 
         const userData = {
             name,
             phone,
             role: 'patient',
             patientId,
+            mrn: patientId,
             fertilityProfile: {},
             hospitalId: req.user.hospitalId || undefined
         };
@@ -94,6 +136,17 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
         // Apply symmetric link if requested
         if (linkedPatientId) {
             await _applySymmetricLink(String(newUser._id), String(linkedPatientId), relationLabel || 'Related');
+            const partner = await User.findById(linkedPatientId);
+            if (partner) {
+                newUser.houseNumber = partner.houseNumber;
+                newUser.street = partner.street;
+                newUser.address = partner.address;
+                newUser.city = partner.city;
+                newUser.state = partner.state;
+                newUser.pincode = partner.pincode;
+                newUser.sourceInformation = partner.sourceInformation;
+                await newUser.save();
+            }
         }
 
         res.status(201).json({ success: true, message: 'Patient registered successfully!', user: newUser });
@@ -198,23 +251,63 @@ async function _applySymmetricLink(idA, idB, label) {
         Husband: 'Wife', Wife: 'Husband',
         Father: 'Child', Mother: 'Child', Son: 'Parent', Daughter: 'Parent',
         Brother: 'Sibling', Sister: 'Sibling', Sibling: 'Sibling',
-        Child: 'Parent', Parent: 'Child',
+        Child: 'Parent', Parent: 'Child', Partner: 'Partner',
     };
     const labelBA = reverseMap[labelAB] || labelAB;
 
+    const [userA, userB] = await Promise.all([
+        User.findById(idA),
+        User.findById(idB)
+    ]);
+    if (!userA || !userB) return;
+
+    let targetCoupleId = userA.coupleId || userB.coupleId;
+    if (!targetCoupleId) {
+        targetCoupleId = await generateNextCoupleId();
+    }
+
+    await User.findByIdAndUpdate(idA, { $pull: { linkedPatients: { patientId: idB } } });
     await User.findByIdAndUpdate(idA, {
-        $addToSet: { linkedPatients: { patientId: idB, relationLabel: labelAB } }
+        coupleId: targetCoupleId,
+        $push: { linkedPatients: { patientId: idB, relationLabel: labelAB } },
+        ...((['Husband', 'Wife', 'Partner'].includes(labelAB)) ? { partnerPatientId: idB, partnerRelation: labelAB } : {})
     });
+    
+    await User.findByIdAndUpdate(idB, { $pull: { linkedPatients: { patientId: idA } } });
     await User.findByIdAndUpdate(idB, {
-        $addToSet: { linkedPatients: { patientId: idA, relationLabel: labelBA } }
+        coupleId: targetCoupleId,
+        $push: { linkedPatients: { patientId: idA, relationLabel: labelBA } },
+        ...((['Husband', 'Wife', 'Partner'].includes(labelBA)) ? { partnerPatientId: idA, partnerRelation: labelBA } : {})
     });
 }
 
 // 3. UPDATE INTAKE
-router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => {
+router.put('/intake/:userId', verifyToken, verifyReceptionOrDoctor, async (req, res) => {
     try {
         const { userId } = req.params;
         const updates = req.body;
+
+        // Inherit Address & Source Information if patient has a partner/linked patient
+        let partnerId = updates.linkedPatientId || updates.partnerPatientId;
+        if (!partnerId) {
+            const currentPatientObj = await User.findById(userId);
+            if (currentPatientObj) {
+                partnerId = currentPatientObj.partnerPatientId;
+            }
+        }
+        if (partnerId) {
+            const partner = await User.findById(partnerId);
+            if (partner) {
+                updates.houseNumber = partner.houseNumber;
+                updates.street = partner.street;
+                updates.address = partner.address;
+                updates.city = partner.city;
+                updates.state = partner.state;
+                updates.pincode = partner.pincode;
+                updates.sourceInformation = partner.sourceInformation;
+            }
+        }
+
         const updateQuery = {};
 
         if (updates.firstName || updates.lastName) updateQuery.name = `${updates.firstName || ''} ${updates.lastName || ''}`.trim();
@@ -233,6 +326,7 @@ router.put('/intake/:userId', verifyToken, verifyReception, async (req, res) => 
         if (updates.avatar) updateQuery.avatar = updates.avatar;
         if (updates.consents) updateQuery.consents = updates.consents;
         if (updates.sourceInformation !== undefined) updateQuery.sourceInformation = updates.sourceInformation;
+        if (updates.linkedAppointmentId !== undefined) updateQuery.linkedAppointmentId = updates.linkedAppointmentId;
 
         const profileFields = [
             'title', 'firstName', 'middleName', 'lastName', 'dob', 'age', 'gender', 'maritalStatus', 'occupation',
@@ -316,6 +410,23 @@ router.delete('/link-patients/:patientId/:linkedId', verifyToken, verifyReceptio
         await User.findByIdAndUpdate(linkedId, {
             $pull: { linkedPatients: { patientId: patientId } }
         });
+
+        // Unset partner fields if they were linked as partner
+        const patient = await User.findById(patientId);
+        if (patient && String(patient.partnerPatientId) === String(linkedId)) {
+            patient.partnerPatientId = null;
+            patient.partnerRelation = null;
+            patient.linkedAppointmentId = null;
+            await patient.save();
+        }
+        const linked = await User.findById(linkedId);
+        if (linked && String(linked.partnerPatientId) === String(patientId)) {
+            linked.partnerPatientId = null;
+            linked.partnerRelation = null;
+            linked.linkedAppointmentId = null;
+            await linked.save();
+        }
+
         res.json({ success: true, message: 'Patients unlinked successfully.' });
     } catch (error) {
         console.error('Unlink patients error:', error);
@@ -330,7 +441,7 @@ router.get('/linked-records/:patientId', verifyToken, verifyReception, async (re
     try {
         const { patientId } = req.params;
         const patient = await User.findById(patientId)
-            .populate('linkedPatients.patientId', 'name phone patientId')
+            .populate('linkedPatients.patientId', 'name phone patientId linkedAppointmentId')
             .lean();
 
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
@@ -342,20 +453,25 @@ router.get('/linked-records/:patientId', verifyToken, verifyReception, async (re
 
         // Gather all subject IDs: this patient + all linked patients
         const subjects = [
-            { id: patient._id, patientIdStr: patient.patientId, name: patient.name },
+            { id: patient._id, patientIdStr: patient.patientId, name: patient.name, linkedAppointmentId: patient.linkedAppointmentId },
             ...(patient.linkedPatients || []).map(lp => ({
                 id: lp.patientId?._id || lp.patientId,
                 patientIdStr: lp.patientId?.patientId || '',
                 name: lp.patientId?.name || 'Linked Patient',
                 relationLabel: lp.relationLabel,
+                linkedAppointmentId: lp.patientId?.linkedAppointmentId
             }))
         ];
 
         const allRecords = await Promise.all(subjects.map(async (subj) => {
             const subjId = subj.id;
             const subjPidStr = subj.patientIdStr;
+            const apptOrClauses = [{ userId: subjId }, { patientId: subjPidStr }];
+            if (subj.linkedAppointmentId) {
+                apptOrClauses.push({ _id: subj.linkedAppointmentId });
+            }
             const [appointments, labs, pharmacy, visits] = await Promise.all([
-                Appointment.find({ $or: [{ userId: subjId }, { patientId: subjPidStr }], ...hFilter })
+                Appointment.find({ $or: apptOrClauses, ...hFilter })
                     .populate('doctorId', 'name').sort({ appointmentDate: -1 }).limit(50).lean(),
                 LabReport.find({ $or: [{ userId: subjId }, { patientId: subjId }], ...hFilter })
                     .sort({ createdAt: -1 }).limit(30).lean(),
@@ -411,7 +527,14 @@ router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (
         }
 
         const appointments = await Appointment.find(queryFilter)
-            .populate('userId', 'name email phone patientId avatar houseNumber street address city state pincode sourceInformation fertilityProfile')
+            .populate({
+                path: 'userId',
+                select: 'name email phone patientId avatar houseNumber street address city state pincode sourceInformation fertilityProfile partnerPatientId partnerRelation',
+                populate: {
+                    path: 'partnerPatientId',
+                    select: 'name'
+                }
+            })
             .populate('doctorId', 'name')
             .sort({ tokenNumber: 1, appointmentTime: 1 })
             .lean();
@@ -459,7 +582,7 @@ router.patch('/appointments/:id/cancel', verifyToken, verifyReception, async (re
 // 6. BOOK APPOINTMENT (NEW: Assign Doctor)
 router.post('/book-appointment', verifyToken, verifyReception, async (req, res) => {
     try {
-        const { patientId, doctorId, date, time, notes, paymentMethod, paymentStatus, amount, transactionId } = req.body;
+        const { patientId, doctorId, date, time, notes, paymentMethod, paymentStatus, amount, transactionId, paymentProofUrl, paymentProofFileName } = req.body;
 
         if (!patientId || !doctorId || !date) {
             return res.status(400).json({ success: false, message: 'Missing booking details' });
@@ -474,6 +597,45 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
         const patient = await User.findById(patientId);
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
 
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Check if patient already has an active appointment on this date (preventing duplicate billing/charges)
+        const patientExisting = await Appointment.findOne({
+            userId: patient._id,
+            appointmentDate: { $gte: startOfDay, $lte: endOfDay },
+            status: { $nin: ['cancelled'] }
+        });
+        if (patientExisting) {
+            return res.json({
+                success: true,
+                message: 'Patient already has an active appointment on this date.',
+                appointment: patientExisting
+            });
+        }
+
+        // Check if patient belongs to a couple and partner has an active appointment today
+        let isSharedAppointment = false;
+        let partnerAppointment = null;
+        if (patient.coupleId) {
+            const partnerUser = await User.findOne({
+                coupleId: patient.coupleId,
+                _id: { $ne: patient._id }
+            });
+            if (partnerUser) {
+                partnerAppointment = await Appointment.findOne({
+                    userId: partnerUser._id,
+                    appointmentDate: { $gte: startOfDay, $lte: endOfDay },
+                    status: { $nin: ['cancelled'] }
+                });
+                if (partnerAppointment) {
+                    isSharedAppointment = true;
+                }
+            }
+        }
+
         const doctor = await Doctor.findById(doctorId);
         if (!doctor) return res.status(404).json({ success: false, message: 'Doctor not found' });
 
@@ -483,13 +645,8 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
         const hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode') : null;
         const isTokenMode = hospital?.appointmentMode === 'token';
 
-        let finalTime = time;
+        let finalTime = isSharedAppointment && partnerAppointment ? partnerAppointment.appointmentTime : time;
         let tokenNumber = null;
-
-        const startOfDay = new Date(date);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(date);
-        endOfDay.setHours(23, 59, 59, 999);
 
         if (isTokenMode) {
             const count = await Appointment.countDocuments({
@@ -500,19 +657,31 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             tokenNumber = count + 1;
             finalTime = `token-${tokenNumber}`;
         } else {
-            if (!time) {
+            if (!finalTime) {
                 return res.status(400).json({ success: false, message: 'Appointment time is required for slot-based booking' });
             }
             const existing = await Appointment.findOne({
                 doctorId: doctor._id,
                 appointmentDate: { $gte: startOfDay, $lte: endOfDay },
-                appointmentTime: time,
+                appointmentTime: finalTime,
                 status: { $ne: 'cancelled' }
             });
-            if (existing) {
+            
+            let hasConflict = !!existing;
+            if (existing && patient.coupleId) {
+                const existingUser = await User.findById(existing.userId);
+                if (existingUser && existingUser.coupleId === patient.coupleId) {
+                    hasConflict = false; // Allow partners to share slot
+                }
+            }
+            
+            if (hasConflict) {
                 return res.status(400).json({ success: false, message: 'Slot already booked for this doctor at this time!' });
             }
         }
+
+        const finalAmount = isSharedAppointment ? 0 : (Number(amount) || doctor.consultationFee || 0);
+        const finalPaymentStatus = isSharedAppointment ? 'Paid' : (paymentStatus || 'Paid');
 
         const newAppointment = new Appointment({
             userId: patient._id,
@@ -526,10 +695,12 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             appointmentDate: new Date(date),
             appointmentTime: finalTime || '',
             tokenNumber,
-            amount: Number(amount) || doctor.consultationFee || 0,
+            amount: finalAmount,
             status: 'confirmed',
-            paymentStatus: paymentStatus || 'Paid',
+            paymentStatus: finalPaymentStatus,
             paymentMethod: paymentMethod || 'Cash',
+            paymentProofUrl: paymentMethod === 'Cash' ? null : (paymentProofUrl || null),
+            paymentProofFileName: paymentMethod === 'Cash' ? null : (paymentProofFileName || null),
             notes: notes || 'Walk-in created by reception',
             bookedBy: req.user._id
         });
@@ -550,13 +721,15 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
 // 7b. CONFIRM PAYMENT for an existing appointment
 router.patch('/appointments/:id/confirm-payment', verifyToken, verifyReception, async (req, res) => {
     try {
-        const { paymentMethod, amount } = req.body;
+        const { paymentMethod, amount, paymentProofUrl, paymentProofFileName } = req.body;
         const findQuery = { _id: req.params.id };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
         const appt = await Appointment.findOne(findQuery);
         if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found or unauthorized' });
         appt.paymentStatus = 'Paid';
         appt.paymentMethod = paymentMethod || appt.paymentMethod || 'Cash';
+        appt.paymentProofUrl = appt.paymentMethod === 'Cash' ? null : (paymentProofUrl || appt.paymentProofUrl || null);
+        appt.paymentProofFileName = appt.paymentMethod === 'Cash' ? null : (paymentProofFileName || appt.paymentProofFileName || null);
         if (amount !== undefined) appt.amount = amount;
         await appt.save();
         res.json({ success: true, appointment: appt });

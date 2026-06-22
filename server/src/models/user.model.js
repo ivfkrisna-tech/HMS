@@ -22,6 +22,11 @@ const userSchema = new mongoose.Schema({
 
     // Patient ID for clinical tracking
     patientId: { type: String, unique: true, sparse: true },
+    mrn: { type: String, unique: true, sparse: true },
+    partnerPatientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    partnerRelation: { type: String, enum: ['Husband', 'Wife'], default: null },
+    coupleId: { type: String, default: null, index: true },
+    linkedAppointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },
 
     // Static Demographics
     dob: String,

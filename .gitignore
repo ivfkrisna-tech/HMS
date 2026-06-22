@@ -18,3 +18,8 @@
 
 # Node modules
 node_modules/
+
+# Test & debug scripts
+server/test_*.js
+server/scratch/
+server/migrate-coupleid.js

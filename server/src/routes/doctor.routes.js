@@ -127,8 +127,25 @@ router.get('/patients/:patientId/full-profile', verifyToken, async (req, res) =>
         // Get patient info — scope to hospital
         const patientQuery = { _id: patientId };
         if (hid) patientQuery.hospitalId = hid;
-        const patient = await User.findOne(patientQuery).lean();
+        let patient = await User.findOne(patientQuery)
+            .populate({
+                path: 'partnerPatientId',
+                select: 'name firstName lastName mrn patientId gender phone mobile linkedAppointmentId'
+            })
+            .lean();
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+        if (patient.coupleId) {
+            const partner = await User.findOne({
+                coupleId: patient.coupleId,
+                _id: { $ne: patient._id }
+            })
+            .select('name firstName lastName mrn patientId gender phone mobile linkedAppointmentId coupleId')
+            .lean();
+            if (partner) {
+                patient.partnerPatientId = partner;
+            }
+        }
 
         // Scope all sub-queries to hospital
         const apptQ = { userId: patientId };
@@ -167,6 +184,9 @@ router.get('/patients/:patientId/full-profile', verifyToken, async (req, res) =>
                 avatar: patient.avatar,
                 aadhaarNumber: patient.aadhaarNumber,
                 isAadhaarVerified: patient.isAadhaarVerified,
+                partnerPatientId: patient.partnerPatientId,
+                partnerRelation: patient.partnerRelation,
+                linkedAppointmentId: patient.linkedAppointmentId,
                 consents: patient.consents || [],
                 fertilityProfile: patient.fertilityProfile || {},
                 createdAt: patient.createdAt

@@ -263,3 +263,117 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Partner Information Card Styling */
+.upp-partner-card {
+    background: white;
+    padding: 20px 24px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 5px solid #6366f1;
+}
+
+.upp-partner-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.upp-partner-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.upp-partner-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.upp-partner-tags-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.upp-partner-empty {
+    color: #64748b;
+    font-size: 14px;
+    font-style: italic;
+}
+
+/* Vertical stacked actions — matches .upp-actions in the header card */
+.upp-partner-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex-shrink: 0;
+    margin-left: 24px;
+}
+
+.upp-btn-partner-view {
+    background-color: #6366f1;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.upp-btn-partner-view:hover {
+    background-color: #4f46e5;
+}
+
+.upp-btn-partner-download {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.upp-btn-partner-download:hover {
+    background-color: #e2e8f0;
+}
+
+@media (max-width: 768px) {
+    .upp-partner-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    .upp-partner-actions {
+        margin-left: 0;
+        width: 100%;
+    }
+    .upp-btn-partner-view,
+    .upp-btn-partner-download {
+        width: 100%;
+    }
+}

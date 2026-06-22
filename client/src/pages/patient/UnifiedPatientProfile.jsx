@@ -64,6 +64,11 @@ const UnifiedPatientProfile = () => {
     };
 
     useEffect(() => {
+        setLoading(true);
+        setError('');
+        setPatientData(null);
+        setTimeline([]);
+        setAdmissions([]);
         const fetchProfile = async () => {
             try {
                 const res = await patientAPI.getFullHistory(patientId);
@@ -103,6 +108,7 @@ const UnifiedPatientProfile = () => {
         const isPending = (status) => ['pending', 'unpaid', ''].includes((status || '').toLowerCase());
 
         timeline.forEach(item => {
+            if (item.linkedPatientId) return; // Skip partner timeline items for metrics
             const data = item.data;
             if (item.type === 'appointment') {
                 metrics.appointmentsCount++;
@@ -137,89 +143,102 @@ const UnifiedPatientProfile = () => {
         return metrics;
     };
 
+    const generatePDFForUser = async (targetPatientId) => {
+        try {
+            const res = await patientAPI.getFullHistory(targetPatientId);
+            if (res.success && res.user) {
+                const doc = new jsPDF();
+                let y = 20;
+
+                // Header
+                doc.setFontSize(22);
+                doc.setTextColor(41, 128, 185);
+                doc.text("PAWAN HARISH IVF CENTER", 105, y, { align: 'center' });
+                y += 10;
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text("Complete Unified Patient Record", 105, y, { align: 'center' });
+                y += 15;
+
+                // Patient Details Block
+                doc.setFontSize(12);
+                doc.setTextColor(0);
+                doc.setFillColor(240, 240, 240);
+                doc.rect(14, y, 182, 35, 'F');
+
+                y += 10;
+                doc.setFont("helvetica", "bold"); doc.text("Patient Name:", 18, y);
+                doc.setFont("helvetica", "normal"); doc.text(`${res.user.name || '-'}`, 55, y);
+                doc.setFont("helvetica", "bold"); doc.text("MRN / ID:", 120, y);
+                doc.setFont("helvetica", "normal"); doc.text(`${res.user.patientId || '-'}`, 150, y);
+
+                y += 10;
+                doc.setFont("helvetica", "bold"); doc.text("Phone:", 18, y);
+                doc.setFont("helvetica", "normal"); doc.text(`${res.user.phone || '-'}`, 55, y);
+                doc.setFont("helvetica", "bold"); doc.text("DOB:", 120, y);
+                doc.setFont("helvetica", "normal"); doc.text(`${res.user.dob ? new Date(res.user.dob).toLocaleDateString() : '-'}`, 150, y);
+
+                y += 10;
+                doc.setFont("helvetica", "bold"); doc.text("Gender:", 18, y);
+                doc.setFont("helvetica", "normal"); doc.text(`${res.user.gender || '-'}`, 55, y);
+                doc.setFont("helvetica", "bold"); doc.text("Report Date:", 120, y);
+                doc.setFont("helvetica", "normal"); doc.text(`${new Date().toLocaleDateString()}`, 150, y);
+
+                y += 20;
+
+                // Timeline Records
+                doc.setFontSize(14);
+                doc.setTextColor(0);
+                doc.text("Comprehensive Medical & Financial History", 14, y);
+                y += 8;
+
+                const tableBody = (res.timeline || []).map(item => {
+                    const d = new Date(item.date).toLocaleDateString();
+                    let desc = '';
+                    let amount = '-';
+                    let payStatus = '-';
+
+                    if (item.type === 'appointment') {
+                        desc = `Appointment w/ ${item.data.doctorName || 'Doctor'} - ${item.data.serviceName || 'Consultation'}`;
+                        amount = `₹${item.data.amount || 0}`;
+                        payStatus = item.data.paymentStatus || 'pending';
+                    } else if (item.type === 'clinicalVisit') {
+                        desc = `Clinical Visit - ${item.summary?.outcome || 'Session Recorded'}`;
+                    } else if (item.type === 'labReport') {
+                        desc = `Lab Order: ${(item.data.testNames || []).join(', ')} [${item.data.status}]`;
+                        amount = `₹${item.data.amount || 0}`;
+                        payStatus = item.data.paymentStatus || 'pending';
+                    } else if (item.type === 'pharmacyOrder') {
+                        desc = `Pharmacy Order (${item.data.items?.length || 0} items) [${item.data.status}]`;
+                        amount = `₹${item.data.totalAmount || 0}`;
+                        payStatus = item.data.paymentStatus || 'pending';
+                    }
+
+                    return [d, item.type.toUpperCase(), desc, amount, payStatus];
+                });
+
+                autoTable(doc, {
+                    startY: y,
+                    head: [['Date', 'Category', 'Description/Details', 'Amount', 'Payment status']],
+                    body: tableBody,
+                    theme: 'grid',
+                    headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+                    columnStyles: { 2: { cellWidth: 80 } }
+                });
+
+                doc.save(`Patient_Profile_${res.user.patientId || res.user._id}.pdf`);
+            } else {
+                alert("Failed to download profile: user data not found.");
+            }
+        } catch (error) {
+            console.error("Error downloading profile", error);
+            alert("Failed to download profile.");
+        }
+    };
+
     const generatePDF = () => {
         if (!patientData) return;
-
-        const doc = new jsPDF();
-        let y = 20;
-
-        // Header
-        doc.setFontSize(22);
-        doc.setTextColor(41, 128, 185);
-        doc.text("PAWAN HARISH IVF CENTER", 105, y, { align: 'center' });
-        y += 10;
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text("Complete Unified Patient Record", 105, y, { align: 'center' });
-        y += 15;
-
-        // Patient Details Block
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        doc.setFillColor(240, 240, 240);
-        doc.rect(14, y, 182, 35, 'F');
-
-        y += 10;
-        doc.setFont("helvetica", "bold"); doc.text("Patient Name:", 18, y);
-        doc.setFont("helvetica", "normal"); doc.text(`${patientData.name || '-'}`, 55, y);
-        doc.setFont("helvetica", "bold"); doc.text("MRN / ID:", 120, y);
-        doc.setFont("helvetica", "normal"); doc.text(`${patientData.patientId || '-'}`, 150, y);
-
-        y += 10;
-        doc.setFont("helvetica", "bold"); doc.text("Phone:", 18, y);
-        doc.setFont("helvetica", "normal"); doc.text(`${patientData.phone || '-'}`, 55, y);
-        doc.setFont("helvetica", "bold"); doc.text("DOB:", 120, y);
-        doc.setFont("helvetica", "normal"); doc.text(`${patientData.dob ? new Date(patientData.dob).toLocaleDateString() : '-'}`, 150, y);
-
-        y += 10;
-        doc.setFont("helvetica", "bold"); doc.text("Gender:", 18, y);
-        doc.setFont("helvetica", "normal"); doc.text(`${patientData.gender || '-'}`, 55, y);
-        doc.setFont("helvetica", "bold"); doc.text("Report Date:", 120, y);
-        doc.setFont("helvetica", "normal"); doc.text(`${new Date().toLocaleDateString()}`, 150, y);
-
-        y += 20;
-
-        // Timeline Records
-        doc.setFontSize(14);
-        doc.setTextColor(0);
-        doc.text("Comprehensive Medical & Financial History", 14, y);
-        y += 8;
-
-        const tableBody = timeline.map(item => {
-            const d = new Date(item.date).toLocaleDateString();
-            let desc = '';
-            let amount = '-';
-            let payStatus = '-';
-
-            if (item.type === 'appointment') {
-                desc = `Appointment w/ ${item.data.doctorName || 'Doctor'} - ${item.data.serviceName || 'Consultation'}`;
-                amount = `₹${item.data.amount || 0}`;
-                payStatus = item.data.paymentStatus || 'pending';
-            } else if (item.type === 'clinicalVisit') {
-                desc = `Clinical Visit - ${item.summary?.outcome || 'Session Recorded'}`;
-            } else if (item.type === 'labReport') {
-                desc = `Lab Order: ${(item.data.testNames || []).join(', ')} [${item.data.status}]`;
-                amount = `₹${item.data.amount || 0}`;
-                payStatus = item.data.paymentStatus || 'pending';
-            } else if (item.type === 'pharmacyOrder') {
-                desc = `Pharmacy Order (${item.data.items?.length || 0} items) [${item.data.status}]`;
-                amount = `₹${item.data.totalAmount || 0}`;
-                payStatus = item.data.paymentStatus || 'pending';
-            }
-
-            return [d, item.type.toUpperCase(), desc, amount, payStatus];
-        });
-
-        autoTable(doc, {
-            startY: y,
-            head: [['Date', 'Category', 'Description/Details', 'Amount', 'Payment status']],
-            body: tableBody,
-            theme: 'grid',
-            headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-            columnStyles: { 2: { cellWidth: 80 } }
-        });
-
-        doc.save(`Patient_Profile_${patientData.patientId || patientData._id}.pdf`);
+        generatePDFForUser(patientData._id);
     };
 
     if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading unified profile...</div>;
@@ -244,6 +263,7 @@ const UnifiedPatientProfile = () => {
         const now = new Date();
         now.setHours(0, 0, 0, 0);
         return timeline.filter(t =>
+            !t.linkedPatientId &&
             t.type === 'appointment' &&
             new Date(t.data.appointmentDate) >= now &&
             t.data.status !== 'cancelled' && t.data.status !== 'completed'
@@ -251,7 +271,7 @@ const UnifiedPatientProfile = () => {
     };
 
     const getLabTestStatus = () => {
-        return timeline.filter(t => t.type === 'labReport').slice(0, 5);
+        return timeline.filter(t => !t.linkedPatientId && t.type === 'labReport').slice(0, 5);
     };
 
     const getMedications = () => {
@@ -265,6 +285,7 @@ const UnifiedPatientProfile = () => {
         const seenPrev = new Set();
 
         timeline.forEach(t => {
+            if (t.linkedPatientId) return; // Skip partner medications
             const isRecent = new Date(t.date) >= thirtyDaysAgo;
 
             const addMed = (name, details) => {
@@ -296,6 +317,30 @@ const UnifiedPatientProfile = () => {
 
         return { active, previous };
     };
+
+    const formatCoupleId = (rawId) => {
+        if (!rawId || rawId === 'N/A') return 'N/A';
+        const match = rawId.match(/^(CPL-)0*(\d+)$/);
+        if (!match) return rawId;
+        const num = parseInt(match[2], 10);
+        if (num <= 999) return `CPL-${String(num).padStart(3, '0')}`;
+        return `CPL-${num}`;
+    };
+
+    const getPartnerFirstName = () => {
+        if (!patientData?.partnerPatientId) return 'Partner';
+        const partnerObj = patientData.partnerPatientId;
+        if (partnerObj.firstName) return partnerObj.firstName.trim();
+        if (partnerObj.name) {
+            const parts = partnerObj.name.trim().split(/\s+/);
+            if (parts.length > 1 && ['mr', 'mrs', 'ms', 'dr', 'mr.', 'mrs.', 'ms.', 'dr.'].includes(parts[0].toLowerCase())) {
+                return parts[1];
+            }
+            if (parts[0]) return parts[0];
+        }
+        return 'Partner';
+    };
+    const partnerFirstName = getPartnerFirstName();
 
     const upcomingAppts = getUpcomingAppointments();
     const labStatus = getLabTestStatus();
@@ -386,6 +431,39 @@ const UnifiedPatientProfile = () => {
                 </div>
             </div>
 
+            {/* Partner Information Card */}
+            <div className="upp-partner-card">
+                <div className="upp-partner-info">
+                    <div className="upp-partner-title">
+                        <span>🔗 Partner Information</span>
+                    </div>
+                    {patientData.partnerPatientId ? (
+                        <div className="upp-partner-details">
+                            <div className="upp-partner-tags-row">
+                                <span className="upp-tag">Name: {patientData.partnerPatientId.name || `${patientData.partnerPatientId.firstName || ''} ${patientData.partnerPatientId.lastName || ''}`.trim() || 'Unknown'}</span>
+                                <span className="upp-tag">Relation: {patientData.partnerRelation || 'Partner'}</span>
+                            </div>
+                            <div className="upp-partner-tags-row">
+                                <span className="upp-tag">MRN: {patientData.partnerPatientId.patientId || patientData.partnerPatientId.mrn || patientData.partnerPatientId._id}</span>
+                                <span className="upp-tag">Couple ID: {formatCoupleId(patientData.coupleId || patientData.partnerPatientId.coupleId || 'N/A')}</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <span className="upp-partner-empty">No Partner Linked</span>
+                    )}
+                </div>
+                {patientData.partnerPatientId && (
+                    <div className="upp-partner-actions">
+                        <button className="upp-btn-partner-view" onClick={() => navigate(`/patient/${patientData.partnerPatientId._id || patientData.partnerPatientId}`)}>
+                            👥 View {partnerFirstName} Profile
+                        </button>
+                        <button className="upp-btn-partner-download" onClick={() => generatePDFForUser(patientData.partnerPatientId._id || patientData.partnerPatientId)}>
+                            📥 Download {partnerFirstName} Profile
+                        </button>
+                    </div>
+                )}
+            </div>
+
             {/* Metrics Grid */}
             <div className="upp-metrics">
                 <div className="upp-metric-card" style={{ borderLeft: '4px solid #3b82f6' }}>
@@ -436,7 +514,17 @@ const UnifiedPatientProfile = () => {
                                                 <>
                                                     <strong>{item.data.serviceName || 'Consultation'} with {item.data.doctorName || 'Doctor'}</strong>
                                                     <div>Status: <span style={{ textTransform: 'capitalize' }}>{item.data.status}</span></div>
-                                                    {item.data.amount > 0 && <div>Fees: ₹{item.data.amount} ({item.data.paymentStatus})</div>}
+                                                    {item.data.amount > 0 && (
+                                                        <div>
+                                                            Fees: ₹{item.data.amount} ({item.data.paymentStatus})
+                                                            {item.data.paymentMethod && <span> | Method: {item.data.paymentMethod}</span>}
+                                                            {item.data.paymentProofUrl && (
+                                                                <span style={{ marginLeft: '8px' }}>
+                                                                    | Proof: <a href={item.data.paymentProofUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>[View Proof]</a>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </>
                                             )}
 
@@ -652,11 +740,11 @@ const UnifiedPatientProfile = () => {
                     </div>
 
                     {/* Lab Report Files from Timeline */}
-                    {timeline.filter(t => t.type === 'labReport' && t.data.reportFileUrl).length > 0 && (
+                    {timeline.filter(t => !t.linkedPatientId && t.type === 'labReport' && t.data.reportFileUrl).length > 0 && (
                         <div className="upp-section">
                             <h3>🧪 Lab Report Files</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {timeline.filter(t => t.type === 'labReport' && t.data.reportFileUrl).map((t, i) => (
+                                {timeline.filter(t => !t.linkedPatientId && t.type === 'labReport' && t.data.reportFileUrl).map((t, i) => (
                                     <div key={i} style={{ padding: '10px 12px', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div>
                                             <div style={{ fontWeight: 600, fontSize: '13px', color: '#0369a1' }}>{(t.data.testNames || []).join(', ') || 'Lab Report'}</div>
@@ -671,7 +759,7 @@ const UnifiedPatientProfile = () => {
 
                     <div className="upp-section">
                         <h3>Recent Finances</h3>
-                        {timeline.filter(t => t.data.amount > 0 || t.data.totalAmount > 0).slice(0, 5).map((t, idx) => {
+                        {timeline.filter(t => !t.linkedPatientId && (t.data.amount > 0 || t.data.totalAmount > 0)).slice(0, 5).map((t, idx) => {
                             const amt = t.data.amount || t.data.totalAmount;
                             const status = t.data.paymentStatus || 'pending';
                             const label = t.type === 'appointment' ? 'Visit Fee' : t.type === 'labReport' ? 'Lab Tests' : 'Medicines';
@@ -680,10 +768,16 @@ const UnifiedPatientProfile = () => {
                                 <div key={idx} className="upp-finance-row">
                                     <span>
                                         <strong>{label}</strong>
+                                        {t.data.paymentMethod && <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '6px' }}>({t.data.paymentMethod})</span>}
                                         <br /><small style={{ color: '#64748b' }}>{new Date(t.date).toLocaleDateString()}</small>
                                     </span>
                                     <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontWeight: 600 }}>₹{amt}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                                            <div style={{ fontWeight: 600 }}>₹{amt}</div>
+                                            {t.data.paymentProofUrl && (
+                                                <a href={t.data.paymentProofUrl} target="_blank" rel="noreferrer" title="View Payment Proof" style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none' }}>👁</a>
+                                            )}
+                                        </div>
                                         <div className={`upp-finance-status status-${status}`}>{status}</div>
                                     </div>
                                 </div>

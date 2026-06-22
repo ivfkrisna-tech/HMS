@@ -73,11 +73,28 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
         
         // Find the user first to get their actual ObjectId for relations
         // Always use MasterUser — patients are registered in master DB
-        const userQuery = isObjectId ? { _id: userId } : { patientId: userId };
-        const user = await MasterUser.findOne(userQuery).lean();
+                const userQuery = isObjectId ? { _id: userId } : { patientId: userId };
+        let user = await MasterUser.findOne(userQuery)
+            .populate({
+                path: 'partnerPatientId',
+                select: 'name firstName lastName mrn patientId gender phone mobile linkedAppointmentId'
+            })
+            .lean();
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'Patient not found' });
+        }
+
+        if (user.coupleId) {
+            const partner = await MasterUser.findOne({
+                coupleId: user.coupleId,
+                _id: { $ne: user._id }
+            })
+            .select('name firstName lastName mrn patientId gender phone mobile linkedAppointmentId coupleId')
+            .lean();
+            if (partner) {
+                user.partnerPatientId = partner;
+            }
         }
 
         const realUserId = user._id;
@@ -92,7 +109,7 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
             ClinicalVisit.find({ patientId: realUserId, ...hFilter }).lean(),
             LabReport.find({ $or: [{ userId: realUserId }, { patientId: realUserId }], ...hFilter }).lean(),
             PharmacyOrder.find({ $or: [{ userId: realUserId }, { patientId: realUserId }], ...hFilter }).lean(),
-            // Appointment.patientId is String — can safely use patientIdStr
+            // Only fetch THIS patient's appointments — partner appointments come via linked patients section
             Appointment.find({ $or: [{ userId: realUserId }, { patientId: patientIdStr }], ...hFilter }).lean()
         ]);
 
@@ -115,47 +132,9 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
         pharmacies.forEach(p => timeline.push({ type: 'pharmacyOrder', date: p.createdAt, data: p }));
         appointments.forEach(a => timeline.push({ type: 'appointment', date: a.appointmentDate, data: a }));
 
-        // ─── Merge linked patients' timelines ────────────────────────────────
-        // Reload user with linkedPatients populated so we can fetch their records too
-        const userWithLinks = await MasterUser.findById(realUserId)
-            .populate('linkedPatients.patientId', 'name phone patientId')
-            .lean();
-
-        const linked = userWithLinks?.linkedPatients || [];
-        if (linked.length > 0) {
-            await Promise.all(linked.map(async (lp) => {
-                const linkedUser = lp.patientId;
-                if (!linkedUser || !linkedUser._id) return;
-                const lpId = linkedUser._id;
-                const lpPidStr = linkedUser.patientId || '';
-                const lpName = linkedUser.name || 'Linked Patient';
-                const lpRelation = lp.relationLabel || 'Related';
-
-                const [lpVisits, lpLabs, lpPharmacies, lpAppointments] = await Promise.all([
-                    ClinicalVisit.find({ patientId: lpId, ...hFilter }).lean(),
-                    LabReport.find({ $or: [{ userId: lpId }, { patientId: lpId }], ...hFilter }).lean(),
-                    PharmacyOrder.find({ $or: [{ userId: lpId }, { patientId: lpId }], ...hFilter }).lean(),
-                    Appointment.find({ $or: [{ userId: lpId }, { patientId: lpPidStr }], ...hFilter }).lean()
-                ]);
-
-                const tag = { linkedPatientName: lpName, linkedPatientId: String(lpId), relation: lpRelation };
-
-                lpVisits.forEach(v => {
-                    const item = { type: 'clinicalVisit', date: v.visitDate || v.createdAt, data: v, ...tag };
-                    if (isRestrictedRole && item.data.doctorConsultation) {
-                        delete item.data.doctorConsultation.clinicalNotes;
-                    }
-                    timeline.push(item);
-                });
-                lpLabs.forEach(l => timeline.push({ type: 'labReport', date: l.createdAt, data: l, ...tag }));
-                lpPharmacies.forEach(p => timeline.push({ type: 'pharmacyOrder', date: p.createdAt, data: p, ...tag }));
-                lpAppointments.forEach(a => timeline.push({ type: 'appointment', date: a.appointmentDate, data: a, ...tag }));
-            }));
-        }
-
         timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        res.json({ success: true, user, linkedPatients: linked, timeline });
+        res.json({ success: true, user, timeline });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
