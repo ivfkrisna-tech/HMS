@@ -311,6 +311,11 @@ router.put('/intake/:userId', verifyToken, verifyReceptionOrDoctor, async (req, 
                 updates.state = partner.state;
                 updates.pincode = partner.pincode;
                 updates.sourceInformation = partner.sourceInformation;
+                if (partner.marriageDate) {
+                    updates.marriageDate = partner.marriageDate;
+                } else if (partner.fertilityProfile && partner.fertilityProfile.marriageDate) {
+                    updates.marriageDate = partner.fertilityProfile.marriageDate;
+                }
             }
         }
 
@@ -333,9 +338,10 @@ router.put('/intake/:userId', verifyToken, verifyReceptionOrDoctor, async (req, 
         if (updates.consents) updateQuery.consents = updates.consents;
         if (updates.sourceInformation !== undefined) updateQuery.sourceInformation = updates.sourceInformation;
         if (updates.linkedAppointmentId !== undefined) updateQuery.linkedAppointmentId = updates.linkedAppointmentId;
+        if (updates.marriageDate !== undefined) updateQuery.marriageDate = updates.marriageDate;
 
         const profileFields = [
-            'title', 'firstName', 'middleName', 'lastName', 'dob', 'age', 'gender', 'maritalStatus', 'occupation',
+            'title', 'firstName', 'middleName', 'lastName', 'dob', 'marriageDate', 'age', 'gender', 'maritalStatus', 'occupation',
             'aadhaar', 'altPhone', 'patientCategory', 'nationality', 'isInternational', 'language', 'languagesKnown',
             'height', 'weight', 'bmi', 'bloodGroup',
             'partnerTitle', 'partnerFirstName', 'partnerLastName', 'partnerDob', 'partnerAge', 'partnerAadhaar',

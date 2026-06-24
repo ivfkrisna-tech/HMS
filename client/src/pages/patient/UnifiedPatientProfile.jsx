@@ -164,7 +164,7 @@ const UnifiedPatientProfile = () => {
                 doc.setFontSize(12);
                 doc.setTextColor(0);
                 doc.setFillColor(240, 240, 240);
-                doc.rect(14, y, 182, 35, 'F');
+                doc.rect(14, y, 182, 45, 'F');
 
                 y += 10;
                 doc.setFont("helvetica", "bold"); doc.text("Patient Name:", 18, y);
@@ -184,7 +184,11 @@ const UnifiedPatientProfile = () => {
                 doc.setFont("helvetica", "bold"); doc.text("Report Date:", 120, y);
                 doc.setFont("helvetica", "normal"); doc.text(`${new Date().toLocaleDateString()}`, 150, y);
 
-                y += 20;
+                y += 10;
+                doc.setFont("helvetica", "bold"); doc.text("Marriage Date:", 18, y);
+                doc.setFont("helvetica", "normal"); doc.text(`${res.user.marriageDate ? new Date(res.user.marriageDate).toLocaleDateString('en-IN') : (res.user.fertilityProfile?.marriageDate ? new Date(res.user.fertilityProfile.marriageDate).toLocaleDateString('en-IN') : '-')}`, 55, y);
+
+                y += 15;
 
                 // Timeline Records
                 doc.setFontSize(14);
@@ -364,7 +368,11 @@ const UnifiedPatientProfile = () => {
                     <div className="upp-info">
                         <h1>{patientData.name || 'Unknown Patient'}</h1>
                         <div className="upp-tags">
-                            <span className="upp-tag">MRN/ID: {patientData.patientId || patientData._id}</span>
+                            <span className="upp-tag">MRN: {patientData.patientId || patientData.mrn || 'N/A'}</span>
+                            <span className="upp-tag">Couple ID: {formatCoupleId(patientData.coupleId || 'N/A')}</span>
+                            <span className="upp-tag">
+                                Marriage Date: {patientData.marriageDate || profile.marriageDate ? new Date(patientData.marriageDate || profile.marriageDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                            </span>
                             <span className="upp-tag">📞 {patientData.phone || '-'}</span>
                             <span className="upp-tag">🩸 {profile.bloodGroup || 'O-'}</span>
                             <span className="upp-tag">{patientData.gender || 'Unknown'} - {patientData.dob ? new Date().getFullYear() - new Date(patientData.dob).getFullYear() : (profile.age || '-')} yrs</span>
@@ -424,7 +432,7 @@ const UnifiedPatientProfile = () => {
                         currentUser?._roleData?.permissions?.includes('patient_create') ||
                         currentUser?._roleData?.permissions?.includes('*')
                     )) && (
-                        <button className="upp-btn-edit" onClick={() => navigate(`/reception/dashboard?mode=intake&patientId=${patientData._id}`)}>
+                        <button className="upp-btn-edit" onClick={() => navigate(`/reception/dashboard?mode=intake&patientId=${patientData._id}&edit=true`)}>
                             ✏️ Edit Profile
                         </button>
                     )}

@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema({
 
     // Static Demographics
     dob: String,
+    marriageDate: { type: String, default: null },
     gender: String,
     bloodGroup: String,
     houseNumber: { type: String, default: null },

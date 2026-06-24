@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI, patientAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
@@ -35,7 +35,6 @@ const ReceptionDashboard = () => {
     // VIEW STATE DRIVEN BY URL (The "Root Solution" for micro-paging/flickering)
     const viewMode = searchParams.get('mode') || 'dashboard';
     const patientIdParam = searchParams.get('patientId');
-    const isEditOnly = searchParams.get('edit') === 'true';
 
     const [appointments, setAppointments] = useState([]);
     const [doctorsList, setDoctorsList] = useState([]);
@@ -48,7 +47,7 @@ const ReceptionDashboard = () => {
     const [profileAppointments, setProfileAppointments] = useState([]);
     const [transactions, setTransactions] = useState([]);
 
-    // Token mode — next token preview
+    // Token mode ΓÇö next token preview
     const [nextToken, setNextToken] = useState(null);
 
     // Payment confirm modal
@@ -119,7 +118,7 @@ const ReceptionDashboard = () => {
 
     // SIMPLIFIED INTAKE STATE
     const [intakeForm, setIntakeForm] = useState({
-        title: 'Mrs.', firstName: '', lastName: '',
+        title: 'Mrs.', firstName: '', middleName: '', lastName: '',
         dob: '', age: '', gender: 'Female', mobile: '', email: '',
         address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
         houseNumber: '', street: '', city: '', state: '', pincode: '',
@@ -142,7 +141,7 @@ const ReceptionDashboard = () => {
     const [aadhaarOtp, setAadhaarOtp] = useState('');
     const [hospitalContext, setHospitalContext] = useState(null);
 
-    // ─── Linked Patient state ────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ Linked Patient state ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const [linkSearch, setLinkSearch] = useState('');
     const [linkSearchResults, setLinkSearchResults] = useState([]);
     const [linkedPatientSelection, setLinkedPatientSelection] = useState(null); // { _id, name, phone, patientId }
@@ -154,7 +153,6 @@ const ReceptionDashboard = () => {
     const linkSearchTimeout = React.useRef(null);
     const [followUpStatus, setFollowUpStatus] = useState(null);
     const [bookForPartnerAlso, setBookForPartnerAlso] = useState(true);
-    const [linkedAppointment, setLinkedAppointment] = useState(null);
 
     // Initialize form when mode changes to intake or when patientId changes
     useEffect(() => {
@@ -279,19 +277,6 @@ const ReceptionDashboard = () => {
 
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const calculateAge = (dobString) => {
-        if (!dobString) return '';
-        const dobDate = new Date(dobString);
-        if (isNaN(dobDate.getTime())) return '';
-        const today = new Date();
-        let age = today.getFullYear() - dobDate.getFullYear();
-        const monthDiff = today.getMonth() - dobDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dobDate.getDate())) {
-            age--;
-        }
-        return age >= 0 ? `${age} Years` : '0 Years';
-    };
-
     const isSlotInPast = (time) => {
         if (intakeForm.visitDate !== todayStr) return false;
         const now = new Date();
@@ -320,14 +305,12 @@ const ReceptionDashboard = () => {
         setLinkSearch('');
         setLinkSearchResults([]);
         setLinkedPatientSelection(null);
-        setLinkedAppointment(null);
         setLinkRelation('Husband');
         setFollowUpStatus(null);
         setBookForPartnerAlso(true);
         setIntakeForm({
-            title: 'Mrs.', firstName: '', lastName: '',
+            title: 'Mrs.', firstName: '', middleName: '', lastName: '',
             dob: '', age: '', gender: 'Female', mobile: '', email: '',
-            marriageDate: '',
             address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
             houseNumber: '', street: '', city: '', state: '', pincode: '',
             sourceInformation: { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
@@ -354,7 +337,6 @@ const ReceptionDashboard = () => {
         setLinkRelation('Husband');
         setFollowUpStatus(null);
         setBookForPartnerAlso(true);
-        setLinkedAppointment(null);
 
         // Fetch follow-up eligibility for existing patient
         (async () => {
@@ -400,12 +382,10 @@ const ReceptionDashboard = () => {
             state: patient.state || '',
             pincode: patient.pincode || '',
             dob: p.dob || patient.dob || '',
-            marriageDate: patient.marriageDate || p.marriageDate || '',
             gender: p.gender || patient.gender || 'Female',
             bloodGroup: p.bloodGroup || patient.bloodGroup || '',
             sourceInformation: patient.sourceInformation || { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
             ...p,
-            age: calculateAge(p.dob || patient.dob || ''),
             consultationFee: hospitalContext?.appointmentFee ?? '500',
             department: 'IVF', doctor: '', visitDate: new Date().toISOString().split('T')[0], visitTime: '',
             transactionId: ''
@@ -416,14 +396,12 @@ const ReceptionDashboard = () => {
             setLinkedPatientSelection(partner);
             setLinkRelation(patient.partnerRelation || 'Husband');
             setLinkSearch(`${partner.name || ''} (${partner.patientId || partner.phone || ''})`);
-            fetchLinkedAppointmentInfo(partner._id || partner);
         } else {
             setLinkedPatientSelection(null);
-            setLinkedAppointment(null);
         }
     };
 
-    // ─── Link search handler ─────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ Link search handler ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const handleLinkSearchChange = (e) => {
         const val = e.target.value;
         setLinkSearch(val);
@@ -443,72 +421,15 @@ const ReceptionDashboard = () => {
 
 
 
-    const fetchLinkedAppointmentInfo = async (partnerId) => {
-        try {
-            const res = await patientAPI.getFullHistory(partnerId);
-            if (res.success && res.timeline) {
-                const startOfToday = new Date();
-                startOfToday.setHours(0, 0, 0, 0);
-                const endOfToday = new Date();
-                endOfToday.setHours(23, 59, 59, 999);
-                
-                const aptItem = res.timeline.find(t => 
-                    t.type === 'appointment' && 
-                    t.data?.status !== 'cancelled' &&
-                    new Date(t.data?.appointmentDate) >= startOfToday &&
-                    new Date(t.data?.appointmentDate) <= endOfToday
-                );
-                
-                if (aptItem && aptItem.data) {
-                    setLinkedAppointment(aptItem.data);
-                    setIntakeForm(prev => ({
-                        ...prev,
-                        doctor: aptItem.data.doctorId?._id || aptItem.data.doctorId || '',
-                        visitDate: new Date(aptItem.data.appointmentDate).toISOString().split('T')[0],
-                        visitTime: aptItem.data.appointmentTime || '',
-                        consultationFee: 0,
-                        paymentMethod: 'Cash',
-                        paymentStatus: 'Paid',
-                        transactionId: '',
-                        paymentProofUrl: '',
-                        paymentProofFileName: '',
-                    }));
-                } else {
-                    setLinkedAppointment(null);
-                }
-
-                if (res.user) {
-                    const partnerMarriageDate = res.user.marriageDate || res.user.fertilityProfile?.marriageDate || '';
-                    setIntakeForm(prev => ({
-                        ...prev,
-                        houseNumber: res.user.houseNumber || '',
-                        street: res.user.street || '',
-                        city: res.user.city || '',
-                        state: res.user.state || '',
-                        pincode: res.user.pincode || '',
-                        address: res.user.address || '',
-                        marriageDate: partnerMarriageDate ? partnerMarriageDate.split('T')[0] : prev.marriageDate || '',
-                        sourceInformation: res.user.sourceInformation || { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' }
-                    }));
-                }
-            }
-        } catch (err) {
-            console.error("Error fetching partner history:", err);
-            setLinkedAppointment(null);
-        }
-    };
-
     const handleSelectLinkedPatient = (patient) => {
         setLinkedPatientSelection(patient);
         setLinkSearch(`${patient.name} (${patient.patientId || patient.phone})`);
         setLinkSearchResults([]);
         setBookForPartnerAlso(true);
-        fetchLinkedAppointmentInfo(patient._id);
     };
 
     const handleClearLinkedPatient = () => {
         setLinkedPatientSelection(null);
-        setLinkedAppointment(null);
         setLinkSearch('');
         setLinkSearchResults([]);
         setFollowUpStatus(null);
@@ -531,7 +452,7 @@ const ReceptionDashboard = () => {
         }));
     };
 
-    // ─── Unlink from profile view ─────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ Unlink from profile view ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const handleUnlinkPatient = async (profileId, linkedId) => {
         if (!window.confirm('Remove the link between these patients?')) return;
         try {
@@ -540,14 +461,14 @@ const ReceptionDashboard = () => {
                 setProfileLinkedPatients(prev => prev.filter(lp => String(lp.patientId?._id) !== String(linkedId)));
                 // Also refresh merged records
                 fetchProfileLinkedRecords(profileId);
-                alert('✅ ' + res.message);
+                alert('Γ£à ' + res.message);
             }
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to unlink.');
         }
     };
 
-    // ─── Fetch linked patients for profile view ───────────────────────────────
+    // ΓöÇΓöÇΓöÇ Fetch linked patients for profile view ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const fetchProfileLinkedPatients = async (patientId) => {
         try {
             const res = await receptionAPI.getLinkedPatients(patientId);
@@ -652,12 +573,12 @@ const ReceptionDashboard = () => {
                 ['Phone', apt.userId?.phone || '-'],
                 ['Doctor', `Dr. ${apt.doctorName || '-'}`],
                 isToken
-                    ? ['Date / Token', `${dateDisplay}  —  Token #${apt.tokenNumber}`]
+                    ? ['Date / Token', `${dateDisplay}  ΓÇö  Token #${apt.tokenNumber}`]
                     : ['Date & Time', `${dateDisplay} @ ${apt.appointmentTime || '-'}`],
                 ['Service', apt.serviceName || 'Consultation'],
                 ['Consultation Fee', `Rs. ${Number(apt.amount || 0).toLocaleString('en-IN')}`],
                 ['Payment Method', paymentMethodOverride || apt.paymentMethod || 'Cash'],
-                ['Payment Status', 'PAID ✓'],
+                ['Payment Status', 'PAID Γ£ô'],
             ],
             theme: 'grid',
             columnStyles: { 0: { fontStyle: 'bold', cellWidth: 52 } },
@@ -750,37 +671,6 @@ const ReceptionDashboard = () => {
             return;
         }
 
-        if (name === 'dob') {
-            const calculatedAge = calculateAge(value);
-            setIntakeForm(prev => ({
-                ...prev,
-                dob: value,
-                age: calculatedAge
-            }));
-            return;
-        }
-
-        if (name === 'paymentMethod') {
-            if (value === 'Free') {
-                setIntakeForm(prev => ({
-                    ...prev,
-                    paymentMethod: value,
-                    consultationFee: 0,
-                    transactionId: '',
-                    paymentProofUrl: '',
-                    paymentProofFileName: ''
-                }));
-            } else {
-                const defaultFee = hospitalContext?.appointmentFee ?? '500';
-                setIntakeForm(prev => ({
-                    ...prev,
-                    paymentMethod: value,
-                    consultationFee: defaultFee
-                }));
-            }
-            return;
-        }
-
         if (name === 'height' || name === 'weight') {
             const h = name === 'height' ? value : intakeForm.height;
             const w = name === 'weight' ? value : intakeForm.weight;
@@ -822,22 +712,17 @@ const ReceptionDashboard = () => {
             const res = await receptionAPI.verifyAadhaarOTP(intakeForm.aadhaar, aadhaarOtp);
             if (res.success && res.data) {
                 const kyc = res.data;
-                alert(`✅ Verification Successful: ${kyc.fullName}`);
+                alert(`Γ£à Verification Successful: ${kyc.fullName}`);
 
-                setIntakeForm(prev => {
-                    const dobVal = kyc.dob || '';
-                    const ageVal = calculateAge(dobVal);
-                    return {
-                        ...prev,
-                        isAadhaarVerified: true,
-                        firstName: kyc.fullName.split(' ')[0],
-                        lastName: kyc.fullName.split(' ').slice(1).join(' '),
-                        dob: dobVal,
-                        age: ageVal,
-                        gender: kyc.gender,
-                        address: kyc.address
-                    };
-                });
+                setIntakeForm(prev => ({
+                    ...prev,
+                    isAadhaarVerified: true,
+                    firstName: kyc.fullName.split(' ')[0],
+                    lastName: kyc.fullName.split(' ').slice(1).join(' '),
+                    dob: kyc.dob,
+                    gender: kyc.gender,
+                    address: kyc.address
+                }));
                 setOtpSent(false);
                 setAadhaarOtp('');
             }
@@ -857,45 +742,43 @@ const ReceptionDashboard = () => {
             setSaving(false); return;
         }
 
-        if (!isEditOnly) {
-            const isTokenMode = hospitalContext?.appointmentMode === 'token';
-            const hasActiveAppointment = selectedPatientId && appointments.some(a =>
-                (a.userId?._id ? String(a.userId._id) === String(selectedPatientId) : String(a.userId) === String(selectedPatientId)) &&
-                a.status !== 'cancelled' &&
-                a.status !== 'completed'
-            );
+        const isTokenMode = hospitalContext?.appointmentMode === 'token';
+        const hasActiveAppointment = selectedPatientId && appointments.some(a =>
+            (a.userId?._id ? String(a.userId._id) === String(selectedPatientId) : String(a.userId) === String(selectedPatientId)) &&
+            a.status !== 'cancelled' &&
+            a.status !== 'completed'
+        );
 
-            if (!hasActiveAppointment && !linkedAppointment) {
-                if (!intakeForm.doctor) {
-                    alert("Please select a Specialist (Doctor).");
-                    setSaving(false); return;
-                }
-                if (!intakeForm.visitDate) {
-                    alert("Please select an Appointment Date.");
-                    setSaving(false); return;
-                }
-                if (!isTokenMode && !intakeForm.visitTime) {
-                    alert("Please select a Time Slot.");
-                    setSaving(false); return;
-                }
+        if (!hasActiveAppointment) {
+            if (!intakeForm.doctor) {
+                alert("Please select a Specialist (Doctor).");
+                setSaving(false); return;
             }
+            if (!intakeForm.visitDate) {
+                alert("Please select an Appointment Date.");
+                setSaving(false); return;
+            }
+            if (!isTokenMode && !intakeForm.visitTime) {
+                alert("Please select a Time Slot.");
+                setSaving(false); return;
+            }
+        }
 
-            const isFree = !!followUpStatus?.eligible || intakeForm.paymentMethod === 'Free' || !!linkedAppointment;
-            if (!hasActiveAppointment && !isFree && !['Cash', 'Free'].includes(intakeForm.paymentMethod)) {
-                if (!intakeForm.transactionId) {
-                    alert(`Please enter a UPI ID / Transaction ID for ${intakeForm.paymentMethod} payment before booking.`);
-                    setSaving(false); return;
-                }
-                if (!intakeForm.paymentProofUrl) {
-                    const labelMap = {
-                        'UPI': 'Payment Screenshot',
-                        'Card': 'Payment Receipt',
-                        'NEFT/RTGS': 'Payment Proof'
-                    };
-                    const label = labelMap[intakeForm.paymentMethod] || 'Payment Proof';
-                    alert(`Please upload the ${label} for ${intakeForm.paymentMethod} payment before booking.`);
-                    setSaving(false); return;
-                }
+        const isFree = !!followUpStatus?.eligible;
+        if (!hasActiveAppointment && !isFree && intakeForm.paymentMethod !== 'Cash') {
+            if (!intakeForm.transactionId) {
+                alert(`Please enter a UPI ID / Transaction ID for ${intakeForm.paymentMethod} payment before booking.`);
+                setSaving(false); return;
+            }
+            if (!intakeForm.paymentProofUrl) {
+                const labelMap = {
+                    'UPI': 'Payment Screenshot',
+                    'Card': 'Payment Receipt',
+                    'NEFT/RTGS': 'Payment Proof'
+                };
+                const label = labelMap[intakeForm.paymentMethod] || 'Payment Proof';
+                alert(`Please upload the ${label} for ${intakeForm.paymentMethod} payment before booking.`);
+                setSaving(false); return;
             }
         }
 
@@ -952,19 +835,8 @@ const ReceptionDashboard = () => {
 
             const updatePayload = { ...intakeForm };
             if (finalAvatar) updatePayload.avatar = finalAvatar;
-            if (linkedAppointment) {
-                updatePayload.linkedAppointmentId = linkedAppointment._id;
-            }
 
             await receptionAPI.updateIntake(userId, updatePayload);
-
-            if (isEditOnly) {
-                alert("Patient Profile Updated Successfully!");
-                fetchAppointments();
-                navigate(`/patient/${userId}`);
-                setSaving(false);
-                return;
-            }
 
             const hasActiveAppointment = appointments.some(a =>
                 (a.userId?._id ? String(a.userId._id) === String(userId) : String(a.userId) === String(userId)) &&
@@ -979,32 +851,19 @@ const ReceptionDashboard = () => {
             let bookingPayload = null;
 
             if (hasActiveAppointment) {
-                alert(`✅ Patient Registered! Existing active appointment was preserved.`);
+                alert(`Γ£à Patient Registered! Existing active appointment was preserved.`);
                 fetchAppointments();
                 setSearchParams({});
             } else {
-                if (linkedAppointment) {
-                    shouldBook = true;
-                    bookingPayload = {
-                        patientId: userId,
-                        doctorId: linkedAppointment.doctorId?._id || linkedAppointment.doctorId,
-                        date: linkedAppointment.appointmentDate,
-                        time: linkedAppointment.appointmentTime || undefined,
-                        notes: `Walk-in. Shared IVF slot with partner.`,
-                        paymentMethod: 'Cash',
-                        paymentStatus: 'Paid',
-                        amount: 0,
-                        bookForPartnerAlso: false
-                    };
-                } else if (intakeForm.doctor && intakeForm.visitDate && (intakeForm.visitTime || isTokenMode)) {
+                if (intakeForm.doctor && intakeForm.visitDate && (intakeForm.visitTime || isTokenMode)) {
                     let textNote = '';
                     if (intakeForm.paymentMethod !== 'Cash' && intakeForm.transactionId) {
                         textNote = ` | Transaction ID: ${intakeForm.transactionId}`;
                     }
 
-                    const isFree = !!followUpStatus?.eligible || intakeForm.paymentMethod === 'Free';
+                    const isFree = !!followUpStatus?.eligible;
                     const finalAmount = isFree ? 0 : intakeForm.consultationFee;
-                    const finalPaymentMethod = followUpStatus?.eligible ? 'Cash' : intakeForm.paymentMethod;
+                    const finalPaymentMethod = isFree ? 'Cash' : intakeForm.paymentMethod;
                     const finalNotes = `Walk-in. Vitals: ${intakeForm.height}cm/${intakeForm.weight}kg. Reason: ${intakeForm.reasonForVisit}${textNote}`;
 
                     shouldBook = true;
@@ -1041,7 +900,7 @@ const ReceptionDashboard = () => {
             }
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'An unexpected error occurred.';
-            alert("❌ Error: " + msg);
+            alert("Γ¥î Error: " + msg);
         } finally {
             setSaving(false);
         }
@@ -1049,22 +908,18 @@ const ReceptionDashboard = () => {
 
     const renderIntake = () => {
         const isInherited = linkedPatientSelection !== null;
-        // Follow-Up mode: ONLY when editing an existing patient who has their own prior appointment, and NOT in edit-only mode
-        const isFollowUpMode = !isEditOnly && !!selectedPatientId && !!followUpStatus && !!followUpStatus.hasOwnPriorAppointment;
-        // Shared Appointment inheritance check for new registrations/first-time linked partners
-        const isInheritingPartnerApt = linkedPatientSelection && linkedAppointment && !isFollowUpMode;
-
+        // Follow-Up mode: ONLY when editing an existing patient who has their own prior appointment
+        const isFollowUpMode = !!selectedPatientId && !!followUpStatus && !!followUpStatus.hasOwnPriorAppointment;
         return (
             <div className="intake-full-page">
                 <div className="context-bar">
                     <h3>{selectedPatientId ? 'Edit Patient Details' : 'New Registration'}</h3>
-                    <button className="btn-cancel" type="button" onClick={() => setSearchParams({})}>Close ✖</button>
+                    <button className="btn-cancel" type="button" onClick={() => setSearchParams({})}>Close Γ£û</button>
                 </div>
                 <div className="intake-container">
                     <form onSubmit={handleSave}>
-                        {/* Section 1: Patient Identity & KYC */}
                         <div className="form-section">
-                            <h4>1. PATIENT IDENTITY & KYC</h4>
+                            <h4>1. Patient Identity & KYC</h4>
                             <div className="form-row">
                                 <div className="field" style={{ flex: 1 }}>
                                     <label>Patient Photo</label>
@@ -1082,7 +937,7 @@ const ReceptionDashboard = () => {
                                                 onClick={capturePhoto}
                                                 style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
                                             >
-                                                📸 Capture
+                                                ≡ƒô╕ Capture
                                             </button>
                                         </div>
                                     ) : patientPhoto ? (
@@ -1092,29 +947,30 @@ const ReceptionDashboard = () => {
                                         </div>
                                     ) : (
                                         <button type="button" className="btn-action" onClick={() => setShowWebcam(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: 'fit-content', background: '#f8fafc', color: '#475569', border: '1px dashed #cbd5e1' }}>
-                                            📸 Open Camera
+                                            ≡ƒô╕ Open Camera
                                         </button>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Link to Existing Patient Lookup */}
+                            {/* ΓöÇΓöÇΓöÇ Link to Existing Patient ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
                             <div style={{ margin: '14px 0', padding: '16px', background: 'linear-gradient(135deg, #eff6ff, #f0fdf4)', borderRadius: '10px', border: '2px dashed #6366f1' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                                    <span style={{ fontSize: '1.2rem' }}>🔗</span>
+                                    <span style={{ fontSize: '1.2rem' }}>≡ƒöù</span>
                                     <span style={{ fontWeight: 700, color: '#4338ca', fontSize: '0.95rem' }}>Link to Existing Patient <span style={{ fontWeight: 400, color: '#64748b', fontSize: '0.82rem' }}>(Optional)</span></span>
                                 </div>
 
                                 {linkedPatientSelection ? (
+                                    /* ΓöÇΓöÇ Selected state ΓöÇΓöÇ */
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: '#e0f2fe', borderRadius: '8px', padding: '10px 14px', border: '1.5px solid #38bdf8' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <span style={{ fontSize: '1.4rem' }}>🔗</span>
+                                            <span style={{ fontSize: '1.4rem' }}>≡ƒöù</span>
                                             <div>
                                                 <div style={{ fontWeight: 700, color: '#0369a1', fontSize: '0.95rem' }}>
                                                     {linkedPatientSelection.name}
                                                 </div>
                                                 <div style={{ fontSize: '0.8rem', color: '#0284c7' }}>
-                                                    MRN: {linkedPatientSelection.patientId || 'N/A'} &nbsp;•&nbsp; 📱 {linkedPatientSelection.phone}
+                                                    MRN: {linkedPatientSelection.patientId || 'N/A'} &nbsp;ΓÇó&nbsp; ≡ƒô▒ {linkedPatientSelection.phone}
                                                 </div>
                                             </div>
                                         </div>
@@ -1142,15 +998,16 @@ const ReceptionDashboard = () => {
                                                 onClick={handleClearLinkedPatient}
                                                 style={{ padding: '6px 10px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
                                             >
-                                                ✕ Remove
+                                                Γ£ò Remove
                                             </button>
                                         </div>
                                     </div>
                                 ) : (
+                                    /* ΓöÇΓöÇ Search state ΓöÇΓöÇ */
                                     <div style={{ position: 'relative' }}>
                                         <input
                                             type="text"
-                                            placeholder="🔍 Search by Name, Phone or MRN to link a patient..."
+                                            placeholder="≡ƒöì Search by Name, Phone or MRN to link a patient..."
                                             value={linkSearch}
                                             onChange={handleLinkSearchChange}
                                             style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #c7d2fe', borderRadius: '8px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'white' }}
@@ -1171,9 +1028,9 @@ const ReceptionDashboard = () => {
                                                     >
                                                         <div>
                                                             <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{p.name}</div>
-                                                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>MRN: {p.patientId || 'N/A'} &nbsp;•&nbsp; 📱 {p.phone}</div>
+                                                            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>MRN: {p.patientId || 'N/A'} &nbsp;ΓÇó&nbsp; ≡ƒô▒ {p.phone}</div>
                                                         </div>
-                                                        <span style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 600 }}>Select →</span>
+                                                        <span style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 600 }}>Select ΓåÆ</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1185,14 +1042,14 @@ const ReceptionDashboard = () => {
                                 )}
                             </div>
 
-                            <div className="form-row" style={{ backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px dashed #22c55e', margin: '14px 0' }}>
-                                <div className="field">
+                            <div className="form-row" style={{ alignItems: 'flex-end', backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px dashed #22c55e', gap: '15px' }}>
+                                <div className="field" style={{ flex: 2 }}>
                                     <label>Aadhaar Number</label>
                                     <input
                                         name="aadhaar"
                                         maxLength="12"
                                         placeholder="Enter 12-digit Aadhaar"
-                                        value={intakeForm.aadhaar || ''}
+                                        value={intakeForm.aadhaar}
                                         onChange={handleInputChange}
                                         style={{
                                             borderColor: intakeForm.aadhaar?.length === 12 ? 'green' : '#ccc',
@@ -1204,14 +1061,14 @@ const ReceptionDashboard = () => {
                                         <span style={{ color: '#d97706', fontSize: '11px', marginTop: '4px', display: 'block' }}>Enter 12 digits</span>
                                     )}
                                     {intakeForm.aadhaar?.length === 12 && (
-                                        <span style={{ color: '#16a34a', fontSize: '11px', marginTop: '4px', display: 'block' }}>✅ Aadhaar recorded</span>
+                                        <span style={{ color: '#16a34a', fontSize: '11px', marginTop: '4px', display: 'block' }}>Γ£à Aadhaar recorded</span>
                                     )}
                                 </div>
                             </div>
 
-                            <div className="form-row">
-                                <div className="field"><label>First Name</label><input name="firstName" value={intakeForm.firstName || ''} onChange={handleInputChange} /></div>
-                                <div className="field"><label>Last Name</label><input name="lastName" value={intakeForm.lastName || ''} onChange={handleInputChange} /></div>
+                            <div className="form-row" style={{ marginTop: '10px' }}>
+                                <div className="field"><label>First Name</label><input name="firstName" value={intakeForm.firstName} onChange={handleInputChange} /></div>
+                                <div className="field"><label>Last Name</label><input name="lastName" value={intakeForm.lastName} onChange={handleInputChange} /></div>
                                 <div className="field">
                                     <label>
                                         Mobile
@@ -1219,32 +1076,14 @@ const ReceptionDashboard = () => {
                                             <span style={{ color: 'red', marginLeft: '5px', fontSize: '11px' }}>incorrect phone number</span>
                                         )}
                                     </label>
-                                    <input name="mobile" value={intakeForm.mobile || ''} onChange={handleInputChange} maxLength="10" />
+                                    <input name="mobile" value={intakeForm.mobile} onChange={handleInputChange} maxLength="10" />
                                 </div>
+                                <div className="field"><label>Age</label><input name="age" value={intakeForm.age} onChange={handleInputChange} /></div>
                             </div>
-
-                            <div className="form-row">
-                                <div className="field">
-                                    <label>Date of Birth (DOB)</label>
-                                    <input type="date" name="dob" value={intakeForm.dob || ''} onChange={handleInputChange} max={todayStr} />
-                                </div>
-                                <div className="field">
-                                    <label>Age</label>
-                                    <input name="age" value={intakeForm.age || ''} readOnly style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#475569', fontWeight: 'bold' }} />
-                                </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="field" style={{ flex: '0 0 calc(50% - 7px)', minWidth: '160px' }}>
-                                    <label>Marriage Date</label>
-                                    <input type="date" name="marriageDate" value={intakeForm.marriageDate || ''} onChange={handleInputChange} max={todayStr} />
-                                </div>
-                            </div>
-
                             <div className="form-row">
                                 <div className="field">
                                     <label>Guardian / Partner Name</label>
-                                    <input name="partnerFirstName" value={intakeForm.partnerFirstName || ''} onChange={handleInputChange} placeholder="Name of accompanying person" />
+                                    <input name="partnerFirstName" value={intakeForm.partnerFirstName} onChange={handleInputChange} placeholder="Name of accompanying person" />
                                 </div>
                                 <div className="field">
                                     <label>Relation to Patient</label>
@@ -1268,33 +1107,33 @@ const ReceptionDashboard = () => {
                                             <span style={{ color: 'red', marginLeft: '5px', fontSize: '11px' }}>incorrect phone number</span>
                                         )}
                                     </label>
-                                    <input name="partnerMobile" value={intakeForm.partnerMobile || ''} onChange={handleInputChange} maxLength="10" />
+                                    <input name="partnerMobile" value={intakeForm.partnerMobile} onChange={handleInputChange} maxLength="10" />
                                 </div>
                             </div>
 
-                            {/* Section 2: Address Information */}
+                            {/* Address Information Section */}
                             <h4 style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span>2. ADDRESS INFORMATION</span>
+                                <span>Address Information</span>
                                 {isInherited && <span style={{ fontSize: '0.75rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '12px', padding: '2px 8px', fontWeight: 'bold' }}>Inherited from Linked Patient</span>}
                             </h4>
                             <div className="form-row">
-                                <div className="field" style={{ flex: 2, minWidth: '240px' }}>
+                                <div className="field">
                                     <label>House No / Flat No / Building Name</label>
                                     <input
                                         name="houseNumber"
                                         placeholder={isInherited ? "Retrieved From Linked Patient" : "Enter House No, Flat No or Building Name"}
-                                        value={intakeForm.houseNumber || ''}
+                                        value={intakeForm.houseNumber}
                                         onChange={handleInputChange}
                                         disabled={isInherited}
                                         style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
                                     />
                                 </div>
-                                <div className="field" style={{ flex: 1 }}>
+                                <div className="field">
                                     <label>Street / Area / Locality</label>
                                     <input
                                         name="street"
                                         placeholder={isInherited ? "Retrieved From Linked Patient" : "Enter Street, Area or Locality"}
-                                        value={intakeForm.street || ''}
+                                        value={intakeForm.street}
                                         onChange={handleInputChange}
                                         disabled={isInherited}
                                         style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
@@ -1307,7 +1146,7 @@ const ReceptionDashboard = () => {
                                     <input
                                         name="city"
                                         placeholder={isInherited ? "Retrieved From Linked Patient" : "Enter City"}
-                                        value={intakeForm.city || ''}
+                                        value={intakeForm.city}
                                         onChange={handleInputChange}
                                         disabled={isInherited}
                                         style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
@@ -1318,7 +1157,7 @@ const ReceptionDashboard = () => {
                                     <input
                                         name="state"
                                         placeholder={isInherited ? "Retrieved From Linked Patient" : "Enter State"}
-                                        value={intakeForm.state || ''}
+                                        value={intakeForm.state}
                                         onChange={handleInputChange}
                                         disabled={isInherited}
                                         style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
@@ -1329,7 +1168,7 @@ const ReceptionDashboard = () => {
                                     <input
                                         name="pincode"
                                         placeholder={isInherited ? "Retrieved From Linked Patient" : "Enter Pincode"}
-                                        value={intakeForm.pincode || ''}
+                                        value={intakeForm.pincode}
                                         onChange={handleInputChange}
                                         disabled={isInherited}
                                         style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
@@ -1337,9 +1176,9 @@ const ReceptionDashboard = () => {
                                 </div>
                             </div>
 
-                            {/* Section 3: Patient Source Information */}
+                            {/* Patient Source Information Section */}
                             <h4 style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span>3. PATIENT SOURCE INFORMATION</span>
+                                <span>Patient Source Information</span>
                                 {isInherited && <span style={{ fontSize: '0.75rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '12px', padding: '2px 8px', fontWeight: 'bold' }}>Inherited from Linked Patient</span>}
                             </h4>
                             <div className="form-row">
@@ -1393,6 +1232,28 @@ const ReceptionDashboard = () => {
                                             style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
                                         />
                                     </div>
+                                    <div className="field">
+                                        <label>Camp Location</label>
+                                        <input
+                                            name="source_campLocation"
+                                            placeholder="Enter Camp Location"
+                                            value={intakeForm.sourceInformation?.campLocation || ''}
+                                            onChange={handleInputChange}
+                                            disabled={isInherited}
+                                            style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
+                                        />
+                                    </div>
+                                    <div className="field">
+                                        <label>Reference</label>
+                                        <input
+                                            name="source_reference"
+                                            placeholder="Enter Reference"
+                                            value={intakeForm.sourceInformation?.reference || ''}
+                                            onChange={handleInputChange}
+                                            disabled={isInherited}
+                                            style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
+                                        />
+                                    </div>
                                 </div>
                             )}
 
@@ -1425,6 +1286,17 @@ const ReceptionDashboard = () => {
                                             style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
                                         />
                                     </div>
+                                    <div className="field">
+                                        <label>Hospital Name</label>
+                                        <input
+                                            name="source_hospitalName"
+                                            placeholder="Enter Hospital Name"
+                                            value={intakeForm.sourceInformation?.hospitalName || ''}
+                                            onChange={handleInputChange}
+                                            disabled={isInherited}
+                                            style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
+                                        />
+                                    </div>
                                 </div>
                             )}
 
@@ -1443,137 +1315,117 @@ const ReceptionDashboard = () => {
                                     </div>
                                 </div>
                             )}
+
                         </div>
 
-                        {/* Section 4: Vitals & Payment Details */}
-                        {!isEditOnly && (
-                            <div className="form-section">
-                                <h4>4. VITALS & PAYMENT</h4>
-                                {isInheritingPartnerApt ? (
-                                    <>
-                                        <div className="form-row">
-                                            <div className="field"><label>Height (cm)</label><input name="height" value={intakeForm.height || ''} onChange={handleInputChange} /></div>
-                                            <div className="field"><label>Weight (kg)</label><input name="weight" value={intakeForm.weight || ''} onChange={handleInputChange} /></div>
-                                            <div className="field"><label>BMI</label><input name="bmi" value={intakeForm.bmi || ''} readOnly /></div>
-                                        </div>
-                                        <div style={{ marginTop: '12px', padding: '16px', background: 'linear-gradient(135deg, #f0fdf4, #e6fffa)', borderRadius: '8px', border: '1.5px solid #86efac', display: 'flex', alignItems: 'center', gap: '8px', color: '#15803d', fontWeight: '700', fontSize: '0.92rem' }}>
-                                            <span>✅ Payment context inherited from partner's active appointment. Consultation fee is waived (₹0).</span>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="form-row">
-                                            <div className="field"><label>Height (cm)</label><input name="height" value={intakeForm.height || ''} onChange={handleInputChange} /></div>
-                                            <div className="field"><label>Weight (kg)</label><input name="weight" value={intakeForm.weight || ''} onChange={handleInputChange} /></div>
-                                            <div className="field"><label>BMI</label><input name="bmi" value={intakeForm.bmi || ''} readOnly /></div>
-                                            <div className="field">
-                                                <label>Consultation Fee</label>
-                                                <input
-                                                    name="consultationFee"
-                                                    value={
-                                                        followUpStatus?.eligible 
-                                                            ? '₹0 (Follow-Up)' 
-                                                            : (intakeForm.paymentMethod === 'Free' ? '₹0 (Free Consultation)' : intakeForm.consultationFee)
-                                                    }
-                                                    readOnly
-                                                    style={{
-                                                        backgroundColor: '#f1f5f9',
-                                                        color: (followUpStatus?.eligible || intakeForm.paymentMethod === 'Free') ? '#16a34a' : '#475569',
-                                                        cursor: 'not-allowed',
-                                                        fontWeight: (followUpStatus?.eligible || intakeForm.paymentMethod === 'Free') ? 700 : 400
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
+                        <div className="form-section">
+                            <h4>2. Vitals & Payment</h4>
+                            <div className="form-row">
+                                <div className="field"><label>Height (cm)</label><input name="height" value={intakeForm.height} onChange={handleInputChange} /></div>
+                                <div className="field"><label>Weight (kg)</label><input name="weight" value={intakeForm.weight} onChange={handleInputChange} /></div>
+                                <div className="field"><label>BMI</label><input name="bmi" value={intakeForm.bmi} readOnly /></div>
+                                <div className="field">
+                                    <label>Consultation Fee</label>
+                                    <input
+                                        name="consultationFee"
+                                        value={
+                                            followUpStatus?.eligible ? 'Γé╣0 (Follow-Up)' : intakeForm.consultationFee
+                                        }
+                                        readOnly
+                                        style={{
+                                            backgroundColor: '#f1f5f9',
+                                            color: followUpStatus?.eligible ? '#16a34a' : '#475569',
+                                            cursor: 'not-allowed',
+                                            fontWeight: followUpStatus?.eligible ? 700 : 400
+                                        }}
+                                    />
+                                </div>
+                            </div>
 
-                                        <div className="form-row">
-                                            <div className="field">
-                                                <label>Payment Method</label>
-                                                <select 
-                                                    name="paymentMethod" 
-                                                    value={
-                                                        followUpStatus?.eligible ? 'Cash' : intakeForm.paymentMethod
-                                                    } 
-                                                    onChange={handleInputChange}
-                                                    disabled={!!followUpStatus?.eligible}
-                                                    style={followUpStatus?.eligible ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}}
-                                                >
-                                                    <option value="Cash">Cash</option>
-                                                    <option value="UPI">UPI</option>
-                                                    <option value="Card">Card</option>
-                                                    <option value="Cheque">Cheque</option>
-                                                    <option value="NEFT/RTGS">NEFT / RTGS</option>
-                                                    <option value="Free">Free</option>
-                                                </select>
-                                            </div>
-                                            <div className="field">
-                                                <label>Payment Status</label>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', height: '42px', boxSizing: 'border-box' }}>
-                                                    <span style={{ fontSize: '18px' }}>✅</span>
-                                                    <span style={{ fontWeight: 600, color: '#15803d', fontSize: '14px' }}>
-                                                        {followUpStatus?.eligible 
-                                                            ? 'Free Follow-Up — Paid' 
-                                                            : (intakeForm.paymentMethod === 'Free' ? 'Consultation Fee Waived' : 'Payment Confirmed — Paid')}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
+                            <div className="form-row">
+                                <div className="field">
+                                    <label>Payment Method</label>
+                                    <select 
+                                        name="paymentMethod" 
+                                        value={
+                                            followUpStatus?.eligible ? 'Cash' : intakeForm.paymentMethod
+                                        } 
+                                        onChange={handleInputChange}
+                                        disabled={!!followUpStatus?.eligible}
+                                        style={followUpStatus?.eligible ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}}
+                                    >
+                                        <option value="Cash">Cash</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="Card">Card</option>
+                                        <option value="Cheque">Cheque</option>
+                                        <option value="NEFT/RTGS">NEFT / RTGS</option>
+                                    </select>
+                                </div>
+                                <div className="field">
+                                    <label>Payment Status</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', height: '42px', boxSizing: 'border-box' }}>
+                                        <span style={{ fontSize: '18px' }}>Γ£à</span>
+                                        <span style={{ fontWeight: 600, color: '#15803d', fontSize: '14px' }}>
+                                            {followUpStatus?.eligible ? 'Free Follow-Up ΓÇö Paid' : 'Payment Confirmed ΓÇö Paid'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
 
-                                        {!followUpStatus?.eligible && ['UPI', 'Card', 'Cheque', 'NEFT/RTGS'].includes(intakeForm.paymentMethod) && (
-                                            <div className="form-row" style={{ marginTop: '12px' }}>
-                                                <div className="field" style={{ flex: 1 }}>
-                                                    <label>UPI ID / Transaction ID <span style={{ color: '#ef4444', fontSize: '12px' }}>*Required for {intakeForm.paymentMethod}</span></label>
-                                                    <input
-                                                        type="text"
-                                                        name="transactionId"
-                                                        placeholder="Enter UPI Reference / UTN / Txn ID"
-                                                        value={intakeForm.transactionId}
-                                                        onChange={handleInputChange}
-                                                        style={{ padding: '10px', border: '1.5px solid #d1d5db', borderRadius: '8px', background: '#f5f3ff', width: '100%', boxSizing: 'border-box', fontWeight: '600' }}
-                                                    />
-                                                </div>
+                            {!followUpStatus?.eligible && ['UPI', 'Card', 'Cheque', 'NEFT/RTGS'].includes(intakeForm.paymentMethod) && (
+                                <div className="form-row" style={{ marginTop: '12px' }}>
+                                    {/* Left Column: Transaction ID */}
+                                    <div className="field" style={{ flex: 1 }}>
+                                        <label>UPI ID / Transaction ID <span style={{ color: '#ef4444', fontSize: '12px' }}>*Required for {intakeForm.paymentMethod}</span></label>
+                                        <input
+                                            type="text"
+                                            name="transactionId"
+                                            placeholder="Enter UPI Reference / UTN / Txn ID"
+                                            value={intakeForm.transactionId}
+                                            onChange={handleInputChange}
+                                            style={{ padding: '10px', border: '1.5px solid #d1d5db', borderRadius: '8px', background: '#f5f3ff', width: '100%', boxSizing: 'border-box', fontWeight: '600' }}
+                                        />
+                                    </div>
 
-                                                <div className="field" style={{ flex: 1 }}>
-                                                    <label style={{ fontWeight: '600' }}>
-                                                        {intakeForm.paymentMethod === 'UPI' && 'Upload Payment Screenshot'}
-                                                        {intakeForm.paymentMethod === 'Card' && 'Upload Payment Receipt'}
-                                                        {['NEFT/RTGS', 'Cheque'].includes(intakeForm.paymentMethod) && 'Upload Payment Proof'}
-                                                        <span style={{ color: '#ef4444', fontSize: '12px' }}> *Required</span>
-                                                    </label>
-                                                    <input
-                                                        type="file"
-                                                        accept=".jpg,.jpeg,.png,.pdf"
-                                                        onChange={handlePaymentProofChange}
-                                                        style={{
-                                                            display: 'block',
-                                                            marginTop: '6px',
-                                                            padding: '8px 12px',
-                                                            border: '1.5px solid #d1d5db',
-                                                            borderRadius: '8px',
-                                                            background: '#fff',
-                                                            width: '100%',
-                                                            boxSizing: 'border-box'
-                                                        }}
-                                                    />
-                                                    {uploadingProof && <span style={{ fontSize: '13px', color: '#6366f1', marginTop: '4px', display: 'block' }}>Uploading proof...</span>}
-                                                    {intakeForm.paymentProofUrl && (
-                                                        <div style={{ fontSize: '13px', color: '#166534', fontWeight: '600', marginTop: '6px' }}>
-                                                            Selected File: {intakeForm.paymentProofFileName || 'proof_file'}
-                                                            <a href={intakeForm.paymentProofUrl} target="_blank" rel="noreferrer" style={{ marginLeft: '10px', color: '#2563eb', textDecoration: 'underline' }}>[View Uploaded]</a>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                    {/* Right Column: Upload Proof */}
+                                    <div className="field" style={{ flex: 1 }}>
+                                        <label style={{ fontWeight: '600' }}>
+                                            {intakeForm.paymentMethod === 'UPI' && 'Upload Payment Screenshot'}
+                                            {intakeForm.paymentMethod === 'Card' && 'Upload Payment Receipt'}
+                                            {['NEFT/RTGS', 'Cheque'].includes(intakeForm.paymentMethod) && 'Upload Payment Proof'}
+                                            <span style={{ color: '#ef4444', fontSize: '12px' }}> *Required</span>
+                                        </label>
+                                        <input
+                                            type="file"
+                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            onChange={handlePaymentProofChange}
+                                            style={{
+                                                display: 'block',
+                                                marginTop: '6px',
+                                                padding: '8px 12px',
+                                                border: '1.5px solid #d1d5db',
+                                                borderRadius: '8px',
+                                                background: '#fff',
+                                                width: '100%',
+                                                boxSizing: 'border-box'
+                                            }}
+                                        />
+                                        {uploadingProof && <span style={{ fontSize: '13px', color: '#6366f1', marginTop: '4px', display: 'block' }}>Uploading proof...</span>}
+                                        {intakeForm.paymentProofUrl && (
+                                            <div style={{ fontSize: '13px', color: '#166534', fontWeight: '600', marginTop: '6px' }}>
+                                                Selected File: {intakeForm.paymentProofFileName || 'proof_file'}
+                                                <a href={intakeForm.paymentProofUrl} target="_blank" rel="noreferrer" style={{ marginLeft: '10px', color: '#2563eb', textDecoration: 'underline' }}>[View Uploaded]</a>
                                             </div>
                                         )}
-                                    </>
-                                )}
-                            </div>
-                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
-                        {/* Section 4.5: Follow-Up Information Widget (Only in Follow-Up Mode) */}
                         {isFollowUpMode && (
                             <div className="form-section">
-                                <h4>Follow-Up Status Information</h4>
+                                <h4>3. Follow-Up Information</h4>
+                                {/* ΓöÇΓöÇΓöÇ Follow-Up Status Card ΓöÇΓöÇΓöÇ */}
                                 <div style={{
                                     marginBottom: '16px',
                                     padding: '16px 20px',
@@ -1604,7 +1456,7 @@ const ReceptionDashboard = () => {
 
                                         return (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                                                <span style={{ fontSize: '1.4rem' }}>{followUpStatus.eligible ? '✅' : '⚠️'}</span>
+                                                <span style={{ fontSize: '1.4rem' }}>{followUpStatus.eligible ? 'Γ£à' : 'ΓÜá∩╕Å'}</span>
                                                 <span style={{
                                                     fontWeight: 800,
                                                     fontSize: '1rem',
@@ -1669,138 +1521,109 @@ const ReceptionDashboard = () => {
                                     </div>
                                     {followUpStatus.paidByPartner && followUpStatus.eligible && (
                                         <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#15803d', fontStyle: 'italic' }}>
-                                            🌸 Covered by partner's consultation within {followUpStatus.validityDays}-day window.
+                                            ≡ƒÆæ Covered by partner's consultation within {followUpStatus.validityDays}-day window.
                                         </div>
                                     )}
                                 </div>
                             </div>
                         )}
 
-                        {/* Section 5: Appointment Booking */}
-                        {!isEditOnly && (
-                            <div className="form-section" style={{ backgroundColor: '#e3f2fd' }}>
-                                <h4>{isFollowUpMode ? "5. FOLLOW-UP APPOINTMENT BOOKING" : "5. APPOINTMENT BOOKING"}</h4>
-                                {isInheritingPartnerApt ? (
-                                    <div style={{ marginTop: '12px', padding: '16px', background: 'linear-gradient(135deg, #eff6ff, #f0fdf4)', borderRadius: '8px', border: '1.5px solid #bfdbfe' }}>
-                                        <div style={{ fontWeight: 700, color: '#1e40af', marginBottom: '8px', fontSize: '0.95rem' }}>Inherited IVF Appointment Context</div>
-                                        <div className="form-row">
-                                            <div className="field">
-                                                <label>Specialist</label>
-                                                <input type="text" value={doctorsList.find(d => d._id === intakeForm.doctor)?.name || 'Assigned Specialist'} readOnly style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', fontWeight: 'bold' }} />
-                                            </div>
-                                            <div className="field">
-                                                <label>Date</label>
-                                                <input type="text" value={intakeForm.visitDate} readOnly style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', fontWeight: 'bold' }} />
-                                            </div>
-                                            <div className="field">
-                                                <label>Time Slot</label>
-                                                <input type="text" value={intakeForm.visitTime} readOnly style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', fontWeight: 'bold' }} />
-                                            </div>
+                        <div className="form-section" style={{ backgroundColor: '#e3f2fd' }}>
+                            <h4>{isFollowUpMode ? "4. FOLLOW-UP APPOINTMENT BOOKING" : "4. Appointment Information"}</h4>
+                            <div className="form-row">
+                                <div className="field">
+                                    <label>Select Specialist</label>
+                                    {isFollowUpMode && (followUpStatus?.doctorId || intakeForm.doctor) ? (
+                                        <input
+                                            type="text"
+                                            value={followUpStatus?.doctorName || (doctorsList.find(d => d._id === intakeForm.doctor)?.name) || 'Assigned Specialist'}
+                                            readOnly
+                                            style={{ backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed', fontWeight: 'bold' }}
+                                        />
+                                    ) : (
+                                        <select
+                                            name="doctor"
+                                            value={intakeForm.doctor}
+                                            onChange={handleInputChange}
+                                        >
+                                            <option value="">-- Choose Specialist --</option>
+                                            {doctorsList.map(doc => (
+                                                <option key={doc._id} value={doc._id}>{doc.name}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                                <div className="field">
+                                    <label>Date</label>
+                                    <input type="date" name="visitDate" value={intakeForm.visitDate} min={todayStr} onChange={handleInputChange} disabled={!intakeForm.doctor} style={!intakeForm.doctor ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}} />
+                                </div>
+                            </div>
+                            {isFollowUpMode && linkedPatientSelection && (
+                                <div style={{
+                                    marginTop: '12px',
+                                    padding: '12px 16px',
+                                    background: '#eff6ff',
+                                    borderRadius: '8px',
+                                    border: '1.5px solid #bfdbfe',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px'
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        id="bookForPartnerAlso"
+                                        checked={bookForPartnerAlso}
+                                        onChange={(e) => setBookForPartnerAlso(e.target.checked)}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                    <label htmlFor="bookForPartnerAlso" style={{ fontWeight: 700, color: '#1e40af', cursor: 'pointer', margin: 0, userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        Γÿæ Book Follow-Up For Partner Also ({linkedPatientSelection.name})
+                                    </label>
+                                </div>
+                            )}
+                            {intakeForm.doctor && (
+                                hospitalContext?.appointmentMode === 'token' ? (
+                                    <div style={{ margin: '14px 0', padding: '18px 24px', background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderRadius: '12px', border: '2px solid #f59e0b', display: 'flex', alignItems: 'center', gap: '18px' }}>
+                                        <span style={{ fontSize: '2.5rem' }}>≡ƒÄƒ∩╕Å</span>
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: '1rem', color: '#78350f', marginBottom: '2px' }}>Token Queue Mode Active</div>
+                                            {nextToken !== null ? (
+                                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#92400e' }}>
+                                                    Next Token: <span style={{ fontSize: '2rem', color: '#d97706' }}>#{nextToken}</span>
+                                                </div>
+                                            ) : (
+                                                <div style={{ color: '#92400e', fontSize: '0.9rem' }}>Select doctor and date to see next token</div>
+                                            )}
+                                            <div style={{ fontSize: '0.8rem', color: '#92400e', marginTop: '4px', opacity: 0.8 }}>Tokens reset daily at midnight</div>
                                         </div>
                                     </div>
                                 ) : (
-                                    <>
-                                        <div className="form-row">
-                                            <div className="field">
-                                                <label>Select Specialist</label>
-                                                {isFollowUpMode && (followUpStatus?.doctorId || intakeForm.doctor) ? (
-                                                    <input
-                                                        type="text"
-                                                        value={followUpStatus?.doctorName || (doctorsList.find(d => d._id === intakeForm.doctor)?.name) || 'Assigned Specialist'}
-                                                        readOnly
-                                                        style={{ backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed', fontWeight: 'bold' }}
-                                                    />
-                                                ) : (
-                                                    <select
-                                                        name="doctor"
-                                                        value={intakeForm.doctor}
-                                                        onChange={handleInputChange}
-                                                    >
-                                                        <option value="">-- Choose Specialist --</option>
-                                                        {doctorsList.map(doc => (
-                                                            <option key={doc._id} value={doc._id}>{doc.name}</option>
-                                                        ))}
-                                                    </select>
-                                                )}
-                                            </div>
-                                            <div className="field">
-                                                <label>Date</label>
-                                                <input type="date" name="visitDate" value={intakeForm.visitDate} min={todayStr} onChange={handleInputChange} disabled={!intakeForm.doctor} style={!intakeForm.doctor ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}} />
-                                            </div>
-                                        </div>
-                                        {isFollowUpMode && linkedPatientSelection && (
-                                            <div style={{
-                                                marginTop: '12px',
-                                                padding: '12px 16px',
-                                                background: '#eff6ff',
-                                                borderRadius: '8px',
-                                                border: '1.5px solid #bfdbfe',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '10px'
-                                            }}>
-                                                <input
-                                                    type="checkbox"
-                                                    id="bookForPartnerAlso"
-                                                    checked={bookForPartnerAlso}
-                                                    onChange={(e) => setBookForPartnerAlso(e.target.checked)}
-                                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                                />
-                                                <label htmlFor="bookForPartnerAlso" style={{ fontWeight: 700, color: '#1e40af', cursor: 'pointer', margin: 0, userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                    ☑ Book Follow-Up For Partner Also ({linkedPatientSelection.name})
-                                                </label>
-                                            </div>
-                                        )}
-                                        {intakeForm.doctor && (
-                                            hospitalContext?.appointmentMode === 'token' ? (
-                                                <div style={{ margin: '14px 0', padding: '18px 24px', background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderRadius: '12px', border: '2px solid #f59e0b', display: 'flex', alignItems: 'center', gap: '18px' }}>
-                                                    <span style={{ fontSize: '2.5rem' }}>🎟️</span>
-                                                    <div>
-                                                        <div style={{ fontWeight: 700, fontSize: '1rem', color: '#78350f', marginBottom: '2px' }}>Token Queue Mode Active</div>
-                                                        {nextToken !== null ? (
-                                                            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#92400e' }}>
-                                                                Next Token: <span style={{ fontSize: '2rem', color: '#d97706' }}>#{nextToken}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <div style={{ color: '#92400e', fontSize: '0.9rem' }}>Select doctor and date to see next token</div>
-                                                        )}
-                                                        <div style={{ fontSize: '0.8rem', color: '#92400e', marginTop: '4px', opacity: 0.8 }}>Tokens reset daily at midnight</div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="slot-grid">
-                                                    {timeSlots.map(time => {
-                                                        const isBooked = availabilityCheck.bookedSlots.includes(time);
-                                                        const isPast = isSlotInPast(time);
-                                                        const isDisabled = isBooked || isPast;
-                                                        return (
-                                                            <button
-                                                                key={time} type="button"
-                                                                className={`slot-btn ${isBooked ? 'booked' : ''} ${isPast ? 'booked' : ''} ${intakeForm.visitTime === time ? 'selected' : ''}`}
-                                                                onClick={() => !isDisabled && setIntakeForm({ ...intakeForm, visitTime: time })}
-                                                                disabled={isDisabled}
-                                                            >
-                                                                {time}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        )}
+                                    <div className="slot-grid">
+                                        {timeSlots.map(time => {
+                                            const isBooked = availabilityCheck.bookedSlots.includes(time);
+                                            const isPast = isSlotInPast(time);
+                                            const isDisabled = isBooked || isPast;
+                                            return (
+                                                <button
+                                                    key={time} type="button"
+                                                    className={`slot-btn ${isBooked ? 'booked' : ''} ${isPast ? 'booked' : ''} ${intakeForm.visitTime === time ? 'selected' : ''}`}
+                                                    onClick={() => !isDisabled && setIntakeForm({ ...intakeForm, visitTime: time })}
+                                                    disabled={isDisabled}
+                                                >
+                                                    {time}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )
+                            )}
+                        </div>
 
                         <div className="form-footer">
                             <button type="submit" className="btn-save" disabled={saving}>
                                 {saving
                                     ? 'Saving...'
                                     : (() => {
-                                        if (isEditOnly) return 'Update Profile';
-                                        if (isInheritingPartnerApt) {
-                                            return selectedPatientId ? 'Save & Share IVF Appointment' : 'Register & Share IVF Appointment';
-                                        }
                                         if (isFollowUpMode && (linkedPatientSelection || followUpStatus?.paidByPartner)) {
                                             return 'Book Couple Follow-Up';
                                         }
@@ -1823,8 +1646,8 @@ const ReceptionDashboard = () => {
         return (
             <div className="reception-dashboard" style={{ maxWidth: '900px', margin: '0 auto' }}>
                 <div className="dashboard-header">
-                    <button onClick={() => setSearchParams({})} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}>← Back to Dashboard</button>
-                    <button className="btn-save" onClick={() => handleEditPatient(profilePatient)} style={{ padding: '10px 24px', fontSize: '1rem' }}>📋 Book Appointment</button>
+                    <button onClick={() => setSearchParams({})} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}>ΓåÉ Back to Dashboard</button>
+                    <button className="btn-save" onClick={() => handleEditPatient(profilePatient)} style={{ padding: '10px 24px', fontSize: '1rem' }}>≡ƒôï Book Appointment</button>
                 </div>
 
                 <div style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)', borderRadius: '18px', padding: '28px', color: 'white', marginBottom: '24px' }}>
@@ -1836,21 +1659,15 @@ const ReceptionDashboard = () => {
                             <h2 style={{ margin: '0 0 4px', fontSize: '1.5rem', fontWeight: '800' }}>{profilePatient.name}</h2>
                             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                 <span style={{ padding: '3px 10px', borderRadius: '6px', background: 'rgba(59,130,246,0.2)', color: '#93c5fd', fontSize: '0.8rem', fontWeight: '600' }}>MRN: {profilePatient.patientId || 'N/A'}</span>
-                                <span style={{ padding: '3px 10px', borderRadius: '6px', background: 'rgba(139,92,246,0.2)', color: '#c084fc', fontSize: '0.8rem', fontWeight: '600' }}>Couple ID: {formatCoupleId(profilePatient.coupleId || 'N/A')}</span>
-                                {(profilePatient.marriageDate || fp.marriageDate) && (
-                                    <span style={{ padding: '3px 10px', borderRadius: '6px', background: 'rgba(236,72,153,0.2)', color: '#f472b6', fontSize: '0.8rem', fontWeight: '600' }}>
-                                        Marriage Date: {new Date(profilePatient.marriageDate || fp.marriageDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </span>
-                                )}
-                                <span style={{ padding: '3px 10px', borderRadius: '6px', background: 'rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '0.8rem', fontWeight: '600' }}>📱 {profilePatient.phone || '-'}</span>
-                                {fp.bloodGroup && <span style={{ padding: '3px 10px', borderRadius: '6px', background: 'rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '0.8rem', fontWeight: '600' }}>🩸 {fp.bloodGroup}</span>}
+                                <span style={{ padding: '3px 10px', borderRadius: '6px', background: 'rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '0.8rem', fontWeight: '600' }}>≡ƒô▒ {profilePatient.phone || '-'}</span>
+                                {fp.bloodGroup && <span style={{ padding: '3px 10px', borderRadius: '6px', background: 'rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '0.8rem', fontWeight: '600' }}>≡ƒ⌐╕ {fp.bloodGroup}</span>}
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
-                    <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>📋 Demographics & Vitals</h3>
+                    <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>≡ƒôï Demographics & Vitals</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
                         {[
                             ['Age', fp.age || '-'],
@@ -1861,7 +1678,6 @@ const ReceptionDashboard = () => {
                             ['Blood Group', fp.bloodGroup || '-'],
                             ['Email', profilePatient.email || '-'],
                             ['Address', fp.address || profilePatient.address || '-'],
-                            ['Marriage Date', profilePatient.marriageDate ? new Date(profilePatient.marriageDate).toLocaleDateString('en-IN') : (fp.marriageDate ? new Date(fp.marriageDate).toLocaleDateString('en-IN') : '-')],
                         ].map(([label, val], i) => (
                             <div key={i} style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px' }}>
                                 <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '700', marginBottom: '4px' }}>{label}</div>
@@ -1873,7 +1689,7 @@ const ReceptionDashboard = () => {
 
                 {(fp.partnerFirstName || fp.husbandAge) && (
                     <div style={{ background: '#f0fdf4', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #bbf7d0' }}>
-                        <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#166534' }}>👫 Spouse / Partner Details</h3>
+                        <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#166534' }}>≡ƒæ½ Spouse / Partner Details</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
                             {[
                                 ['Name', `${fp.partnerTitle || ''} ${fp.partnerFirstName || ''} ${fp.partnerLastName || ''}`.trim() || '-'],
@@ -1892,7 +1708,7 @@ const ReceptionDashboard = () => {
 
                 {(fp.chiefComplaint || fp.medicalHistory) && (
                     <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
-                        <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>🏥 Clinical Summary</h3>
+                        <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>≡ƒÅÑ Clinical Summary</h3>
                         {fp.chiefComplaint && <div style={{ marginBottom: '12px' }}><strong>Chief Complaint:</strong> {fp.chiefComplaint}</div>}
                         {fp.medicalHistory && <div style={{ marginBottom: '12px' }}><strong>Medical History:</strong> {fp.medicalHistory}</div>}
                         {fp.surgicalHistory && <div style={{ marginBottom: '12px' }}><strong>Surgical History:</strong> {fp.surgicalHistory}</div>}
@@ -1901,7 +1717,7 @@ const ReceptionDashboard = () => {
                 )}
 
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
-                    <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>📅 Appointment History ({profileAppointments.length})</h3>
+                    <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af' }}>≡ƒôà Appointment History ({profileAppointments.length})</h3>
                     {profileAppointments.length === 0 ? (
                         <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px' }}>No appointment history found.</p>
                     ) : (
@@ -1910,7 +1726,7 @@ const ReceptionDashboard = () => {
                                 <div key={apt._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                     <div>
                                         <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>{new Date(apt.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{apt.appointmentTime} • {apt.serviceName || 'Consultation'}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{apt.appointmentTime} ΓÇó {apt.serviceName || 'Consultation'}</div>
                                     </div>
                                     <span style={{
                                         padding: '4px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: '700', textTransform: 'capitalize',
@@ -1923,11 +1739,11 @@ const ReceptionDashboard = () => {
                     )}
                 </div>
 
-                {/* ─── Linked Patients Panel ─────────────────────────────────── */}
+                {/* ΓöÇΓöÇΓöÇ Linked Patients Panel ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
                 <div style={{ background: 'linear-gradient(135deg, #eff6ff, #f0fdf4)', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '2px solid #a5b4fc' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                         <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#4338ca', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            🔗 Linked Patients
+                            ≡ƒöù Linked Patients
                             <span style={{ fontSize: '0.78rem', fontWeight: 700, background: '#e0e7ff', color: '#4338ca', borderRadius: '12px', padding: '2px 10px' }}>
                                 {profileLinkedPatients.length}
                             </span>
@@ -1957,7 +1773,7 @@ const ReceptionDashboard = () => {
                                             </div>
                                             <div>
                                                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.95rem' }}>{lpData.name}</div>
-                                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>MRN: {lpData.patientId || 'N/A'} &nbsp;•&nbsp; 📱 {lpData.phone}</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>MRN: {lpData.patientId || 'N/A'} &nbsp;ΓÇó&nbsp; ≡ƒô▒ {lpData.phone}</div>
                                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, background: '#e0e7ff', color: '#4338ca', borderRadius: '10px', padding: '2px 8px', display: 'inline-block', marginTop: '4px' }}>
                                                     {lp.relationLabel || 'Related'}
                                                 </span>
@@ -1968,19 +1784,19 @@ const ReceptionDashboard = () => {
                                                 onClick={() => navigate(`/patient/${lpData._id}`)}
                                                 style={{ padding: '6px 12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '7px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
                                             >
-                                                👁 View
+                                                ≡ƒæü View
                                             </button>
                                             <button
                                                 onClick={() => handleEditPatient(lpData)}
                                                 style={{ padding: '6px 12px', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac', borderRadius: '7px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
                                             >
-                                                📋 Book
+                                                ≡ƒôï Book
                                             </button>
                                             <button
                                                 onClick={() => handleUnlinkPatient(profilePatient._id, String(lpData._id))}
                                                 style={{ padding: '6px 12px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '7px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
                                             >
-                                                🔓 Unlink
+                                                ≡ƒöô Unlink
                                             </button>
                                         </div>
                                     </div>
@@ -1990,17 +1806,17 @@ const ReceptionDashboard = () => {
                     )}
                 </div>
 
-                {/* ─── Merged Records (Linked Patients' History) ─────────────── */}
+                {/* ΓöÇΓöÇΓöÇ Merged Records (Linked Patients' History) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
                 {profileLinkedPatients.length > 0 && (
                     <div style={{ background: 'white', borderRadius: '16px', padding: '24px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
                         <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', color: '#1e40af', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            🗂️ Linked Patient Records
+                            ≡ƒùé∩╕Å Linked Patient Records
                             {loadingLinkedRecords && <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 400 }}>Loading...</span>}
                         </h3>
 
                         {/* Tab switcher */}
                         <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                            {[['appointments', '📅 Appointments'], ['labs', '🧪 Lab Reports'], ['pharmacy', '💊 Pharmacy']].map(([tab, label]) => (
+                            {[['appointments', '≡ƒôà Appointments'], ['labs', '≡ƒº¬ Lab Reports'], ['pharmacy', '≡ƒÆè Pharmacy']].map(([tab, label]) => (
                                 <button
                                     key={tab}
                                     onClick={() => setLinkedRecordsTab(tab)}
@@ -2038,7 +1854,7 @@ const ReceptionDashboard = () => {
                                             <div key={apt._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                                                 <div>
                                                     <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{new Date(apt.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                                                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Dr. {apt.doctorName || '-'} • {apt.serviceName || 'Consultation'}</div>
+                                                    <div style={{ fontSize: '0.78rem', color: '#64748b' }}>Dr. {apt.doctorName || '-'} ΓÇó {apt.serviceName || 'Consultation'}</div>
                                                 </div>
                                                 <span style={{
                                                     padding: '3px 10px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize',
@@ -2057,7 +1873,7 @@ const ReceptionDashboard = () => {
                                         ) : (subj.labs || []).map(lr => (
                                             <div key={lr._id} style={{ padding: '10px 14px', background: '#fefce8', borderRadius: '8px', border: '1px solid #fde68a' }}>
                                                 <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{lr.testName || 'Lab Report'}</div>
-                                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{new Date(lr.createdAt).toLocaleDateString('en-IN')} • {lr.status || 'Pending'}</div>
+                                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{new Date(lr.createdAt).toLocaleDateString('en-IN')} ΓÇó {lr.status || 'Pending'}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -2070,7 +1886,7 @@ const ReceptionDashboard = () => {
                                         ) : (subj.pharmacy || []).map(po => (
                                             <div key={po._id} style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac' }}>
                                                 <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>Pharmacy Order</div>
-                                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{new Date(po.createdAt).toLocaleDateString('en-IN')} • {po.status || 'Pending'}</div>
+                                                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{new Date(po.createdAt).toLocaleDateString('en-IN')} ΓÇó {po.status || 'Pending'}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -2089,14 +1905,14 @@ const ReceptionDashboard = () => {
             <div className="intake-full-page" style={{ padding: '40px', background: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center' }}>
                 <div className="reception-dashboard" style={{ maxWidth: '1000px', width: '100%', margin: '0', background: 'white', borderRadius: '12px', height: 'fit-content', maxHeight: '90vh', overflowY: 'auto' }}>
                     <div className="dashboard-header">
-                        <button onClick={() => setSearchParams({})} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>← Back to Dashboard</button>
+                        <button onClick={() => setSearchParams({})} style={{ padding: '8px 20px', background: '#f1f5f9', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>ΓåÉ Back to Dashboard</button>
                         <h2>Transaction History</h2>
                     </div>
 
                     <div className="card" style={{ padding: '20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#e0f2fe', border: '1px solid #bae6fd' }}>
                         <div>
                             <h3 style={{ margin: 0, color: '#0369a1' }}>Total Collected</h3>
-                            <p style={{ margin: '5px 0 0', fontSize: '1.5rem', fontWeight: 'bold', color: '#0284c7' }}>₹{totalCollected.toLocaleString('en-IN')}</p>
+                            <p style={{ margin: '5px 0 0', fontSize: '1.5rem', fontWeight: 'bold', color: '#0284c7' }}>Γé╣{totalCollected.toLocaleString('en-IN')}</p>
                         </div>
                     </div>
 
@@ -2138,7 +1954,7 @@ const ReceptionDashboard = () => {
                                                     {t.paymentStatus || 'Pending'}
                                                 </span>
                                             </td>
-                                            <td style={{ fontWeight: 'bold', color: '#16a34a' }}>₹{t.amount}</td>
+                                            <td style={{ fontWeight: 'bold', color: '#16a34a' }}>Γé╣{t.amount}</td>
                                         </tr>
                                     ))
                                 )}
@@ -2156,8 +1972,8 @@ const ReceptionDashboard = () => {
                 <div className="dashboard-header">
                     <h1>Reception Desk</h1>
                     <div style={{ display: 'flex', gap: '10px' }}>
-                        <button className="btn-cancel" onClick={() => { fetchTransactions(); setSearchParams({ mode: 'transactions' }); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>💰 Transactions</button>
-                        <button className="btn-cancel" onClick={() => navigate('/billing/patient')} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🧾 Patient Billing</button>
+                        <button className="btn-cancel" onClick={() => { fetchTransactions(); setSearchParams({ mode: 'transactions' }); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>≡ƒÆ░ Transactions</button>
+                        <button className="btn-cancel" onClick={() => navigate('/billing/patient')} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>≡ƒº╛ Patient Billing</button>
                         <button className="btn-save" onClick={handleNewWalkIn} style={{ padding: '10px 20px', fontSize: '1rem' }}>+ New Registration</button>
                     </div>
                 </div>
@@ -2166,7 +1982,7 @@ const ReceptionDashboard = () => {
                     <div style={{ display: 'flex', gap: '10px' }}>
                         <input
                             type="text"
-                            placeholder="🔍 Search Patient by Name, Mobile or MRN..."
+                            placeholder="≡ƒöì Search Patient by Name, Mobile or MRN..."
                             value={searchQuery}
                             onChange={handleSearch}
                             style={{ flex: 1, padding: '12px', fontSize: '1rem', borderRadius: '6px', border: '1px solid #ddd' }}
@@ -2189,14 +2005,14 @@ const ReceptionDashboard = () => {
                                                 Guardian / Partner: {p.fertilityProfile.partnerFirstName} {p.fertilityProfile.partnerLastName || ''}
                                             </div>
                                         )}
-                                        <div style={{ fontSize: '0.9rem', color: '#888' }}>📱 {p.phone}</div>
+                                        <div style={{ fontSize: '0.9rem', color: '#888' }}>≡ƒô▒ {p.phone}</div>
                                     </div>
                                     <div style={{ display: 'flex', gap: '8px' }}>
                                         <button
                                             onClick={() => handleViewProfile(p)}
                                             style={{ padding: '6px 15px', fontSize: '0.9rem', background: '#f0f4ff', color: '#3b82f6', border: '2px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
                                         >
-                                            👁 View Profile
+                                            ≡ƒæü View Profile
                                         </button>
                                         <button
                                             onClick={() => handleEditPatient(p)}
@@ -2213,7 +2029,7 @@ const ReceptionDashboard = () => {
                 </div>
 
                 <div className="availability-widget card">
-                    <h3>📅 Quick Check Availability</h3>
+                    <h3>≡ƒôà Quick Check Availability</h3>
                     <div className="widget-controls">
                         <select className="avail-select" onChange={(e) => setAvailabilityCheck({ ...availabilityCheck, doctorId: e.target.value })}>
                             <option value="">Select Doctor</option>
@@ -2238,7 +2054,7 @@ const ReceptionDashboard = () => {
                         </span>
                         {hospitalContext?.appointmentMode === 'token' && (
                             <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '3px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 700 }}>
-                                🎟️ Token Queue Mode
+                                ≡ƒÄƒ∩╕Å Token Queue Mode
                             </span>
                         )}
                     </div>
@@ -2275,7 +2091,7 @@ const ReceptionDashboard = () => {
                                                     onClick={() => setPaymentModal({ open: true, appointment: apt, method: apt.paymentMethod || 'Cash' })}
                                                     style={{ padding: '4px 10px', fontSize: '12px', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '5px', cursor: 'pointer', fontWeight: '600' }}
                                                 >
-                                                    💰 Confirm Payment
+                                                    ≡ƒÆ░ Confirm Payment
                                                 </button>
                                             )}
                                             {(apt.paymentStatus || '').toLowerCase() === 'paid' && (
@@ -2284,7 +2100,7 @@ const ReceptionDashboard = () => {
                                                         onClick={() => generateReceiptPDF(apt)}
                                                         style={{ padding: '4px 10px', fontSize: '12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '5px', cursor: 'pointer', fontWeight: '600' }}
                                                     >
-                                                        🧾 Download Receipt
+                                                        ≡ƒº╛ Download Receipt
                                                     </button>
                                                     {apt.paymentProofUrl && (
                                                         <a
@@ -2293,7 +2109,7 @@ const ReceptionDashboard = () => {
                                                             rel="noreferrer"
                                                             style={{ padding: '4px 10px', fontSize: '12px', background: '#f5f3ff', color: '#6d28d9', border: '1px solid #c084fc', borderRadius: '5px', textDecoration: 'none', fontWeight: '600' }}
                                                         >
-                                                            👁 Proof
+                                                            ≡ƒæü Proof
                                                         </a>
                                                     )}
                                                 </div>
@@ -2310,7 +2126,7 @@ const ReceptionDashboard = () => {
                                                             borderRadius: '5px', cursor: 'pointer', fontWeight: '600'
                                                         }}
                                                     >
-                                                        {apt.isHospitalized ? '🏥 Hospitalized' : 'Hospitalize'}
+                                                        {apt.isHospitalized ? '≡ƒÅÑ Hospitalized' : 'Hospitalize'}
                                                     </button>
                                                     <button
                                                         onClick={() => handleCancelAppointment(apt._id)}
@@ -2334,12 +2150,12 @@ const ReceptionDashboard = () => {
                     <div style={{ background: '#fff', borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <div>
-                                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>💰 Confirm Payment</h2>
+                                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>≡ƒÆ░ Confirm Payment</h2>
                                 <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.88rem' }}>
-                                    {paymentModal.appointment?.userId?.name} — Rs. {Number(paymentModal.appointment?.amount || 0).toLocaleString('en-IN')}
+                                    {paymentModal.appointment?.userId?.name} ΓÇö Rs. {Number(paymentModal.appointment?.amount || 0).toLocaleString('en-IN')}
                                 </p>
                             </div>
-                            <button onClick={() => { setPaymentModal({ open: false, appointment: null, method: 'Cash' }); setModalProof({ url: null, fileName: null, uploading: false }); }} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+                            <button onClick={() => { setPaymentModal({ open: false, appointment: null, method: 'Cash' }); setModalProof({ url: null, fileName: null, uploading: false }); }} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>Γ£ò</button>
                         </div>
                         <div style={{ marginBottom: '18px' }}>
                             <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '7px' }}>Payment Method</label>
@@ -2395,7 +2211,7 @@ const ReceptionDashboard = () => {
                                 disabled={confirmingPayment}
                                 style={{ flex: 1, padding: '11px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}
                             >
-                                {confirmingPayment ? 'Confirming...' : '✓ Confirm Payment'}
+                                {confirmingPayment ? 'Confirming...' : 'Γ£ô Confirm Payment'}
                             </button>
                             <button
                                 onClick={() => { setPaymentModal({ open: false, appointment: null, method: 'Cash' }); setModalProof({ url: null, fileName: null, uploading: false }); }}
@@ -2415,10 +2231,10 @@ const ReceptionDashboard = () => {
                             <div>
                                 <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700 }}>Hospitalize Patient</h2>
                                 <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.9rem' }}>
-                                    {hospitalizeModal.appointment?.userId?.name} — {hospitalizeModal.appointment?.doctorName}
+                                    {hospitalizeModal.appointment?.userId?.name} ΓÇö {hospitalizeModal.appointment?.doctorName}
                                 </p>
                             </div>
-                            <button onClick={() => setHospitalizeModal({ open: false, appointment: null })} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+                            <button onClick={() => setHospitalizeModal({ open: false, appointment: null })} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>Γ£ò</button>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
@@ -2464,7 +2280,7 @@ const ReceptionDashboard = () => {
                                         <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{f.name}</div>
-                                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>₹{f.pricePerDay}/day</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Γé╣{f.pricePerDay}/day</div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <label style={{ fontSize: '0.82rem', color: '#475569' }}>Days:</label>
@@ -2479,7 +2295,7 @@ const ReceptionDashboard = () => {
                                             </div>
                                             {hospitalizeForm.facilityDays[f.name] > 0 && (
                                                 <div style={{ fontWeight: 700, color: '#1d4ed8', fontSize: '0.9rem', minWidth: '70px', textAlign: 'right' }}>
-                                                    ₹{(f.pricePerDay * Number(hospitalizeForm.facilityDays[f.name])).toLocaleString('en-IN')}
+                                                    Γé╣{(f.pricePerDay * Number(hospitalizeForm.facilityDays[f.name])).toLocaleString('en-IN')}
                                                 </div>
                                             )}
                                         </div>
@@ -2489,7 +2305,7 @@ const ReceptionDashboard = () => {
                                     <div style={{ marginTop: '12px', padding: '10px 14px', background: '#eff6ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
                                         <span>Total Facility Cost:</span>
                                         <span style={{ color: '#1d4ed8' }}>
-                                            ₹{(hospitalContext.facilities.reduce((sum, f) => sum + (f.pricePerDay * (Number(hospitalizeForm.facilityDays[f.name]) || 0)), 0)).toLocaleString('en-IN')}
+                                            Γé╣{(hospitalContext.facilities.reduce((sum, f) => sum + (f.pricePerDay * (Number(hospitalizeForm.facilityDays[f.name]) || 0)), 0)).toLocaleString('en-IN')}
                                         </span>
                                     </div>
                                 )}
