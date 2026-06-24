@@ -7,6 +7,146 @@ import './DoctorPatientDetails.css';
 import DynamicQuestionForm from '../../components/DynamicQuestionForm';
 import { useAuth } from '../../store/hooks';
 
+const doseOptions = [
+    "OD – Once Daily",
+    "BD – Twice Daily",
+    "TDS – Three Times Daily",
+    "QID – Four Times Daily",
+    "OM – Every Morning",
+    "ON – Every Night",
+    "QOD – Every Alternate Day",
+    "OW – Once Weekly",
+    "SOS – As Needed"
+];
+
+const timingOptions = [
+    "Before Breakfast (BBF)",
+    "After Breakfast (ABF)",
+    "Before Lunch (BL)",
+    "After Lunch (AL)",
+    "Before Dinner (BDN)",
+    "After Dinner (ADN)",
+    "Before Meals (AC)",
+    "After Meals (PC)",
+    "With Food",
+    "On Empty Stomach",
+    "At Bedtime (HS)"
+];
+
+const MedicineSearchInput = ({ value, onChange, medicines }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const containerRef = useRef(null);
+
+    const sortedMedicines = React.useMemo(() => {
+        return [...medicines].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }, [medicines]);
+
+    const filtered = React.useMemo(() => {
+        const query = (value || '').toLowerCase().trim();
+        if (!query) return sortedMedicines;
+        return sortedMedicines.filter(med =>
+            (med.name || '').toLowerCase().includes(query)
+        );
+    }, [value, sortedMedicines]);
+
+    const displayed = React.useMemo(() => {
+        return filtered.slice(0, 50);
+    }, [filtered]);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (containerRef.current && !containerRef.current.contains(e.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setIsOpen(true);
+            setHighlightedIndex(prev => (prev + 1) % Math.max(1, displayed.length));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setIsOpen(true);
+            setHighlightedIndex(prev => (prev - 1 + displayed.length) % Math.max(1, displayed.length));
+        } else if (e.key === 'Enter') {
+            if (isOpen && highlightedIndex >= 0 && highlightedIndex < displayed.length) {
+                e.preventDefault();
+                onChange(displayed[highlightedIndex].name);
+                setIsOpen(false);
+            }
+        } else if (e.key === 'Escape') {
+            setIsOpen(false);
+        }
+    };
+
+    return (
+        <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+            <input
+                value={value || ''}
+                onChange={(e) => {
+                    onChange(e.target.value);
+                    setIsOpen(true);
+                    setHighlightedIndex(-1);
+                }}
+                onFocus={() => setIsOpen(true)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search or type medicine..."
+                style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
+            />
+            {isOpen && displayed.length > 0 && (
+                <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    background: 'white',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    borderRadius: '6px',
+                    zIndex: 9999,
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    marginTop: '4px'
+                }}>
+                    {displayed.map((med, idx) => (
+                        <div
+                            key={idx}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                onChange(med.name);
+                                setIsOpen(false);
+                            }}
+                            style={{
+                                padding: '8px 12px',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                background: idx === highlightedIndex ? '#eff6ff' : 'white',
+                                borderBottom: '1px solid #f8fafc',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                            }}
+                            onMouseEnter={() => setHighlightedIndex(idx)}
+                        >
+                            <span style={{ fontWeight: '600', color: '#1e293b', textAlign: 'left' }}>{med.name}</span>
+                            {med.category && (
+                                <span style={{ fontSize: '10px', color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                                    {med.category}
+                                </span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const DoctorPatientDetails = () => {
     const { appointmentId } = useParams();
     const navigate = useNavigate();
@@ -31,6 +171,37 @@ const DoctorPatientDetails = () => {
 
     // Modal States
     const [showPrescribeModal, setShowPrescribeModal] = useState(false);
+
+    // Inventory search states
+    const [inventorySearchQuery, setInventorySearchQuery] = useState('');
+    const [inventorySearchOpen, setInventorySearchOpen] = useState(false);
+    const searchContainerRef = useRef(null);
+
+    const sortedInventoryMedicines = React.useMemo(() => {
+        return [...catalogMedicines].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }, [catalogMedicines]);
+
+    const filteredInventoryMedicines = React.useMemo(() => {
+        const query = inventorySearchQuery.toLowerCase().trim();
+        if (!query) return [];
+        return sortedInventoryMedicines.filter(med =>
+            (med.name || '').toLowerCase().includes(query)
+        );
+    }, [inventorySearchQuery, sortedInventoryMedicines]);
+
+    const displayedInventoryMedicines = React.useMemo(() => {
+        return filteredInventoryMedicines.slice(0, 50);
+    }, [filteredInventoryMedicines]);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+                setInventorySearchOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Tab State for Left Panel
     const [activeTab, setActiveTab] = useState('overview');
@@ -325,11 +496,11 @@ const DoctorPatientDetails = () => {
         if (rxItems.length > 0) {
             autoTable(doc, {
                 startY: y,
-                head: [['#', 'Medicine Name', 'Salt / Generic', 'Dose / Frequency', 'Days']],
-                body: rxItems.map((p, i) => [i + 1, p.medicineName, p.saltName || '-', p.frequency || '-', p.duration || '-']),
+                head: [['#', 'Medicine Name', 'Dose / Frequency', 'Timing / Instructions', 'Days']],
+                body: rxItems.map((p, i) => [i + 1, p.medicineName, p.frequency || '-', p.saltName || '-', p.duration || '-']),
                 theme: 'striped',
                 headStyles: { fillColor: [76, 175, 80], textColor: 255 },
-                columnStyles: { 0: { cellWidth: 10 }, 1: { cellWidth: 55 }, 2: { cellWidth: 45 }, 3: { cellWidth: 40 }, 4: { cellWidth: 20 } },
+                columnStyles: { 0: { cellWidth: 10 }, 1: { cellWidth: 55 }, 2: { cellWidth: 40 }, 3: { cellWidth: 50 }, 4: { cellWidth: 20 } },
             });
             y = doc.lastAutoTable.finalY + 10;
         } else {
@@ -417,12 +588,12 @@ const DoctorPatientDetails = () => {
         if (rxItems.length > 0) {
             autoTable(doc, {
                 startY: y,
-                head: [['#', 'Medicine Name', 'Salt / Generic', 'Dose / Frequency', 'Days']],
-                body: rxItems.map((m, i) => [i + 1, m.medicineName || '-', m.saltName || '-', m.dose || '-', m.days || '-']),
+                head: [['#', 'Medicine Name', 'Dose / Frequency', 'Timing / Instructions', 'Days']],
+                body: rxItems.map((m, i) => [i + 1, m.medicineName || '-', m.dose || '-', m.saltName || '-', m.days || '-']),
                 theme: 'striped',
                 headStyles: { fillColor: [76, 175, 80], textColor: 255 },
                 bodyStyles: { fontSize: 10 },
-                columnStyles: { 0: { cellWidth: 10 }, 1: { cellWidth: 55 }, 2: { cellWidth: 50 }, 3: { cellWidth: 40 }, 4: { cellWidth: 20 } },
+                columnStyles: { 0: { cellWidth: 10 }, 1: { cellWidth: 55 }, 2: { cellWidth: 40 }, 3: { cellWidth: 50 }, 4: { cellWidth: 20 } },
             });
             y = doc.lastAutoTable.finalY + 10;
         } else {
@@ -1049,72 +1220,133 @@ const DoctorPatientDetails = () => {
                             <div>
                                 <h4 style={{ margin: '0 0 12px', color: '#1e293b', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>💊 Medicines Prescribed</h4>
 
-                                {/* Quick-add from catalog */}
-                                {catalogMedicines.length > 0 && (
-                                    <div style={{ marginBottom: '14px' }}>
-                                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', marginBottom: '6px' }}>Quick-add from inventory:</div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                            {catalogMedicines.map(med => {
-                                                const isIncluded = sessionData.medicines.some(m => m.medicineName === med.name);
-                                                return (
-                                                    <button
-                                                        key={med._id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            if (isIncluded) {
-                                                                setSessionData(prev => ({ ...prev, medicines: prev.medicines.filter(m => m.medicineName !== med.name) }));
-                                                            } else {
-                                                                setSessionData(prev => ({ ...prev, medicines: [...prev.medicines, { medicineName: med.name, saltName: med.genericName || '', dose: '1 OD', days: '5' }] }));
-                                                            }
-                                                        }}
-                                                        style={{ padding: '5px 10px', fontSize: '12px', border: `1px solid ${isIncluded ? '#3b82f6' : '#e2e8f0'}`, borderRadius: '20px', background: isIncluded ? '#eff6ff' : '#f8fafc', color: isIncluded ? '#1d4ed8' : '#475569', cursor: 'pointer', fontWeight: isIncluded ? '700' : '400' }}
-                                                    >
-                                                        {isIncluded ? '✓ ' : '+ '}{med.name}
-                                                    </button>
-                                                );
-                                            })}
+                                {/* Inventory Medicine Search bar */}
+                                <div ref={searchContainerRef} style={{ marginBottom: '16px', position: 'relative' }}>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#64748b', marginBottom: '6px' }}>
+                                        Search Medicine From Inventory
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Search medicine by name..."
+                                        value={inventorySearchQuery}
+                                        onChange={(e) => {
+                                            setInventorySearchQuery(e.target.value);
+                                            setInventorySearchOpen(true);
+                                        }}
+                                        onFocus={() => setInventorySearchOpen(true)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px 12px',
+                                            border: '1.5px solid #c7d2fe',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            boxSizing: 'border-box',
+                                            background: '#fff'
+                                        }}
+                                    />
+                                    {inventorySearchOpen && displayedInventoryMedicines.length > 0 && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '100%',
+                                            left: 0,
+                                            right: 0,
+                                            background: 'white',
+                                            border: '1px solid #e2e8f0',
+                                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                            borderRadius: '6px',
+                                            zIndex: 9999,
+                                            maxHeight: '180px',
+                                            overflowY: 'auto',
+                                            marginTop: '4px'
+                                        }}>
+                                            {displayedInventoryMedicines.map((med, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setSessionData(prev => ({
+                                                            ...prev,
+                                                            medicines: [...prev.medicines, { medicineName: med.name, saltName: '', dose: '', days: '' }]
+                                                        }));
+                                                        setInventorySearchQuery('');
+                                                        setInventorySearchOpen(false);
+                                                    }}
+                                                    style={{
+                                                        padding: '8px 12px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '12px',
+                                                        background: 'white',
+                                                        borderBottom: '1px solid #f8fafc',
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                                                >
+                                                    <span style={{ fontWeight: '600', color: '#1e293b' }}>{med.name}</span>
+                                                    {med.category && (
+                                                        <span style={{ fontSize: '10px', color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                                                            {med.category}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ))}
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
 
                                 {/* Medicine Table */}
                                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                         <thead>
                                             <tr style={{ background: '#f1f5f9' }}>
-                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '30%' }}>Medicine Name</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '25%' }}>Salt / Generic Name</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '22%' }}>Dose / Frequency</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '15%' }}>Days</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '8%' }}></th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '35%' }}>Medicine Name</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '27%' }}>Dose / Frequency</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '25%' }}>Food / Timing Instructions</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '10%' }}>Days</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '3%' }}></th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {sessionData.medicines.map((med, idx) => (
                                                 <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                                                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                                                        <input
+                                                        <MedicineSearchInput
                                                             value={med.medicineName}
-                                                            onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], medicineName: e.target.value }; return { ...prev, medicines: m }; })}
-                                                            placeholder="e.g. Tab. Folic Acid 5mg"
-                                                            style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
+                                                            onChange={val => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], medicineName: val }; return { ...prev, medicines: m }; })}
+                                                            medicines={catalogMedicines}
                                                         />
                                                     </td>
                                                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                                                        <input
-                                                            value={med.saltName}
-                                                            onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], saltName: e.target.value }; return { ...prev, medicines: m }; })}
-                                                            placeholder="e.g. Folic Acid"
-                                                            style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
-                                                        />
-                                                    </td>
-                                                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                                                        <input
+                                                        <select
                                                             value={med.dose}
                                                             onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], dose: e.target.value }; return { ...prev, medicines: m }; })}
-                                                            placeholder="e.g. 1 OD / 1 BD"
                                                             style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
-                                                        />
+                                                        >
+                                                            <option value="">-- Select Dose --</option>
+                                                            {doseOptions.map(opt => (
+                                                                <option key={opt} value={opt}>{opt}</option>
+                                                            ))}
+                                                            {med.dose && !doseOptions.includes(med.dose) && (
+                                                                <option value={med.dose}>{med.dose}</option>
+                                                            )}
+                                                        </select>
+                                                    </td>
+                                                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                                                        <select
+                                                            value={med.saltName}
+                                                            onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], saltName: e.target.value }; return { ...prev, medicines: m }; })}
+                                                            style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
+                                                        >
+                                                            <option value="">-- Select Timing --</option>
+                                                            {timingOptions.map(opt => (
+                                                                <option key={opt} value={opt}>{opt}</option>
+                                                            ))}
+                                                            {med.saltName && !timingOptions.includes(med.saltName) && (
+                                                                <option value={med.saltName}>{med.saltName}</option>
+                                                            )}
+                                                        </select>
                                                     </td>
                                                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
                                                         <input
