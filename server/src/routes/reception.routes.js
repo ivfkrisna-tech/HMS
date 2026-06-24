@@ -230,7 +230,13 @@ router.get('/search-patients', verifyToken, verifyReception, async (req, res) =>
             queryFilter.hospitalId = req.user.hospitalId;
         }
 
-        const patients = await User.find(queryFilter).select('name phone email patientId avatar houseNumber street address city state pincode sourceInformation fertilityProfile');
+        const patients = await User.find(queryFilter)
+            .select('name phone email patientId avatar houseNumber street address city state pincode sourceInformation fertilityProfile partnerPatientId partnerRelation coupleId')
+            .populate({
+                path: 'partnerPatientId',
+                select: 'name phone patientId coupleId'
+            })
+            .lean();
         res.json({ success: true, patients });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 });
@@ -529,10 +535,10 @@ router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (
         const appointments = await Appointment.find(queryFilter)
             .populate({
                 path: 'userId',
-                select: 'name email phone patientId avatar houseNumber street address city state pincode sourceInformation fertilityProfile partnerPatientId partnerRelation',
+                select: 'name email phone patientId avatar houseNumber street address city state pincode sourceInformation fertilityProfile partnerPatientId partnerRelation coupleId',
                 populate: {
                     path: 'partnerPatientId',
-                    select: 'name'
+                    select: 'name phone patientId coupleId'
                 }
             })
             .populate('doctorId', 'name')
@@ -577,6 +583,103 @@ router.patch('/appointments/:id/cancel', verifyToken, verifyReception, async (re
     const appt = await Appointment.findOneAndUpdate(cancelQuery, { status: 'cancelled' });
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found or unauthorized' });
     res.json({ success: true });
+});
+
+// ─── FOLLOW-UP ELIGIBILITY CHECK ─────────────────────────────────────────────
+// Returns whether a patient is within the free follow-up window
+router.get('/follow-up-status/:patientId', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const patient = await User.findById(req.params.patientId);
+        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+        const Hospital = require('../models/hospital.model');
+        const hospitalId = req.user.hospitalId || patient.hospitalId;
+        const hospital = hospitalId ? await Hospital.findById(hospitalId).select('consultationValidityDays appointmentFee') : null;
+        const validityDays = hospital?.consultationValidityDays ?? 3;
+        const consultationFee = hospital?.appointmentFee ?? 500;
+
+        const hFilter = hospitalId ? { hospitalId } : {};
+
+        let hasOwnPriorAppointment = false;
+        let lastPaidAppointment = null;
+        let paidByPartner = false;
+
+        if (patient.coupleId) {
+            const coupleUsers = await User.find({ coupleId: patient.coupleId }).select('_id');
+            const userIds = coupleUsers.map(u => u._id);
+
+            const anyOwnAppointment = await Appointment.findOne({
+                userId: { $in: userIds },
+                status: { $ne: 'cancelled' },
+                ...hFilter
+            }).lean();
+            hasOwnPriorAppointment = !!anyOwnAppointment;
+
+            lastPaidAppointment = await Appointment.findOne({
+                userId: { $in: userIds },
+                amount: { $gt: 0 },
+                paymentStatus: { $in: ['Paid', 'paid'] },
+                status: { $ne: 'cancelled' },
+                ...hFilter
+            }).populate('doctorId', 'name').sort({ appointmentDate: -1 }).lean();
+
+            if (lastPaidAppointment && String(lastPaidAppointment.userId) !== String(patient._id)) {
+                paidByPartner = true;
+            }
+        } else {
+            const anyOwnAppointment = await Appointment.findOne({
+                userId: patient._id,
+                status: { $ne: 'cancelled' },
+                ...hFilter
+            }).lean();
+            hasOwnPriorAppointment = !!anyOwnAppointment;
+
+            lastPaidAppointment = await Appointment.findOne({
+                userId: patient._id,
+                amount: { $gt: 0 },
+                paymentStatus: { $in: ['Paid', 'paid'] },
+                status: { $ne: 'cancelled' },
+                ...hFilter
+            }).populate('doctorId', 'name').sort({ appointmentDate: -1 }).lean();
+        }
+
+        if (!lastPaidAppointment) {
+            return res.json({
+                success: true,
+                eligible: false,
+                reason: 'no_prior_consultation',
+                hasOwnPriorAppointment,
+                consultationFee,
+                validityDays
+            });
+        }
+
+        const lastDate = new Date(lastPaidAppointment.appointmentDate);
+        const validTill = new Date(lastDate);
+        validTill.setDate(validTill.getDate() + validityDays);
+        validTill.setHours(23, 59, 59, 999);
+
+        const now = new Date();
+        const eligible = now <= validTill;
+        const daysRemaining = eligible ? Math.ceil((validTill - now) / (1000 * 60 * 60 * 24)) : 0;
+
+        res.json({
+            success: true,
+            eligible,
+            lastConsultationDate: lastDate.toISOString(),
+            followUpValidTill: validTill.toISOString(),
+            daysRemaining,
+            paidByPartner,
+            hasOwnPriorAppointment,
+            consultationFee,
+            validityDays,
+            doctorId: lastPaidAppointment?.doctorId?._id || lastPaidAppointment?.doctorId,
+            doctorName: lastPaidAppointment?.doctorId?.name || lastPaidAppointment?.doctorName
+        });
+    } catch (error) {
+        console.error('Follow-up status error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
 });
 
 // 6. BOOK APPOINTMENT (NEW: Assign Doctor)
@@ -680,8 +783,52 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             }
         }
 
-        const finalAmount = isSharedAppointment ? 0 : (Number(amount) || doctor.consultationFee || 0);
-        const finalPaymentStatus = isSharedAppointment ? 'Paid' : (paymentStatus || 'Paid');
+        // ─── Follow-up eligibility check (server-side safety net) ─────────────
+        let isFollowUp = false;
+        if (!isSharedAppointment) {
+            const Hospital = require('../models/hospital.model');
+            const hospitalDoc = hospitalId ? await Hospital.findById(hospitalId).select('consultationValidityDays') : null;
+            const validityDays = hospitalDoc?.consultationValidityDays ?? 3;
+            const hFilter = hospitalId ? { hospitalId } : {};
+
+            // Check this patient's last paid appointment
+            let lastPaid = await Appointment.findOne({
+                userId: patient._id,
+                amount: { $gt: 0 },
+                paymentStatus: { $in: ['Paid', 'paid'] },
+                status: { $ne: 'cancelled' },
+                ...hFilter
+            }).sort({ appointmentDate: -1 }).lean();
+
+            // Also check partner if couple
+            if (patient.coupleId) {
+                const partnerUser = await User.findOne({ coupleId: patient.coupleId, _id: { $ne: patient._id } });
+                if (partnerUser) {
+                    const partnerPaid = await Appointment.findOne({
+                        userId: partnerUser._id,
+                        amount: { $gt: 0 },
+                        paymentStatus: { $in: ['Paid', 'paid'] },
+                        status: { $ne: 'cancelled' },
+                        ...hFilter
+                    }).sort({ appointmentDate: -1 }).lean();
+                    if (partnerPaid && (!lastPaid || new Date(partnerPaid.appointmentDate) > new Date(lastPaid.appointmentDate))) {
+                        lastPaid = partnerPaid;
+                    }
+                }
+            }
+
+            if (lastPaid) {
+                const validTill = new Date(lastPaid.appointmentDate);
+                validTill.setDate(validTill.getDate() + validityDays);
+                validTill.setHours(23, 59, 59, 999);
+                if (new Date() <= validTill) {
+                    isFollowUp = true;
+                }
+            }
+        }
+
+        const finalAmount = (isSharedAppointment || isFollowUp) ? 0 : (Number(amount) || doctor.consultationFee || 0);
+        const finalPaymentStatus = (isSharedAppointment || isFollowUp) ? 'Paid' : (paymentStatus || 'Paid');
 
         const newAppointment = new Appointment({
             userId: patient._id,
@@ -710,7 +857,69 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
         }
 
         await newAppointment.save();
-        res.json({ success: true, message: 'Appointment booked successfully!', appointment: newAppointment, tokenNumber });
+
+        let newPartnerAppointment = null;
+        let partnerTokenNumber = null;
+        const bookForPartnerAlso = req.body.bookForPartnerAlso === true || req.body.bookForPartnerAlso === 'true';
+
+        if (bookForPartnerAlso && patient.coupleId) {
+            const partnerUser = await User.findOne({
+                coupleId: patient.coupleId,
+                _id: { $ne: patient._id }
+            });
+            if (partnerUser) {
+                // Check if partner already has an active appointment on this date
+                const partnerExisting = await Appointment.findOne({
+                    userId: partnerUser._id,
+                    appointmentDate: { $gte: startOfDay, $lte: endOfDay },
+                    status: { $nin: ['cancelled'] }
+                });
+                if (!partnerExisting) {
+                    let partnerFinalTime = finalTime;
+                    if (isTokenMode) {
+                        const partnerCount = await Appointment.countDocuments({
+                            doctorId: doctor._id,
+                            appointmentDate: { $gte: startOfDay, $lte: endOfDay },
+                            status: { $ne: 'cancelled' }
+                        });
+                        partnerTokenNumber = partnerCount + 1;
+                        partnerFinalTime = `token-${partnerTokenNumber}`;
+                    }
+
+                    newPartnerAppointment = new Appointment({
+                        userId: partnerUser._id,
+                        hospitalId,
+                        patientId: partnerUser.patientId || 'WALK-IN',
+                        doctorId: doctor._id,
+                        doctorUserId: doctor.userId,
+                        doctorName: doctor.name,
+                        serviceId: doctor.services?.[0] || 'general',
+                        serviceName: 'Walk-in Visit',
+                        appointmentDate: new Date(date),
+                        appointmentTime: partnerFinalTime || '',
+                        tokenNumber: partnerTokenNumber,
+                        amount: 0,
+                        status: 'confirmed',
+                        paymentStatus: 'Paid',
+                        paymentMethod: 'Cash',
+                        paymentProofUrl: null,
+                        paymentProofFileName: null,
+                        notes: notes ? `${notes} (Couple Partner Booking)` : 'Walk-in created by reception (Couple Partner Booking)',
+                        bookedBy: req.user._id
+                    });
+                    await newPartnerAppointment.save();
+                }
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'Appointment booked successfully!',
+            appointment: newAppointment,
+            tokenNumber,
+            partnerAppointment: newPartnerAppointment,
+            partnerTokenNumber
+        });
 
     } catch (error) {
         console.error("Reception Booking Error:", error);

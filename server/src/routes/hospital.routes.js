@@ -76,7 +76,7 @@ router.get('/resolve/:slug', async (req, res) => {
     try {
         const hospital = await Hospital.findOne(
             { slug: req.params.slug.toLowerCase(), isActive: true },
-            'name slug city logo departments departmentFees appointmentFee appointmentMode facilities isActive _id'
+            'name slug city logo departments departmentFees appointmentFee appointmentMode facilities consultationValidityDays isActive _id'
         );
         if (!hospital) {
             return res.status(404).json({ success: false, message: 'Hospital not found. Check the URL and try again.' });

@@ -188,6 +188,11 @@ export const receptionAPI = {
         const response = await apiClient.get(`/api/reception/linked-patients/${patientId}`);
         return response.data;
     },
+    /** Check follow-up eligibility for a patient */
+    getFollowUpStatus: async (patientId) => {
+        const response = await apiClient.get(`/api/reception/follow-up-status/${patientId}`);
+        return response.data;
+    },
 };
 
 export const adminAPI = {

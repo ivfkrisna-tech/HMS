@@ -145,13 +145,14 @@ const ReceptionDashboard = () => {
     const [linkSearch, setLinkSearch] = useState('');
     const [linkSearchResults, setLinkSearchResults] = useState([]);
     const [linkedPatientSelection, setLinkedPatientSelection] = useState(null); // { _id, name, phone, patientId }
-    const [linkedAppointment, setLinkedAppointment] = useState(null);
     const [linkRelation, setLinkRelation] = useState('Husband');
     const [profileLinkedPatients, setProfileLinkedPatients] = useState([]);
     const [profileLinkedRecords, setProfileLinkedRecords] = useState([]);
     const [linkedRecordsTab, setLinkedRecordsTab] = useState('appointments'); // 'appointments'|'labs'|'pharmacy'
     const [loadingLinkedRecords, setLoadingLinkedRecords] = useState(false);
     const linkSearchTimeout = React.useRef(null);
+    const [followUpStatus, setFollowUpStatus] = useState(null);
+    const [bookForPartnerAlso, setBookForPartnerAlso] = useState(true);
 
     // Initialize form when mode changes to intake or when patientId changes
     useEffect(() => {
@@ -304,8 +305,9 @@ const ReceptionDashboard = () => {
         setLinkSearch('');
         setLinkSearchResults([]);
         setLinkedPatientSelection(null);
-        setLinkedAppointment(null);
         setLinkRelation('Husband');
+        setFollowUpStatus(null);
+        setBookForPartnerAlso(true);
         setIntakeForm({
             title: 'Mrs.', firstName: '', middleName: '', lastName: '',
             dob: '', age: '', gender: 'Female', mobile: '', email: '',
@@ -333,6 +335,35 @@ const ReceptionDashboard = () => {
         setLinkSearchResults([]);
         setLinkedPatientSelection(null);
         setLinkRelation('Husband');
+        setFollowUpStatus(null);
+        setBookForPartnerAlso(true);
+
+        // Fetch follow-up eligibility for existing patient
+        (async () => {
+            try {
+                const fuRes = await receptionAPI.getFollowUpStatus(patient._id);
+                if (fuRes.success) {
+                    setFollowUpStatus(fuRes);
+                    setIntakeForm(prev => {
+                        const updated = {
+                            ...prev,
+                            doctor: fuRes.doctorId || prev.doctor || ''
+                        };
+                        if (fuRes.eligible) {
+                            updated.consultationFee = 0;
+                            updated.paymentMethod = 'Cash';
+                            updated.paymentProofUrl = '';
+                            updated.paymentProofFileName = '';
+                            updated.transactionId = '';
+                        } else {
+                            updated.consultationFee = hospitalContext?.appointmentFee ?? '500';
+                        }
+                        return updated;
+                    });
+                }
+            } catch (err) { console.error('Follow-up status error:', err); }
+        })();
+
         const p = patient.fertilityProfile || {};
         const getVal = (val) => val || '';
 
@@ -365,10 +396,8 @@ const ReceptionDashboard = () => {
             setLinkedPatientSelection(partner);
             setLinkRelation(patient.partnerRelation || 'Husband');
             setLinkSearch(`${partner.name || ''} (${partner.patientId || partner.phone || ''})`);
-            fetchLinkedAppointmentInfo(partner._id || partner);
         } else {
             setLinkedPatientSelection(null);
-            setLinkedAppointment(null);
         }
     };
 
@@ -390,57 +419,21 @@ const ReceptionDashboard = () => {
         }, 300);
     };
 
-    const fetchLinkedAppointmentInfo = async (partnerId) => {
-        try {
-            const res = await patientAPI.getFullHistory(partnerId);
-            if (res.success && res.timeline) {
-                const aptItem = res.timeline.find(t => t.type === 'appointment' && t.data?.status !== 'cancelled');
-                if (aptItem && aptItem.data) {
-                    setLinkedAppointment(aptItem.data);
-                } else {
-                    setLinkedAppointment(null);
-                }
 
-                if (res.user) {
-                    setIntakeForm(prev => ({
-                        ...prev,
-                        houseNumber: res.user.houseNumber || '',
-                        street: res.user.street || '',
-                        city: res.user.city || '',
-                        state: res.user.state || '',
-                        pincode: res.user.pincode || '',
-                        address: res.user.address || '',
-                        sourceInformation: res.user.sourceInformation || { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
-                        ...(aptItem && aptItem.data ? {
-                            doctor: aptItem.data.doctorId?._id || aptItem.data.doctorId || '',
-                            visitDate: new Date(aptItem.data.appointmentDate).toISOString().split('T')[0],
-                            visitTime: aptItem.data.appointmentTime || '',
-                            paymentStatus: aptItem.data.paymentStatus || 'Paid',
-                            consultationFee: aptItem.data.amount || '500',
-                            paymentMethod: aptItem.data.paymentMethod || 'Cash',
-                            transactionId: aptItem.data.transactionId || ''
-                        } : {})
-                    }));
-                }
-            }
-        } catch (err) {
-            console.error("Error fetching partner history:", err);
-            setLinkedAppointment(null);
-        }
-    };
 
     const handleSelectLinkedPatient = (patient) => {
         setLinkedPatientSelection(patient);
         setLinkSearch(`${patient.name} (${patient.patientId || patient.phone})`);
         setLinkSearchResults([]);
-        fetchLinkedAppointmentInfo(patient._id);
+        setBookForPartnerAlso(true);
     };
 
     const handleClearLinkedPatient = () => {
         setLinkedPatientSelection(null);
-        setLinkedAppointment(null);
         setLinkSearch('');
         setLinkSearchResults([]);
+        setFollowUpStatus(null);
+        setBookForPartnerAlso(true);
         setIntakeForm(prev => ({
             ...prev,
             houseNumber: '',
@@ -749,7 +742,30 @@ const ReceptionDashboard = () => {
             setSaving(false); return;
         }
 
-        if (intakeForm.doctor && intakeForm.visitTime && intakeForm.paymentMethod !== 'Cash') {
+        const isTokenMode = hospitalContext?.appointmentMode === 'token';
+        const hasActiveAppointment = selectedPatientId && appointments.some(a =>
+            (a.userId?._id ? String(a.userId._id) === String(selectedPatientId) : String(a.userId) === String(selectedPatientId)) &&
+            a.status !== 'cancelled' &&
+            a.status !== 'completed'
+        );
+
+        if (!hasActiveAppointment) {
+            if (!intakeForm.doctor) {
+                alert("Please select a Specialist (Doctor).");
+                setSaving(false); return;
+            }
+            if (!intakeForm.visitDate) {
+                alert("Please select an Appointment Date.");
+                setSaving(false); return;
+            }
+            if (!isTokenMode && !intakeForm.visitTime) {
+                alert("Please select a Time Slot.");
+                setSaving(false); return;
+            }
+        }
+
+        const isFree = !!followUpStatus?.eligible;
+        if (!hasActiveAppointment && !isFree && intakeForm.paymentMethod !== 'Cash') {
             if (!intakeForm.transactionId) {
                 alert(`Please enter a UPI ID / Transaction ID for ${intakeForm.paymentMethod} payment before booking.`);
                 setSaving(false); return;
@@ -819,9 +835,6 @@ const ReceptionDashboard = () => {
 
             const updatePayload = { ...intakeForm };
             if (finalAvatar) updatePayload.avatar = finalAvatar;
-            if (linkedAppointment) {
-                updatePayload.linkedAppointmentId = linkedAppointment._id;
-            }
 
             await receptionAPI.updateIntake(userId, updatePayload);
 
@@ -831,41 +844,27 @@ const ReceptionDashboard = () => {
                 a.status !== 'completed'
             );
 
-            // strict enforcement of billing rules
-            if (selectedPatientId) {
-                alert("✅ Patient details updated successfully! No new payment/billing created.");
-                fetchAppointments();
-                setSearchParams({});
-                return;
-            }
+            // strict enforcement of billing rules: only save/update without booking if not booking
+            const isTokenMode = hospitalContext?.appointmentMode === 'token';
 
             let shouldBook = false;
             let bookingPayload = null;
 
-            if (linkedAppointment) {
-                // Book appointment for linked partner using partner's slot details, but with 0 fee
-                shouldBook = true;
-                bookingPayload = {
-                    patientId: userId,
-                    doctorId: linkedAppointment.doctorId?._id || linkedAppointment.doctorId,
-                    date: linkedAppointment.appointmentDate,
-                    time: linkedAppointment.appointmentTime,
-                    notes: `Walk-in. Shared IVF slot with partner.`,
-                    paymentMethod: 'Cash',
-                    paymentStatus: 'Paid',
-                    amount: 0
-                };
-            } else if (hasActiveAppointment) {
+            if (hasActiveAppointment) {
                 alert(`✅ Patient Registered! Existing active appointment was preserved.`);
                 fetchAppointments();
                 setSearchParams({});
             } else {
-                const isTokenMode = hospitalContext?.appointmentMode === 'token';
                 if (intakeForm.doctor && intakeForm.visitDate && (intakeForm.visitTime || isTokenMode)) {
                     let textNote = '';
                     if (intakeForm.paymentMethod !== 'Cash' && intakeForm.transactionId) {
                         textNote = ` | Transaction ID: ${intakeForm.transactionId}`;
                     }
+
+                    const isFree = !!followUpStatus?.eligible;
+                    const finalAmount = isFree ? 0 : intakeForm.consultationFee;
+                    const finalPaymentMethod = isFree ? 'Cash' : intakeForm.paymentMethod;
+                    const finalNotes = `Walk-in. Vitals: ${intakeForm.height}cm/${intakeForm.weight}kg. Reason: ${intakeForm.reasonForVisit}${textNote}`;
 
                     shouldBook = true;
                     bookingPayload = {
@@ -873,13 +872,14 @@ const ReceptionDashboard = () => {
                         doctorId: intakeForm.doctor,
                         date: intakeForm.visitDate,
                         time: isTokenMode ? undefined : intakeForm.visitTime,
-                        notes: `Walk-in. Vitals: ${intakeForm.height}cm/${intakeForm.weight}kg. Reason: ${intakeForm.reasonForVisit}${textNote}`,
-                        paymentMethod: intakeForm.paymentMethod,
+                        notes: finalNotes,
+                        paymentMethod: finalPaymentMethod,
                         paymentStatus: 'Paid',
-                        amount: intakeForm.consultationFee,
-                        transactionId: intakeForm.transactionId,
-                        paymentProofUrl: intakeForm.paymentMethod === 'Cash' ? null : (intakeForm.paymentProofUrl || null),
-                        paymentProofFileName: intakeForm.paymentMethod === 'Cash' ? null : (intakeForm.paymentProofFileName || null)
+                        amount: finalAmount,
+                        transactionId: isFree ? undefined : intakeForm.transactionId,
+                        paymentProofUrl: isFree ? null : (intakeForm.paymentProofUrl || null),
+                        paymentProofFileName: isFree ? null : (intakeForm.paymentProofFileName || null),
+                        bookForPartnerAlso: bookForPartnerAlso
                     };
                 } else {
                     alert("Please select a Doctor and Time Slot to complete the registration.");
@@ -908,6 +908,8 @@ const ReceptionDashboard = () => {
 
     const renderIntake = () => {
         const isInherited = linkedPatientSelection !== null;
+        // Follow-Up mode: ONLY when editing an existing patient who has their own prior appointment
+        const isFollowUpMode = !!selectedPatientId && !!followUpStatus && !!followUpStatus.hasOwnPriorAppointment;
         return (
             <div className="intake-full-page">
                 <div className="context-bar">
@@ -1322,125 +1324,223 @@ const ReceptionDashboard = () => {
                                 <div className="field"><label>Height (cm)</label><input name="height" value={intakeForm.height} onChange={handleInputChange} /></div>
                                 <div className="field"><label>Weight (kg)</label><input name="weight" value={intakeForm.weight} onChange={handleInputChange} /></div>
                                 <div className="field"><label>BMI</label><input name="bmi" value={intakeForm.bmi} readOnly /></div>
-                                {!linkedAppointment && (
-                                    <div className="field"><label>Consultation Fee</label><input name="consultationFee" value={intakeForm.consultationFee} readOnly style={{ backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' }} /></div>
-                                )}
+                                <div className="field">
+                                    <label>Consultation Fee</label>
+                                    <input
+                                        name="consultationFee"
+                                        value={
+                                            followUpStatus?.eligible ? '₹0 (Follow-Up)' : intakeForm.consultationFee
+                                        }
+                                        readOnly
+                                        style={{
+                                            backgroundColor: '#f1f5f9',
+                                            color: followUpStatus?.eligible ? '#16a34a' : '#475569',
+                                            cursor: 'not-allowed',
+                                            fontWeight: followUpStatus?.eligible ? 700 : 400
+                                        }}
+                                    />
+                                </div>
                             </div>
-                            {!linkedAppointment && (
-                                <>
-                                    <div className="form-row">
-                                        <div className="field">
-                                            <label>Payment Method</label>
-                                            <select name="paymentMethod" value={intakeForm.paymentMethod} onChange={handleInputChange}>
-                                                <option value="Cash">Cash</option>
-                                                <option value="UPI">UPI</option>
-                                                <option value="Card">Card</option>
-                                                <option value="Cheque">Cheque</option>
-                                                <option value="NEFT/RTGS">NEFT / RTGS</option>
-                                            </select>
-                                        </div>
-                                        <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', marginTop: '22px' }}>
-                                            <span style={{ fontSize: '18px' }}>✅</span>
-                                            <span style={{ fontWeight: 600, color: '#15803d', fontSize: '14px' }}>Payment Confirmed — Paid</span>
-                                        </div>
-                                    </div>
-                                    {['UPI', 'Card', 'Cheque', 'NEFT/RTGS'].includes(intakeForm.paymentMethod) && (
-                                        <div className="form-row" style={{ marginTop: '12px' }}>
-                                            {/* Left Column: Transaction ID */}
-                                            <div className="field" style={{ flex: 1 }}>
-                                                <label>UPI ID / Transaction ID <span style={{ color: '#ef4444', fontSize: '12px' }}>*Required for {intakeForm.paymentMethod}</span></label>
-                                                <input
-                                                    type="text"
-                                                    name="transactionId"
-                                                    placeholder="Enter UPI Reference / UTN / Txn ID"
-                                                    value={intakeForm.transactionId}
-                                                    onChange={handleInputChange}
-                                                    style={{ padding: '10px', border: '1.5px solid #d1d5db', borderRadius: '8px', background: '#f5f3ff', width: '100%', boxSizing: 'border-box', fontWeight: '600' }}
-                                                />
-                                            </div>
 
-                                            {/* Right Column: Upload Proof */}
-                                            <div className="field" style={{ flex: 1 }}>
-                                                <label style={{ fontWeight: '600' }}>
-                                                    {intakeForm.paymentMethod === 'UPI' && 'Upload Payment Screenshot'}
-                                                    {intakeForm.paymentMethod === 'Card' && 'Upload Payment Receipt'}
-                                                    {['NEFT/RTGS', 'Cheque'].includes(intakeForm.paymentMethod) && 'Upload Payment Proof'}
-                                                    <span style={{ color: '#ef4444', fontSize: '12px' }}> *Required</span>
-                                                </label>
-                                                <input
-                                                    type="file"
-                                                    accept=".jpg,.jpeg,.png,.pdf"
-                                                    onChange={handlePaymentProofChange}
-                                                    style={{
-                                                        display: 'block',
-                                                        marginTop: '6px',
-                                                        padding: '8px 12px',
-                                                        border: '1.5px solid #d1d5db',
-                                                        borderRadius: '8px',
-                                                        background: '#fff',
-                                                        width: '100%',
-                                                        boxSizing: 'border-box'
-                                                    }}
-                                                />
-                                                {uploadingProof && <span style={{ fontSize: '13px', color: '#6366f1', marginTop: '4px', display: 'block' }}>Uploading proof...</span>}
-                                                {intakeForm.paymentProofUrl && (
-                                                    <div style={{ fontSize: '13px', color: '#166534', fontWeight: '600', marginTop: '6px' }}>
-                                                        Selected File: {intakeForm.paymentProofFileName || 'proof_file'}
-                                                        <a href={intakeForm.paymentProofUrl} target="_blank" rel="noreferrer" style={{ marginLeft: '10px', color: '#2563eb', textDecoration: 'underline' }}>[View Uploaded]</a>
-                                                    </div>
-                                                )}
+                            <div className="form-row">
+                                <div className="field">
+                                    <label>Payment Method</label>
+                                    <select 
+                                        name="paymentMethod" 
+                                        value={
+                                            followUpStatus?.eligible ? 'Cash' : intakeForm.paymentMethod
+                                        } 
+                                        onChange={handleInputChange}
+                                        disabled={!!followUpStatus?.eligible}
+                                        style={followUpStatus?.eligible ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}}
+                                    >
+                                        <option value="Cash">Cash</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="Card">Card</option>
+                                        <option value="Cheque">Cheque</option>
+                                        <option value="NEFT/RTGS">NEFT / RTGS</option>
+                                    </select>
+                                </div>
+                                <div className="field">
+                                    <label>Payment Status</label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', height: '42px', boxSizing: 'border-box' }}>
+                                        <span style={{ fontSize: '18px' }}>✅</span>
+                                        <span style={{ fontWeight: 600, color: '#15803d', fontSize: '14px' }}>
+                                            {followUpStatus?.eligible ? 'Free Follow-Up — Paid' : 'Payment Confirmed — Paid'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {!followUpStatus?.eligible && ['UPI', 'Card', 'Cheque', 'NEFT/RTGS'].includes(intakeForm.paymentMethod) && (
+                                <div className="form-row" style={{ marginTop: '12px' }}>
+                                    {/* Left Column: Transaction ID */}
+                                    <div className="field" style={{ flex: 1 }}>
+                                        <label>UPI ID / Transaction ID <span style={{ color: '#ef4444', fontSize: '12px' }}>*Required for {intakeForm.paymentMethod}</span></label>
+                                        <input
+                                            type="text"
+                                            name="transactionId"
+                                            placeholder="Enter UPI Reference / UTN / Txn ID"
+                                            value={intakeForm.transactionId}
+                                            onChange={handleInputChange}
+                                            style={{ padding: '10px', border: '1.5px solid #d1d5db', borderRadius: '8px', background: '#f5f3ff', width: '100%', boxSizing: 'border-box', fontWeight: '600' }}
+                                        />
+                                    </div>
+
+                                    {/* Right Column: Upload Proof */}
+                                    <div className="field" style={{ flex: 1 }}>
+                                        <label style={{ fontWeight: '600' }}>
+                                            {intakeForm.paymentMethod === 'UPI' && 'Upload Payment Screenshot'}
+                                            {intakeForm.paymentMethod === 'Card' && 'Upload Payment Receipt'}
+                                            {['NEFT/RTGS', 'Cheque'].includes(intakeForm.paymentMethod) && 'Upload Payment Proof'}
+                                            <span style={{ color: '#ef4444', fontSize: '12px' }}> *Required</span>
+                                        </label>
+                                        <input
+                                            type="file"
+                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            onChange={handlePaymentProofChange}
+                                            style={{
+                                                display: 'block',
+                                                marginTop: '6px',
+                                                padding: '8px 12px',
+                                                border: '1.5px solid #d1d5db',
+                                                borderRadius: '8px',
+                                                background: '#fff',
+                                                width: '100%',
+                                                boxSizing: 'border-box'
+                                            }}
+                                        />
+                                        {uploadingProof && <span style={{ fontSize: '13px', color: '#6366f1', marginTop: '4px', display: 'block' }}>Uploading proof...</span>}
+                                        {intakeForm.paymentProofUrl && (
+                                            <div style={{ fontSize: '13px', color: '#166534', fontWeight: '600', marginTop: '6px' }}>
+                                                Selected File: {intakeForm.paymentProofFileName || 'proof_file'}
+                                                <a href={intakeForm.paymentProofUrl} target="_blank" rel="noreferrer" style={{ marginLeft: '10px', color: '#2563eb', textDecoration: 'underline' }}>[View Uploaded]</a>
                                             </div>
-                                        </div>
-                                    )}
-                                </>
+                                        )}
+                                    </div>
+                                </div>
                             )}
                         </div>
 
-                        {linkedAppointment ? (
-                            <div className="form-section" style={{ background: '#f0fdf4', border: '2px dashed #22c55e', borderRadius: '12px', padding: '24px', marginBottom: '20px' }}>
-                                <h4 style={{ color: '#166534', margin: '0 0 16px 0', fontSize: '1.15rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span>🔗 Linked Appointment Information</span>
-                                    <span style={{ fontSize: '0.78rem', background: '#dcfce7', color: '#166534', borderRadius: '12px', padding: '2px 10px', fontWeight: '700' }}>IVF shared</span>
-                                </h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                                    <div style={{ background: 'white', padding: '14px', borderRadius: '10px', border: '1.5px solid #bbf7d0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                                        <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#15803d', fontWeight: '800', marginBottom: '6px', letterSpacing: '0.5px' }}>Doctor</div>
-                                        <div style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>Dr. {linkedAppointment.doctorName || 'Assigned Specialist'}</div>
-                                    </div>
-                                    <div style={{ background: 'white', padding: '14px', borderRadius: '10px', border: '1.5px solid #bbf7d0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                                        <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#15803d', fontWeight: '800', marginBottom: '6px', letterSpacing: '0.5px' }}>Date</div>
-                                        <div style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>
-                                            {new Date(linkedAppointment.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {isFollowUpMode && (
+                            <div className="form-section">
+                                <h4>3. Follow-Up Information</h4>
+                                {/* ─── Follow-Up Status Card ─── */}
+                                <div style={{
+                                    marginBottom: '16px',
+                                    padding: '16px 20px',
+                                    borderRadius: '12px',
+                                    border: `2px solid ${followUpStatus.eligible ? '#22c55e' : '#ef4444'}`,
+                                    background: followUpStatus.eligible
+                                        ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+                                        : 'linear-gradient(135deg, #fef2f2, #fee2e2)',
+                                }}>
+                                    {(() => {
+                                        const getDaysLeftText = (validTillStr) => {
+                                            if (!validTillStr) return '';
+                                            const dValid = new Date(validTillStr);
+                                            dValid.setHours(0, 0, 0, 0);
+                                            const dNow = new Date();
+                                            dNow.setHours(0, 0, 0, 0);
+                                            
+                                            const msDiff = dValid.getTime() - dNow.getTime();
+                                            const daysDiff = Math.round(msDiff / (1000 * 60 * 60 * 24));
+                                            
+                                            if (daysDiff === 2) return "2 Days Left";
+                                            if (daysDiff === 1) return "1 Day Left";
+                                            if (daysDiff === 0) return "Expires Today";
+                                            if (daysDiff < 0) return "Follow-Up Expired";
+                                            return `${daysDiff} Days Left`;
+                                        };
+                                        const daysLeftText = getDaysLeftText(followUpStatus.followUpValidTill);
+
+                                        return (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                                <span style={{ fontSize: '1.4rem' }}>{followUpStatus.eligible ? '✅' : '⚠️'}</span>
+                                                <span style={{
+                                                    fontWeight: 800,
+                                                    fontSize: '1rem',
+                                                    color: followUpStatus.eligible ? '#166534' : '#991b1b'
+                                                }}>
+                                                    {followUpStatus.eligible ? 'Follow-Up Eligible' : 'Follow-Up Window Expired'}
+                                                </span>
+                                                <span style={{
+                                                    fontSize: '0.72rem',
+                                                    fontWeight: 700,
+                                                    padding: '2px 10px',
+                                                    borderRadius: '12px',
+                                                    background: followUpStatus.eligible ? '#22c55e' : '#ef4444',
+                                                    color: 'white',
+                                                    textTransform: 'uppercase'
+                                                }}>
+                                                    {daysLeftText}
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                                        {followUpStatus.lastConsultationDate && (
+                                            <div style={{
+                                                background: 'white',
+                                                padding: '10px 14px',
+                                                borderRadius: '8px',
+                                                border: `1px solid ${followUpStatus.eligible ? '#bbf7d0' : '#fecaca'}`
+                                            }}>
+                                                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#64748b', marginBottom: '4px' }}>Last Consultation</div>
+                                                <div style={{ fontWeight: 700, color: '#1e293b' }}>
+                                                    {new Date(followUpStatus.lastConsultationDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {followUpStatus.followUpValidTill && (
+                                            <div style={{
+                                                background: 'white',
+                                                padding: '10px 14px',
+                                                borderRadius: '8px',
+                                                border: `1px solid ${followUpStatus.eligible ? '#bbf7d0' : '#fecaca'}`
+                                            }}>
+                                                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#64748b', marginBottom: '4px' }}>
+                                                    {followUpStatus.eligible ? 'Valid Until' : 'Expired On'}
+                                                </div>
+                                                <div style={{ fontWeight: 700, color: '#1e293b' }}>
+                                                    {new Date(followUpStatus.followUpValidTill).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div style={{
+                                            background: 'white',
+                                            padding: '10px 14px',
+                                            borderRadius: '8px',
+                                            border: `1px solid ${followUpStatus.eligible ? '#bbf7d0' : '#fecaca'}`
+                                        }}>
+                                            <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: '#64748b', marginBottom: '4px' }}>Fee Required</div>
+                                            <div style={{ fontWeight: 700, color: followUpStatus.eligible ? '#16a34a' : '#dc2626' }}>
+                                                {followUpStatus.eligible ? 'No' : 'Yes'}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div style={{ background: 'white', padding: '14px', borderRadius: '10px', border: '1.5px solid #bbf7d0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                                        <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#15803d', fontWeight: '800', marginBottom: '6px', letterSpacing: '0.5px' }}>Time / Token</div>
-                                        <div style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b' }}>
-                                            {linkedAppointment.tokenNumber != null
-                                                ? `Token #${linkedAppointment.tokenNumber}`
-                                                : linkedAppointment.appointmentTime?.startsWith('token-')
-                                                    ? `Token #${linkedAppointment.appointmentTime.replace('token-', '')}`
-                                                    : linkedAppointment.appointmentTime || 'N/A'}
+                                    {followUpStatus.paidByPartner && followUpStatus.eligible && (
+                                        <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#15803d', fontStyle: 'italic' }}>
+                                            💑 Covered by partner's consultation within {followUpStatus.validityDays}-day window.
                                         </div>
-                                    </div>
-                                    <div style={{ background: 'white', padding: '14px', borderRadius: '10px', border: '1.5px solid #bbf7d0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                                        <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: '#15803d', fontWeight: '800', marginBottom: '6px', letterSpacing: '0.5px' }}>Payment Status</div>
-                                        <div style={{ fontSize: '1rem', fontWeight: '700', color: '#16a34a', textTransform: 'uppercase' }}>
-                                            {linkedAppointment.paymentStatus || 'Paid'}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#15803d', fontSize: '0.9rem', fontWeight: '700', background: '#dcfce7', padding: '12px 16px', borderRadius: '8px' }}>
-                                    <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
-                                    <span>This patient is linked with an existing IVF appointment.</span>
+                                    )}
                                 </div>
                             </div>
-                        ) : (
-                            <div className="form-section" style={{ backgroundColor: '#e3f2fd' }}>
-                                <h4>3. Assign to Doctor/Counselor</h4>
-                                <div className="form-row">
-                                    <div className="field">
-                                        <label>Select Specialist</label>
+                        )}
+
+                        <div className="form-section" style={{ backgroundColor: '#e3f2fd' }}>
+                            <h4>{isFollowUpMode ? "4. FOLLOW-UP APPOINTMENT BOOKING" : "4. Appointment Information"}</h4>
+                            <div className="form-row">
+                                <div className="field">
+                                    <label>Select Specialist</label>
+                                    {isFollowUpMode && (followUpStatus?.doctorId || intakeForm.doctor) ? (
+                                        <input
+                                            type="text"
+                                            value={followUpStatus?.doctorName || (doctorsList.find(d => d._id === intakeForm.doctor)?.name) || 'Assigned Specialist'}
+                                            readOnly
+                                            style={{ backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed', fontWeight: 'bold' }}
+                                        />
+                                    ) : (
                                         <select
                                             name="doctor"
                                             value={intakeForm.doctor}
@@ -1451,58 +1551,81 @@ const ReceptionDashboard = () => {
                                                 <option key={doc._id} value={doc._id}>{doc.name}</option>
                                             ))}
                                         </select>
-                                    </div>
-                                    <div className="field">
-                                        <label>Date</label>
-                                        <input type="date" name="visitDate" value={intakeForm.visitDate} min={todayStr} onChange={handleInputChange} disabled={!intakeForm.doctor} style={!intakeForm.doctor ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}} />
-                                    </div>
+                                    )}
                                 </div>
-                                {intakeForm.doctor && (
-                                    hospitalContext?.appointmentMode === 'token' ? (
-                                        <div style={{ margin: '14px 0', padding: '18px 24px', background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderRadius: '12px', border: '2px solid #f59e0b', display: 'flex', alignItems: 'center', gap: '18px' }}>
-                                            <span style={{ fontSize: '2.5rem' }}>🎟️</span>
-                                            <div>
-                                                <div style={{ fontWeight: 700, fontSize: '1rem', color: '#78350f', marginBottom: '2px' }}>Token Queue Mode Active</div>
-                                                {nextToken !== null ? (
-                                                    <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#92400e' }}>
-                                                        Next Token: <span style={{ fontSize: '2rem', color: '#d97706' }}>#{nextToken}</span>
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ color: '#92400e', fontSize: '0.9rem' }}>Select doctor and date to see next token</div>
-                                                )}
-                                                <div style={{ fontSize: '0.8rem', color: '#92400e', marginTop: '4px', opacity: 0.8 }}>Tokens reset daily at midnight</div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="slot-grid">
-                                            {timeSlots.map(time => {
-                                                const isBooked = availabilityCheck.bookedSlots.includes(time);
-                                                const isPast = isSlotInPast(time);
-                                                const isDisabled = isBooked || isPast;
-                                                return (
-                                                    <button
-                                                        key={time} type="button"
-                                                        className={`slot-btn ${isBooked ? 'booked' : ''} ${isPast ? 'booked' : ''} ${intakeForm.visitTime === time ? 'selected' : ''}`}
-                                                        onClick={() => !isDisabled && setIntakeForm({ ...intakeForm, visitTime: time })}
-                                                        disabled={isDisabled}
-                                                    >
-                                                        {time}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )
-                                )}
+                                <div className="field">
+                                    <label>Date</label>
+                                    <input type="date" name="visitDate" value={intakeForm.visitDate} min={todayStr} onChange={handleInputChange} disabled={!intakeForm.doctor} style={!intakeForm.doctor ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}} />
+                                </div>
                             </div>
-                        )}
+                            {isFollowUpMode && linkedPatientSelection && (
+                                <div style={{
+                                    marginTop: '12px',
+                                    padding: '12px 16px',
+                                    background: '#eff6ff',
+                                    borderRadius: '8px',
+                                    border: '1.5px solid #bfdbfe',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px'
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        id="bookForPartnerAlso"
+                                        checked={bookForPartnerAlso}
+                                        onChange={(e) => setBookForPartnerAlso(e.target.checked)}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                    <label htmlFor="bookForPartnerAlso" style={{ fontWeight: 700, color: '#1e40af', cursor: 'pointer', margin: 0, userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        ☑ Book Follow-Up For Partner Also ({linkedPatientSelection.name})
+                                    </label>
+                                </div>
+                            )}
+                            {intakeForm.doctor && (
+                                hospitalContext?.appointmentMode === 'token' ? (
+                                    <div style={{ margin: '14px 0', padding: '18px 24px', background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderRadius: '12px', border: '2px solid #f59e0b', display: 'flex', alignItems: 'center', gap: '18px' }}>
+                                        <span style={{ fontSize: '2.5rem' }}>🎟️</span>
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: '1rem', color: '#78350f', marginBottom: '2px' }}>Token Queue Mode Active</div>
+                                            {nextToken !== null ? (
+                                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#92400e' }}>
+                                                    Next Token: <span style={{ fontSize: '2rem', color: '#d97706' }}>#{nextToken}</span>
+                                                </div>
+                                            ) : (
+                                                <div style={{ color: '#92400e', fontSize: '0.9rem' }}>Select doctor and date to see next token</div>
+                                            )}
+                                            <div style={{ fontSize: '0.8rem', color: '#92400e', marginTop: '4px', opacity: 0.8 }}>Tokens reset daily at midnight</div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="slot-grid">
+                                        {timeSlots.map(time => {
+                                            const isBooked = availabilityCheck.bookedSlots.includes(time);
+                                            const isPast = isSlotInPast(time);
+                                            const isDisabled = isBooked || isPast;
+                                            return (
+                                                <button
+                                                    key={time} type="button"
+                                                    className={`slot-btn ${isBooked ? 'booked' : ''} ${isPast ? 'booked' : ''} ${intakeForm.visitTime === time ? 'selected' : ''}`}
+                                                    onClick={() => !isDisabled && setIntakeForm({ ...intakeForm, visitTime: time })}
+                                                    disabled={isDisabled}
+                                                >
+                                                    {time}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )
+                            )}
+                        </div>
 
                         <div className="form-footer">
                             <button type="submit" className="btn-save" disabled={saving}>
                                 {saving
                                     ? 'Saving...'
                                     : (() => {
-                                        if (linkedAppointment) {
-                                            return selectedPatientId ? 'Save & Reuse IVF Appointment' : 'Register & Reuse IVF Appointment';
+                                        if (isFollowUpMode && (linkedPatientSelection || followUpStatus?.paidByPartner)) {
+                                            return 'Book Couple Follow-Up';
                                         }
                                         const isTokenMode = hospitalContext?.appointmentMode === 'token';
                                         const canBook = intakeForm.doctor && intakeForm.visitDate && (intakeForm.visitTime || isTokenMode);
