@@ -6,7 +6,7 @@ import { useBranding } from '../../context/BrandingContext';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
-    FiFileText, FiPlusSquare, FiShield
+    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers
 } from 'react-icons/fi';
 import './DashboardLayout.css';
 
@@ -39,6 +39,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'Staff Management', path: '/admin/users', icon: <FiUsers /> },
                 { label: 'Doctors Feed', path: '/admin/doctors', icon: <FiActivity /> },
                 { label: 'Pharma Inventory', path: '/pharmacy/inventory', icon: <FiPackage /> },
+                { label: 'Source Management', path: '/hospitaladmin/sources', icon: <FiShare2 /> },
+                { label: 'Package Services', path: '/hospitaladmin/packages', icon: <FiLayers /> },
             ];
         }
         if (role === 'doctor') {

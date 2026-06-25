@@ -306,6 +306,28 @@ export const questionLibraryAPI = {
     updateLibrary: async (data) => (await apiClient.post('/api/question-library', { data })).data
 };
 
+export const sourceAPI = {
+    getSources: async (params) => (await apiClient.get('/api/sources', { params })).data,
+    createSource: async (data) => (await apiClient.post('/api/sources', data)).data,
+    updateSource: async (id, data) => (await apiClient.put(`/api/sources/${id}`, data)).data,
+    deleteSource: async (id) => (await apiClient.delete(`/api/sources/${id}`)).data,
+    getSourcePatients: async (id) => (await apiClient.get(`/api/sources/${id}/patients`)).data
+};
+
+export const packageServicesAPI = {
+    getServices: async (params) => (await apiClient.get('/api/package-services/services', { params })).data,
+    createService: async (data) => (await apiClient.post('/api/package-services/services', data)).data,
+    updateService: async (id, data) => (await apiClient.put(`/api/package-services/services/${id}`, data)).data,
+    toggleServiceStatus: async (id, status) => (await apiClient.patch(`/api/package-services/services/${id}/status`, { status })).data,
+    deleteService: async (id) => (await apiClient.delete(`/api/package-services/services/${id}`)).data,
+    getRegisteredPatients: async (query) => (await apiClient.get('/api/package-services/registered-patients', { params: { query } })).data,
+    getPackages: async () => (await apiClient.get('/api/package-services/packages')).data,
+    getPatientPackage: async (patientId) => (await apiClient.get(`/api/package-services/patient/${patientId}`)).data,
+    createPackage: async (data) => (await apiClient.post('/api/package-services/packages', data)).data,
+    updatePackage: async (id, data) => (await apiClient.put(`/api/package-services/packages/${id}`, data)).data,
+    deletePackage: async (id) => (await apiClient.delete(`/api/package-services/packages/${id}`)).data,
+};
+
 export const testPackageAPI = {
     getPackages: async () => (await apiClient.get('/api/test-packages')).data,
     getPackage: async (id) => (await apiClient.get(`/api/test-packages/${id}`)).data,

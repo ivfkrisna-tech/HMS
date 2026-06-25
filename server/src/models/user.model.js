@@ -51,7 +51,8 @@ const userSchema = new mongoose.Schema({
 
     // Patient Source Information
     sourceInformation: {
-        sourceType: { type: String, enum: ['Newspaper', 'Facebook', 'Instagram', 'Camp', 'Family & Friends', 'Doctor Reference', 'Others'], default: null },
+        sourceType: { type: String, default: null },
+        sourceName: { type: String, default: null },
         newspaperName: { type: String, default: null },
         campName: { type: String, default: null },
         campLocation: { type: String, default: null },

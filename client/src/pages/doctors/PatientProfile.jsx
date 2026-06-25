@@ -97,7 +97,7 @@ const PatientProfile = () => {
         container: { maxWidth: '1200px', margin: '0 auto', padding: '24px 28px' },
         // Identity Card
         idCard: { background: 'linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.08))', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '20px', padding: '28px', display: 'flex', gap: '24px', alignItems: 'flex-start', marginBottom: '24px' },
-        avatar: { width: '90px', height: '90px', borderRadius: '20px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '2.2rem', fontWeight: '800', flexShrink: 0, boxShadow: '0 8px 24px rgba(99,102,241,0.3)' },
+        avatar: { width: '90px', height: '90px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '2.2rem', fontWeight: '800', flexShrink: 0, boxShadow: '0 8px 24px rgba(99,102,241,0.3)' },
         idInfo: { flex: 1 },
         idName: { margin: 0, fontSize: '1.5rem', fontWeight: '800', color: '#f8fafc', letterSpacing: '-0.02em' },
         idMeta: { display: 'flex', gap: '16px', marginTop: '8px', flexWrap: 'wrap' },
@@ -657,7 +657,7 @@ const PatientProfile = () => {
                 <div style={C.idCard}>
                     <div style={C.avatar}>
                         {patient.avatar ? (
-                            <img src={patient.avatar} alt={patient.name} style={{ width: '100%', height: '100%', borderRadius: '20px', objectFit: 'cover' }} />
+                            <img src={patient.avatar} alt={patient.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                         ) : (
                             (patient.name || 'P')[0].toUpperCase()
                         )}

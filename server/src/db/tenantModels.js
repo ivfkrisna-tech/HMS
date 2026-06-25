@@ -32,12 +32,25 @@ const userSchema = new mongoose.Schema({
     mrn: { type: String, unique: true, sparse: true },
     partnerPatientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     partnerRelation: { type: String, enum: ['Husband', 'Wife'], default: null },
+    coupleId: { type: String, default: null, index: true },
     linkedAppointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },
     aadhaarNumber: { type: String, unique: true, sparse: true, trim: true },
     isAadhaarVerified: { type: Boolean, default: false },
     patientType: { type: String, enum: ['Primary', 'Partner'], default: 'Primary' },
     departments: [{ type: String }],
-    avatar: { type: String, default: null }
+    avatar: { type: String, default: null },
+    sourceInformation: {
+        sourceType: { type: String, default: null },
+        sourceName: { type: String, default: null },
+        newspaperName: { type: String, default: null },
+        campName: { type: String, default: null },
+        campLocation: { type: String, default: null },
+        reference: { type: String, default: null },
+        referencePersonName: { type: String, default: null },
+        doctorName: { type: String, default: null },
+        hospitalName: { type: String, default: null },
+        description: { type: String, default: null }
+    }
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {
@@ -133,6 +146,49 @@ const admissionSchema = new mongoose.Schema({
     notes: String,
 }, { timestamps: true });
 
+const sourceSchema = new mongoose.Schema({
+    hospitalId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    sourceType: { type: String, enum: ['B2B', 'B2C'], required: true },
+    sourceName: { type: String, required: true },
+    status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
+}, { timestamps: true });
+
+const serviceMasterSchema = new mongoose.Schema({
+    hospitalId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    serviceName: { type: String, required: true, trim: true },
+    price: { type: Number, required: true },
+    description: { type: String, default: '' },
+    status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
+}, { timestamps: true });
+
+const treatmentPackageSchema = new mongoose.Schema({
+    hospitalId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    mrn: { type: String, default: '' },
+    coupleId: { type: String, default: '' },
+    packageName: { type: String, required: true, trim: true },
+    description: { type: String, default: '' },
+    selectedServices: [{
+        serviceId: { type: mongoose.Schema.Types.ObjectId },
+        serviceName: { type: String },
+        price: { type: Number }
+    }],
+    originalAmount: { type: Number, required: true, default: 0 },
+    discountPercent: { type: Number, default: 0 },
+    finalAmount: { type: Number, required: true, default: 0 },
+    startDate: { type: String, default: '' },
+    totalDuration: { type: Number, default: 0 },
+    status: { type: String, enum: ['Active', 'Completed', 'Cancelled'], default: 'Active' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Future ready extensible structure
+    medicines: [{ type: mongoose.Schema.Types.Mixed }],
+    labTests: [{ type: mongoose.Schema.Types.Mixed }],
+    procedures: [{ type: mongoose.Schema.Types.Mixed }],
+    injections: [{ type: mongoose.Schema.Types.Mixed }]
+}, { timestamps: true });
+
 // ─── Model Factory ────────────────────────────────────────────────────────────
 
 /**
@@ -164,6 +220,9 @@ function getTenantModels(tenantDb) {
         FacilityCharge: model('FacilityCharge', facilityChargeSchema),
         Role: model('Role', roleSchema),
         Admission: model('Admission', admissionSchema),
+        Source: model('Source', sourceSchema),
+        ServiceMaster: model('ServiceMaster', serviceMasterSchema),
+        TreatmentPackage: model('TreatmentPackage', treatmentPackageSchema),
     };
 }
 

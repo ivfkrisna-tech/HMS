@@ -51,6 +51,8 @@ import HospitalAdminDashboard from '../pages/hospitaladmin/HospitalAdminDashboar
 import ClinicDashboard from '../pages/hospitaladmin/ClinicDashboard';
 import HospitalLogin from '../pages/hospitaladmin/HospitalLogin';
 import HospitalAdminQuestionLibrary from '../pages/hospitaladmin/HospitalAdminQuestionLibrary';
+import HospitalAdminSources from '../pages/hospitaladmin/HospitalAdminSources';
+import HospitalAdminPackages from '../pages/hospitaladmin/HospitalAdminPackages';
 
 // Cashier Routing
 
@@ -175,6 +177,8 @@ const MainRoutes = () => {
                                 </ProtectedRoute>
                             } />
                             <Route path="hospitaladmin/question-library" element={<ProtectedRoute allowedRoles={['hospitaladmin']}><HospitalAdminQuestionLibrary /></ProtectedRoute>} />
+                            <Route path="hospitaladmin/sources" element={<ProtectedRoute allowedRoles={['hospitaladmin']}><HospitalAdminSources /></ProtectedRoute>} />
+                            <Route path="hospitaladmin/packages" element={<ProtectedRoute allowedRoles={['hospitaladmin']}><HospitalAdminPackages /></ProtectedRoute>} />
 
                             <Route path="lab/dashboard" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><LabDashboard /></ProtectedRoute>} />
                             <Route path="lab/tests" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><AssignedTests /></ProtectedRoute>} />

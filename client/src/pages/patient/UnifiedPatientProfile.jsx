@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { patientAPI, admissionAPI, uploadAPI, receptionAPI } from '../../utils/api';
+import { patientAPI, admissionAPI, uploadAPI, receptionAPI, packageServicesAPI } from '../../utils/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useAuth } from '../../store/hooks';
@@ -13,6 +13,7 @@ const UnifiedPatientProfile = () => {
     const [patientData, setPatientData] = useState(null);
     const [timeline, setTimeline] = useState([]);
     const [admissions, setAdmissions] = useState([]);
+    const [assignedPackages, setAssignedPackages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -89,8 +90,15 @@ const UnifiedPatientProfile = () => {
                 if (res.success) setAdmissions(res.admissions || []);
             } catch (err) { /* admissions are optional — fail silently */ }
         };
+        const fetchPackages = async () => {
+            try {
+                const res = await packageServicesAPI.getPatientPackage(patientId);
+                if (res.success) setAssignedPackages(res.packages || []);
+            } catch (err) { /* silent */ }
+        };
         fetchProfile();
         fetchAdmissions();
+        fetchPackages();
     }, [patientId]);
 
     const calculateMetrics = () => {
@@ -374,8 +382,28 @@ const UnifiedPatientProfile = () => {
                                 Marriage Date: {patientData.marriageDate || profile.marriageDate ? new Date(patientData.marriageDate || profile.marriageDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
                             </span>
                             <span className="upp-tag">📞 {patientData.phone || '-'}</span>
-                            <span className="upp-tag">🩸 {profile.bloodGroup || 'O-'}</span>
-                            <span className="upp-tag">{patientData.gender || 'Unknown'} - {patientData.dob ? new Date().getFullYear() - new Date(patientData.dob).getFullYear() : (profile.age || '-')} yrs</span>
+                            {(() => {
+                                const bg = (patientData.bloodGroup || profile.bloodGroup || '').trim();
+                                return bg ? <span className="upp-tag">🩸 {bg}</span> : null;
+                            })()}
+                            <span className="upp-tag">
+                                {(() => {
+                                    const savedDob = patientData.dob || profile.dob;
+                                    if (savedDob) {
+                                        const birthDate = new Date(savedDob);
+                                        if (!isNaN(birthDate.getTime())) {
+                                            const today = new Date();
+                                            let age = today.getFullYear() - birthDate.getFullYear();
+                                            const m = today.getMonth() - birthDate.getMonth();
+                                            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                                                age--;
+                                            }
+                                            return `Age - ${age} Years`;
+                                        }
+                                    }
+                                    return 'Age - Unknown';
+                                })()}
+                            </span>
                             {patientData.email && <span className="upp-tag">✉️ {patientData.email}</span>}
                         </div>
                         { (patientData.houseNumber || patientData.street || patientData.city || patientData.state || patientData.pincode || patientData.address) && (
@@ -395,7 +423,10 @@ const UnifiedPatientProfile = () => {
                         )}
                         {patientData.sourceInformation?.sourceType && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#64748b', fontSize: '0.9rem', marginTop: '12px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontWeight: 600, color: '#475569' }}>📢 Source: {patientData.sourceInformation.sourceType}</div>
+                                <div style={{ fontWeight: 600, color: '#475569' }}>📢 Source Type: {patientData.sourceInformation.sourceType}</div>
+                                {patientData.sourceInformation.sourceName && (
+                                    <div style={{ fontWeight: 600, color: '#475569' }}>📌 Source: {patientData.sourceInformation.sourceName}</div>
+                                )}
                                 {patientData.sourceInformation.sourceType === 'Newspaper' && patientData.sourceInformation.newspaperName && <div>📰 Newspaper: {patientData.sourceInformation.newspaperName}</div>}
                                 {patientData.sourceInformation.sourceType === 'Camp' && (
                                     <>
@@ -471,6 +502,37 @@ const UnifiedPatientProfile = () => {
                     </div>
                 )}
             </div>
+
+            {/* Assigned Treatment Packages Section */}
+            {assignedPackages.length > 0 && (
+                <div className="upp-partner-card" style={{ borderLeft: '4px solid #8b5cf6', marginBottom: '24px' }}>
+                    <div className="upp-partner-info" style={{ width: '100%' }}>
+                        <div className="upp-partner-title">
+                            <span>📦 Assigned IVF Treatment Plan ({assignedPackages.length})</span>
+                        </div>
+                        {assignedPackages.map(pkg => (
+                            <div key={pkg._id} style={{ marginTop: '12px', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <strong style={{ fontSize: '1.1rem', color: '#1e293b' }}>{pkg.packageName}</strong>
+                                    <span style={{ background: '#dcfce7', color: '#166534', fontWeight: 600, padding: '2px 10px', borderRadius: '12px', fontSize: '0.8rem', textTransform: 'uppercase' }}>{pkg.status}</span>
+                                </div>
+                                {pkg.description && <p style={{ fontSize: '0.9rem', color: '#64748b', margin: '8px 0 0 0' }}>{pkg.description}</p>}
+                                <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {(pkg.selectedServices || []).map((srv, idx) => (
+                                        <span key={idx} style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '4px 8px', fontSize: '0.85rem', color: '#334155', fontWeight: 500 }}>
+                                            ✓ {srv.serviceName}
+                                        </span>
+                                    ))}
+                                </div>
+                                <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.95rem' }}>
+                                    <span>Start Date: <strong>{pkg.startDate || '-'}</strong> ({pkg.totalDuration || 0} Days)</span>
+                                    <span>Final Package Price: <strong style={{ color: '#16a34a', fontSize: '1.15rem' }}>₹{Number(pkg.finalAmount || 0).toLocaleString('en-IN')}</strong> {pkg.discountPercent > 0 ? <span style={{ fontSize: '0.82rem', color: '#64748b' }}>({pkg.discountPercent}% disc)</span> : null}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Metrics Grid */}
             <div className="upp-metrics">

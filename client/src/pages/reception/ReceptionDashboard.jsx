@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI, patientAPI } from '../../utils/api';
+import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI, patientAPI, sourceAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
 import { getSubdomain } from '../../utils/subdomain';
 import { jsPDF } from 'jspdf';
@@ -26,6 +26,29 @@ const ReceptionDashboard = () => {
             return fullName.trim().split(/\s+/)[0];
         };
 
+        if (user.coupleId) {
+            const currentIsMale = (user.gender && user.gender.toLowerCase() === 'male') || user.partnerRelation === 'Wife';
+            
+            let husbandName = '';
+            let wifeName = '';
+            
+            if (currentIsMale) {
+                husbandName = getFirstName(user.name);
+                wifeName = user.partnerPatientId ? getFirstName(user.partnerPatientId.name) : '';
+            } else {
+                wifeName = getFirstName(user.name);
+                husbandName = user.partnerPatientId ? getFirstName(user.partnerPatientId.name) : '';
+            }
+            
+            if (husbandName && wifeName) {
+                return `${husbandName} - ${wifeName}`;
+            } else if (husbandName) {
+                return husbandName;
+            } else if (wifeName) {
+                return wifeName;
+            }
+        }
+
         if (user.partnerPatientId && user.partnerPatientId.name) {
             return `${getFirstName(user.name)} - ${getFirstName(user.partnerPatientId.name)}`;
         }
@@ -38,6 +61,21 @@ const ReceptionDashboard = () => {
     const isEditOnly = searchParams.get('edit') === 'true';
 
     const [appointments, setAppointments] = useState([]);
+    const [activeSources, setActiveSources] = useState([]);
+
+    useEffect(() => {
+        const fetchActiveSources = async () => {
+            try {
+                const res = await sourceAPI.getSources({ status: 'Active' });
+                if (res.success) {
+                    setActiveSources(res.data || []);
+                }
+            } catch (err) {
+                console.error('Error loading dynamic sources:', err);
+            }
+        };
+        fetchActiveSources();
+    }, []);
     const [doctorsList, setDoctorsList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedPatientId, setSelectedPatientId] = useState(null);
@@ -123,7 +161,7 @@ const ReceptionDashboard = () => {
         dob: '', age: '', gender: 'Female', mobile: '', email: '',
         address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
         houseNumber: '', street: '', city: '', state: '', pincode: '',
-        sourceInformation: { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
+        sourceInformation: { sourceType: '', sourceName: '' },
         partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '', partnerRelation: 'Husband',
         height: '', weight: '', bmi: '', bloodGroup: '',
         consultationFee: '',
@@ -330,7 +368,7 @@ const ReceptionDashboard = () => {
             marriageDate: '',
             address: '', aadhaar: '', isAadhaarVerified: false, avatar: '',
             houseNumber: '', street: '', city: '', state: '', pincode: '',
-            sourceInformation: { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
+            sourceInformation: { sourceType: '', sourceName: '' },
             partnerTitle: 'Mr.', partnerFirstName: '', partnerLastName: '', partnerMobile: '', partnerRelation: 'Husband',
             height: '', weight: '', bmi: '', bloodGroup: '',
             paymentStatus: 'Pending', consultationFee: hospitalContext?.appointmentFee ?? '500',
@@ -403,7 +441,7 @@ const ReceptionDashboard = () => {
             marriageDate: patient.marriageDate || p.marriageDate || '',
             gender: p.gender || patient.gender || 'Female',
             bloodGroup: p.bloodGroup || patient.bloodGroup || '',
-            sourceInformation: patient.sourceInformation || { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
+            sourceInformation: patient.sourceInformation || { sourceType: '', sourceName: '' },
             ...p,
             age: calculateAge(p.dob || patient.dob || ''),
             consultationFee: hospitalContext?.appointmentFee ?? '500',
@@ -488,7 +526,7 @@ const ReceptionDashboard = () => {
                         pincode: res.user.pincode || '',
                         address: res.user.address || '',
                         marriageDate: partnerMarriageDate ? partnerMarriageDate.split('T')[0] : prev.marriageDate || '',
-                        sourceInformation: res.user.sourceInformation || { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' }
+                        sourceInformation: res.user.sourceInformation || { sourceType: '', sourceName: '' }
                     }));
                 }
             }
@@ -521,7 +559,7 @@ const ReceptionDashboard = () => {
             state: '',
             pincode: '',
             address: '',
-            sourceInformation: { sourceType: '', newspaperName: '', campName: '', campLocation: '', reference: '', referencePersonName: '', doctorName: '', hospitalName: '', description: '' },
+            sourceInformation: { sourceType: '', sourceName: '' },
             doctor: '',
             visitTime: '',
             paymentStatus: 'Pending',
@@ -723,6 +761,14 @@ const ReceptionDashboard = () => {
         if (name === 'mobile' || name === 'partnerMobile') {
             const numericValue = value.replace(/\D/g, '').slice(0, 10);
             setIntakeForm(prev => ({ ...prev, [name]: numericValue }));
+            return;
+        }
+
+        if (name === 'source_sourceType') {
+            setIntakeForm(prev => ({
+                ...prev,
+                sourceInformation: { sourceType: value, sourceName: '' }
+            }));
             return;
         }
 
@@ -1344,7 +1390,7 @@ const ReceptionDashboard = () => {
                             </h4>
                             <div className="form-row">
                                 <div className="field">
-                                    <label>How did the patient hear about us?</label>
+                                    <label>Source Type *</label>
                                     <select
                                         name="source_sourceType"
                                         value={intakeForm.sourceInformation?.sourceType || ''}
@@ -1352,97 +1398,30 @@ const ReceptionDashboard = () => {
                                         disabled={isInherited}
                                         style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
                                     >
+                                        <option value="">Select Source Type</option>
+                                        <option value="B2B">B2B</option>
+                                        <option value="B2C">B2C</option>
+                                    </select>
+                                </div>
+                                <div className="field">
+                                    <label>Source *</label>
+                                    <select
+                                        name="source_sourceName"
+                                        value={intakeForm.sourceInformation?.sourceName || ''}
+                                        onChange={handleInputChange}
+                                        disabled={isInherited || !intakeForm.sourceInformation?.sourceType}
+                                        style={(isInherited || !intakeForm.sourceInformation?.sourceType) ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
+                                    >
                                         <option value="">Select Source</option>
-                                        <option value="Newspaper">Newspaper</option>
-                                        <option value="Facebook">Facebook</option>
-                                        <option value="Instagram">Instagram</option>
-                                        <option value="Camp">Camp</option>
-                                        <option value="Family & Friends">Family & Friends</option>
-                                        <option value="Doctor Reference">Doctor Reference</option>
-                                        <option value="Others">Others</option>
+                                        {activeSources
+                                            .filter(src => src.sourceType === intakeForm.sourceInformation?.sourceType)
+                                            .map(src => (
+                                                <option key={src._id} value={src.sourceName}>{src.sourceName}</option>
+                                            ))
+                                        }
                                     </select>
                                 </div>
                             </div>
-
-                            {intakeForm.sourceInformation?.sourceType === 'Newspaper' && (
-                                <div className="form-row">
-                                    <div className="field">
-                                        <label>Newspaper Name</label>
-                                        <input
-                                            name="source_newspaperName"
-                                            placeholder="Enter Newspaper Name"
-                                            value={intakeForm.sourceInformation?.newspaperName || ''}
-                                            onChange={handleInputChange}
-                                            disabled={isInherited}
-                                            style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {intakeForm.sourceInformation?.sourceType === 'Camp' && (
-                                <div className="form-row">
-                                    <div className="field">
-                                        <label>Camp Name</label>
-                                        <input
-                                            name="source_campName"
-                                            placeholder="Enter Camp Name"
-                                            value={intakeForm.sourceInformation?.campName || ''}
-                                            onChange={handleInputChange}
-                                            disabled={isInherited}
-                                            style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {intakeForm.sourceInformation?.sourceType === 'Family & Friends' && (
-                                <div className="form-row">
-                                    <div className="field">
-                                        <label>Reference Person Name</label>
-                                        <input
-                                            name="source_referencePersonName"
-                                            placeholder="Enter Name"
-                                            value={intakeForm.sourceInformation?.referencePersonName || ''}
-                                            onChange={handleInputChange}
-                                            disabled={isInherited}
-                                            style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {intakeForm.sourceInformation?.sourceType === 'Doctor Reference' && (
-                                <div className="form-row">
-                                    <div className="field">
-                                        <label>Doctor Name</label>
-                                        <input
-                                            name="source_doctorName"
-                                            placeholder="Enter Doctor Name"
-                                            value={intakeForm.sourceInformation?.doctorName || ''}
-                                            onChange={handleInputChange}
-                                            disabled={isInherited}
-                                            style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {intakeForm.sourceInformation?.sourceType === 'Others' && (
-                                <div className="form-row">
-                                    <div className="field">
-                                        <label>Description</label>
-                                        <input
-                                            name="source_description"
-                                            placeholder="Enter Source Details"
-                                            value={intakeForm.sourceInformation?.description || ''}
-                                            onChange={handleInputChange}
-                                            disabled={isInherited}
-                                            style={isInherited ? { backgroundColor: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}
-                                        />
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         {/* Section 4: Vitals & Payment Details */}
