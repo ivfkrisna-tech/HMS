@@ -1,0 +1,200 @@
+.shared-report-notes-container {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 16px;
+    color: #e2e8f0;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    text-align: left;
+}
+
+.shared-notes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.shared-notes-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.shared-notes-readonly-badge {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.shared-notes-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 14px 0;
+}
+
+.shared-notes-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.shared-notes-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.shared-notes-toolbar {
+    display: flex;
+    gap: 6px;
+    background: #1e293b;
+    padding: 6px 10px;
+    border-radius: 8px 8px 0 0;
+    border: 1px solid #334155;
+    border-bottom: none;
+}
+
+.shared-notes-toolbar button {
+    background: #334155;
+    color: #f8fafc;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 600;
+}
+
+.shared-notes-toolbar button:hover {
+    background: #3b82f6;
+    color: #ffffff;
+    border-color: #60a5fa;
+}
+
+.shared-notes-editor-box {
+    height: 120px;
+    overflow-y: auto;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 0 0 8px 8px;
+    padding: 14px;
+    color: #f8fafc;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.shared-notes-editor-box:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.shared-notes-editor-box.is-readonly {
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.5);
+    border-style: dashed;
+}
+
+.shared-notes-editor-box ul,
+.shared-notes-editor-box ol {
+    margin: 6px 0;
+    padding-left: 24px;
+}
+
+.shared-notes-editor-box li {
+    margin-bottom: 4px;
+}
+
+.shared-notes-editor-box:empty:before {
+    content: attr(placeholder);
+    color: #64748b;
+    font-style: italic;
+    pointer-events: none;
+}
+
+.shared-notes-metadata-section {
+    display: flex;
+    gap: 28px;
+    margin-top: 8px;
+    padding: 10px 14px;
+    background: rgba(30, 41, 59, 0.6);
+    border-radius: 8px;
+    border-left: 3px solid #38bdf8;
+}
+
+.shared-notes-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.shared-notes-meta-item .meta-lbl {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.shared-notes-meta-item .meta-val {
+    font-size: 0.88rem;
+    color: #f1f5f9;
+    font-weight: 600;
+}
+
+.shared-notes-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.shared-notes-save-btn {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+}
+
+.shared-notes-save-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.45);
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+}
+
+.shared-notes-save-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.shared-notes-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.shared-notes-loading {
+    padding: 16px;
+    color: #94a3b8;
+    font-style: italic;
+    font-size: 0.9rem;
+}

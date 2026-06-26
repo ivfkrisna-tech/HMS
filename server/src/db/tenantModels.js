@@ -189,6 +189,17 @@ const treatmentPackageSchema = new mongoose.Schema({
     injections: [{ type: mongoose.Schema.Types.Mixed }]
 }, { timestamps: true });
 
+const sharedReportNoteSchema = new mongoose.Schema({
+    hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', index: true },
+    patientId: { type: String, required: true, index: true },
+    appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' },
+    reportId: { type: mongoose.Schema.Types.ObjectId, ref: 'LabReport', required: true, unique: true },
+    notes: { type: String, default: '' },
+    updatedBy: { type: String, default: '' },
+    updatedRole: { type: String, default: '' },
+    updatedAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+
 // ─── Model Factory ────────────────────────────────────────────────────────────
 
 /**
@@ -223,6 +234,7 @@ function getTenantModels(tenantDb) {
         Source: model('Source', sourceSchema),
         ServiceMaster: model('ServiceMaster', serviceMasterSchema),
         TreatmentPackage: model('TreatmentPackage', treatmentPackageSchema),
+        SharedReportNote: model('SharedReportNote', sharedReportNoteSchema),
     };
 }
 

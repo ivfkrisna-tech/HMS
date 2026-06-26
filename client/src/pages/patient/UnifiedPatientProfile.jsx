@@ -5,11 +5,14 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useAuth } from '../../store/hooks';
 import './UnifiedPatientProfile.css';
+import SharedReportNotesSection from '../../components/lab/SharedReportNotesSection';
 
 const UnifiedPatientProfile = () => {
     const { id: patientId } = useParams();
     const navigate = useNavigate();
     const { user: currentUser } = useAuth();
+    const roleLower = currentUser?._roleData ? currentUser._roleData.name.toLowerCase() : String(currentUser?.role || '').toLowerCase();
+    const isReadOnlyAdmin = roleLower.includes('admin') && !roleLower.includes('doctor') && !roleLower.includes('lab');
     const [patientData, setPatientData] = useState(null);
     const [timeline, setTimeline] = useState([]);
     const [admissions, setAdmissions] = useState([]);
@@ -621,6 +624,7 @@ const UnifiedPatientProfile = () => {
                                                             📄 View Result
                                                         </a>
                                                     )}
+                                                    <SharedReportNotesSection reportId={item.data._id} patientId={patientId} readOnly={isReadOnlyAdmin} />
                                                 </>
                                             )}
 

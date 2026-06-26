@@ -4,6 +4,7 @@ const multer = require('multer');
 const LabReport = require('../models/labReport.model');
 const Appointment = require('../models/appointment.model');
 const Lab = require('../models/lab.model');
+const SharedReportNote = require('../models/sharedReportNote.model');
 const { verifyToken } = require('../middleware/auth.middleware');
 const imagekit = require('../utils/imagekit');
 
@@ -206,6 +207,98 @@ router.post('/upload-report/:reportId', verifyToken, verifyLab, (req, res, next)
         console.error("Upload Error Details:", error);
         require('fs').writeFileSync('C:\\Users\\DEEPIKA\\Downloads\\HMS-main\\server\\upload_error_dump.txt', error.stack || error.message);
         res.status(500).json({ success: false, message: error.stack || error.message });
+    }
+});
+
+// 4. GET SHARED REPORT NOTES
+router.get('/shared-notes/:reportId', verifyToken, verifyLab, async (req, res) => {
+    try {
+        const { reportId } = req.params;
+        const report = await LabReport.findById(reportId);
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Report not found' });
+        }
+        const noteDoc = await SharedReportNote.findOne({ reportId });
+        if (!noteDoc) {
+            return res.status(200).json({
+                success: true,
+                notes: "",
+                reportId,
+                updatedBy: "",
+                updatedRole: "",
+                updatedAt: null
+            });
+        }
+        res.status(200).json({
+            success: true,
+            reportId: noteDoc.reportId,
+            notes: noteDoc.notes || "",
+            updatedBy: noteDoc.updatedBy || "",
+            updatedRole: noteDoc.updatedRole || "",
+            updatedAt: noteDoc.updatedAt,
+            note: noteDoc
+        });
+    } catch (error) {
+        console.error("Get Shared Notes Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// 5. CREATE / UPDATE SHARED REPORT NOTES
+router.put('/shared-notes/:reportId', verifyToken, verifyLab, async (req, res) => {
+    try {
+        const { reportId } = req.params;
+        const { notes, patientId, appointmentId, hospitalId } = req.body;
+
+        const report = await LabReport.findById(reportId);
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Report not found' });
+        }
+
+        const roleName = req.user._roleData ? req.user._roleData.name.toLowerCase() : String(req.user.role).toLowerCase();
+
+        // RBAC: Hospital Admin has View Only
+        if (roleName.includes('admin') && !roleName.includes('doctor') && !roleName.includes('lab')) {
+            return res.status(403).json({ success: false, message: 'Hospital Admin has view-only access to report notes.' });
+        }
+        if (roleName.includes('patient') || roleName === 'user') {
+            return res.status(403).json({ success: false, message: 'Patients cannot edit report notes.' });
+        }
+
+        const updatedRole = req.user._roleData ? req.user._roleData.name : (roleName.includes('doctor') ? 'Doctor' : 'Lab Technician');
+        const updatedBy = req.user.name || 'Staff';
+
+        const updateData = {
+            notes,
+            updatedBy,
+            updatedRole,
+            updatedAt: new Date(),
+            patientId: patientId || report.patientId || 'UNKNOWN'
+        };
+        if (appointmentId) updateData.appointmentId = appointmentId;
+        if (hospitalId || req.user.hospitalId) updateData.hospitalId = hospitalId || req.user.hospitalId;
+
+        // Ensure unique per reportId
+        const noteDoc = await SharedReportNote.findOneAndUpdate(
+            { reportId },
+            { $set: updateData, $setOnInsert: { reportId } },
+            { new: true, upsert: true }
+        );
+
+        const isUpdate = Boolean(req.body._hasExisting);
+        res.status(200).json({
+            success: true,
+            message: isUpdate ? "Notes updated successfully." : "Notes saved successfully.",
+            reportId: noteDoc.reportId,
+            notes: noteDoc.notes || "",
+            updatedBy: noteDoc.updatedBy || "",
+            updatedRole: noteDoc.updatedRole || "",
+            updatedAt: noteDoc.updatedAt,
+            note: noteDoc
+        });
+    } catch (error) {
+        console.error("Save Shared Notes Error:", error);
+        res.status(500).json({ success: false, message: "Unable to save notes. Please try again." });
     }
 });
 

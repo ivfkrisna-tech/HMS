@@ -252,7 +252,9 @@ export const labAPI = {
     updatePayment: async (id, paymentData) => (await apiClient.patch(`/api/lab/update-payment/${id}`, paymentData)).data,
     uploadReport: async (id, formData) => (await apiClient.post(`/api/lab/upload-report/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
-    })).data
+    })).data,
+    getSharedNotes: async (reportId) => (await apiClient.get(`/api/lab/shared-notes/${reportId}`)).data,
+    saveSharedNotes: async (reportId, data) => (await apiClient.put(`/api/lab/shared-notes/${reportId}`, data)).data
 };
 
 export const pharmacyAPI = {

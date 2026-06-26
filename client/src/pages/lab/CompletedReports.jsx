@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { useAppDispatch, useAppSelector, useAuth } from '../../store/hooks';
 import { fetchLabRequests } from '../../store/slices/labSlice';
+import SharedReportNotesSection from '../../components/lab/SharedReportNotesSection';
 import { 
   FaSearch, FaFilePdf, FaCheckCircle, FaUserInjured, FaUserMd, 
   FaCalendarCheck, FaDownload, FaEye, FaVial, FaPrint 
@@ -13,7 +14,11 @@ import './CompletedReports.css';
  */
 const CompletedReports = () => {
   const dispatch = useAppDispatch();
+  const { user } = useAuth();
   const { requests, loading } = useAppSelector((state) => state.lab);
+  
+  const roleStr = user?._roleData ? user._roleData.name.toLowerCase() : String(user?.role || '').toLowerCase();
+  const isAdminViewOnly = roleStr.includes('admin') && !roleStr.includes('doctor') && !roleStr.includes('lab');
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
@@ -196,6 +201,14 @@ const CompletedReports = () => {
                     <FaPrint/> Print
                   </button>
                 </div>
+
+                <SharedReportNotesSection 
+                  reportId={report._id} 
+                  patientId={report.patientId || report.userId?.patientId || report.userId?._id}
+                  appointmentId={report.appointmentId}
+                  hospitalId={report.hospitalId}
+                  readOnly={isAdminViewOnly}
+                />
               </div>
             ))
           )}

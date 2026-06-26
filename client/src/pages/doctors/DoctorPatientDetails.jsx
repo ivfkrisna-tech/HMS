@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import './DoctorPatientDetails.css';
 import DynamicQuestionForm from '../../components/DynamicQuestionForm';
 import { useAuth } from '../../store/hooks';
+import SharedReportNotesSection from '../../components/lab/SharedReportNotesSection';
 
 const doseOptions = [
     "OD – Once Daily",
@@ -216,6 +217,7 @@ const DoctorPatientDetails = () => {
 
     // Patient Intake Profile (Left Panel - Editable by Doctor)
     const [intakeData, setIntakeData] = useState({});
+    const [patientLabReports, setPatientLabReports] = useState([]);
 
     // Tab Scrolling Reference
     const tabsRef = useRef(null);
@@ -262,8 +264,12 @@ const DoctorPatientDetails = () => {
                     }
 
                     if (res.appointment.userId?._id) {
-                        const histRes = await doctorAPI.getPatientHistory(res.appointment.userId._id);
+                        const [histRes, fpRes] = await Promise.all([
+                            doctorAPI.getPatientHistory(res.appointment.userId._id),
+                            doctorAPI.getFullPatientProfile(res.appointment.userId._id)
+                        ]);
                         if (histRes.success) setHistory(histRes.history || histRes.data || []);
+                        if (fpRes.success) setPatientLabReports(fpRes.labReports || []);
                     }
 
                     setSessionData({
@@ -1012,6 +1018,47 @@ const DoctorPatientDetails = () => {
                                     ))}
                                 </div>
                             )}
+
+                            {/* DIAGNOSTIC LAB REPORTS WITH SHARED NOTES */}
+                            <div style={{ marginTop: '32px', borderTop: '1px dashed #cbd5e1', paddingTop: '20px' }}>
+                                <h3 className="dpd-panel-title" style={{ color: '#0f172a', marginBottom: '14px' }}>🧪 Diagnostic Lab Reports &amp; Notes</h3>
+                                {patientLabReports.length === 0 ? (
+                                    <div className="dpd-empty-hist"><p>No diagnostic lab reports generated for this patient.</p></div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        {patientLabReports.map((rep) => (
+                                            <div key={rep._id} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '18px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>
+                                                        🧪 Conducted Tests: {(rep.testNames || []).join(', ')}
+                                                    </div>
+                                                    <span style={{ fontSize: '0.8rem', background: '#dbeafe', color: '#1e40af', padding: '3px 10px', borderRadius: '12px', fontWeight: 600 }}>
+                                                        {rep.testStatus}
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '12px' }}>
+                                                    Requested on: {rep.createdAt ? new Date(rep.createdAt).toLocaleDateString('en-IN') : 'N/A'} | Payment: {rep.paymentStatus}
+                                                </div>
+                                                {rep.reportFile?.url && (
+                                                    <div style={{ marginBottom: '14px' }}>
+                                                        <a href={rep.reportFile.url} target="_blank" rel="noreferrer"
+                                                           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#3b82f6', color: '#fff', padding: '6px 14px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none' }}>
+                                                            📄 View Digital PDF Report ({rep.reportFile.name || 'Report'})
+                                                        </a>
+                                                    </div>
+                                                )}
+                                                <SharedReportNotesSection 
+                                                    reportId={rep._id}
+                                                    patientId={patient._id || rep.userId}
+                                                    appointmentId={rep.appointmentId}
+                                                    hospitalId={rep.hospitalId}
+                                                    readOnly={isLocked || isJrDoctor}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

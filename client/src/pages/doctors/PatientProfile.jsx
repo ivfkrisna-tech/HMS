@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doctorAPI, uploadAPI } from '../../utils/api';
+import SharedReportNotesSection from '../../components/lab/SharedReportNotesSection';
 
 const PatientProfile = () => {
     const { patientId } = useParams();
@@ -412,33 +413,48 @@ const PatientProfile = () => {
                         <tr><td colSpan={8} style={{ ...C.td, textAlign: 'center', color: '#64748b', padding: '40px' }}>No lab reports found</td></tr>
                     ) : (
                         labReports.map((lr, i) => (
-                            <tr key={lr._id} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <td style={{ ...C.td, color: '#64748b', fontWeight: '600' }}>{i + 1}</td>
-                                <td style={{ ...C.td, color: '#f8fafc', fontWeight: '600' }}>{formatDate(lr.createdAt)}</td>
-                                <td style={C.td}>
-                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                        {(lr.testNames || []).map((t, j) => (
-                                            <span key={j} style={{ background: 'rgba(59,130,246,0.15)', color: '#93c5fd', padding: '2px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600' }}>{t}</span>
-                                        ))}
-                                    </div>
-                                </td>
-                                <td style={C.td}>
-                                    <span style={C.statusBadge(lr.testStatus)}>{lr.testStatus}</span>
-                                </td>
-                                <td style={C.td}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                                        <span style={C.statusBadge(lr.reportStatus)}>{lr.reportStatus}</span>
-                                        {lr.reportFile?.url && (
-                                            <a href={lr.reportFile.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: '#60a5fa', textDecoration: 'none', fontWeight: '600' }}>
-                                                📄 View
-                                            </a>
-                                        )}
-                                    </div>
-                                </td>
-                                <td style={C.td}><span style={C.statusBadge(lr.paymentStatus)}>{lr.paymentStatus}</span></td>
-                                <td style={{ ...C.td, color: '#f8fafc', fontWeight: '600' }}>{lr.amount ? `₹${lr.amount}` : '—'}</td>
-                                <td style={{ ...C.td, color: '#94a3b8' }}>{lr.notes || '—'}</td>
-                            </tr>
+                            <React.Fragment key={lr._id}>
+                                <tr onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                    <td style={{ ...C.td, color: '#64748b', fontWeight: '600' }}>{i + 1}</td>
+                                    <td style={{ ...C.td, color: '#f8fafc', fontWeight: '600' }}>{formatDate(lr.createdAt)}</td>
+                                    <td style={C.td}>
+                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                            {(lr.testNames || []).map((t, j) => (
+                                                <span key={j} style={{ background: 'rgba(59,130,246,0.15)', color: '#93c5fd', padding: '2px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600' }}>{t}</span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td style={C.td}>
+                                        <span style={C.statusBadge(lr.testStatus)}>{lr.testStatus}</span>
+                                    </td>
+                                    <td style={C.td}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                            <span style={C.statusBadge(lr.reportStatus)}>{lr.reportStatus}</span>
+                                            {lr.reportFile?.url && (
+                                                <a href={lr.reportFile.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: '#60a5fa', textDecoration: 'none', fontWeight: '600' }}>
+                                                    📄 View
+                                                </a>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td style={C.td}><span style={C.statusBadge(lr.paymentStatus)}>{lr.paymentStatus}</span></td>
+                                    <td style={{ ...C.td, color: '#f8fafc', fontWeight: '600' }}>{lr.amount ? `₹${lr.amount}` : '—'}</td>
+                                    <td style={{ ...C.td, color: '#94a3b8' }}>{lr.notes || '—'}</td>
+                                </tr>
+                                {lr.reportStatus === 'UPLOADED' && (
+                                    <tr>
+                                        <td colSpan={8} style={{ padding: '0 24px 24px 24px', background: 'rgba(15,23,42,0.6)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                            <SharedReportNotesSection 
+                                                reportId={lr._id} 
+                                                patientId={patientId || lr.userId} 
+                                                appointmentId={lr.appointmentId} 
+                                                hospitalId={lr.hospitalId} 
+                                                readOnly={false}
+                                            />
+                                        </td>
+                                    </tr>
+                                )}
+                            </React.Fragment>
                         ))
                     )}
                 </tbody>
