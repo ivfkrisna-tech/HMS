@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import './RoleDashboard.css';
 
+import NurseDashboardHome from './nurse/NurseDashboardHome';
+
 // Icon mapping — maps common path keywords to emojis
 const getIconForPath = (path, label) => {
     const text = `${path} ${label}`.toLowerCase();
@@ -57,6 +59,10 @@ const RoleDashboard = () => {
         return true;
     });
     const permissions = user.permissions || [];
+
+    if ((roleName || '').toLowerCase().includes('nurse')) {
+        return <NurseDashboardHome user={user} />;
+    }
 
     // Get time-based greeting
     const hour = new Date().getHours();

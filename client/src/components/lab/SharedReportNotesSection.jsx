@@ -42,6 +42,16 @@ const SharedReportNotesSection = ({ reportId, patientId, appointmentId, hospital
         return () => window.removeEventListener('focus', handleFocus);
     }, [reportId]);
 
+    // Ensure editor DOM populates after loading transitions from true -> false on page refresh
+    useEffect(() => {
+        if (!loading && editorRef.current && noteObj !== null) {
+            const targetContent = noteObj.notes || '';
+            if (editorRef.current.innerHTML !== targetContent) {
+                editorRef.current.innerHTML = targetContent;
+            }
+        }
+    }, [loading, noteObj]);
+
     const handleExec = (command, value = null) => {
         if (readOnly) return;
         document.execCommand(command, false, value);

@@ -500,4 +500,13 @@ export const revenueAPI = {
     setHospitalPlan: async (id, data) => (await apiClient.put(`/api/revenue/hospital/${id}`, data)).data,
 };
 
+export const nurseAPI = {
+    getPatients: async () => (await apiClient.get('/api/nurse/patients')).data,
+    getPatientDetails: async (id) => (await apiClient.get(`/api/nurse/patient/${id}`)).data,
+    updateDoseStatus: async (id, data) => (await apiClient.post(`/api/nurse/patient/${id}/dose-status`, data)).data,
+    recordVitals: async (data) => (await apiClient.post('/api/nurse/vitals', data)).data,
+    getNotes: async (patientId) => (await apiClient.get(`/api/nurse/notes/${patientId}`)).data,
+    addNote: async (patientId, data) => (await apiClient.post(`/api/nurse/notes/${patientId}`, data)).data,
+};
+
 export default apiClient;
