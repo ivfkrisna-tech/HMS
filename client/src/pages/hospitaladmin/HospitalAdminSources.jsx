@@ -49,27 +49,53 @@ const HospitalAdminSources = () => {
 
     const handleOpenAddModal = () => {
         setEditingSource(null);
-        setFormData({ sourceName: '', status: 'Active' });
+        setFormData({ sourceName: '', status: 'Active', fields: [] });
         setModalError('');
         setShowModal(true);
     };
 
     const handleOpenEditModal = (source) => {
         setEditingSource(source);
-        setFormData({ sourceName: source.sourceName, status: source.status });
+        setFormData({
+            sourceName: source.sourceName,
+            status: source.status,
+            fields: source.fields ? source.fields.map(f => ({
+                ...f,
+                optionsString: f.options ? f.options.join(', ') : ''
+            })) : []
+        });
         setModalError('');
         setShowModal(true);
     };
 
     const handleCloseModal = () => {
         setShowModal(false);
-        setFormData({ sourceName: '', status: 'Active' });
+        setFormData({ sourceName: '', status: 'Active', fields: [] });
     };
 
     const handleSaveSource = async (e) => {
         e.preventDefault();
         if (!formData.sourceName.trim()) {
             setModalError('Source Name is required.');
+            return;
+        }
+
+        const processedFields = (formData.fields || []).map(f => {
+            const field = {
+                name: f.name.trim(),
+                type: f.type,
+                required: !!f.required
+            };
+            if (f.type === 'Select') {
+                field.options = (f.optionsString || '').split(',').map(o => o.trim()).filter(Boolean);
+            } else {
+                field.options = [];
+            }
+            return field;
+        });
+
+        if (processedFields.some(f => !f.name)) {
+            setModalError('All dynamic fields must have a name.');
             return;
         }
 
@@ -80,7 +106,8 @@ const HospitalAdminSources = () => {
                 // Update
                 const res = await sourceAPI.updateSource(editingSource._id, {
                     sourceName: formData.sourceName,
-                    status: formData.status
+                    status: formData.status,
+                    fields: processedFields
                 });
                 if (res.success) {
                     // Update active view if it's the currently viewed source
@@ -95,7 +122,8 @@ const HospitalAdminSources = () => {
                 const res = await sourceAPI.createSource({
                     sourceType: activeTab,
                     sourceName: formData.sourceName,
-                    status: formData.status
+                    status: formData.status,
+                    fields: processedFields
                 });
                 if (res.success) {
                     fetchSources();
@@ -404,6 +432,113 @@ const HospitalAdminSources = () => {
                                         <option value="Active">Active</option>
                                         <option value="Inactive">Inactive</option>
                                     </select>
+                                </div>
+
+                                {/* Dynamic Fields Builder */}
+                                <div className="dynamic-fields-section">
+                                    <div className="dynamic-fields-header">
+                                        <h4>Dynamic Form Fields</h4>
+                                        <button 
+                                            type="button" 
+                                            className="btn-add-field"
+                                            onClick={() => {
+                                                const newField = { name: '', type: 'Text', optionsString: '', required: false };
+                                                setFormData({ ...formData, fields: [...(formData.fields || []), newField] });
+                                            }}
+                                        >
+                                            <FiPlus /> Add Field
+                                        </button>
+                                    </div>
+                                    
+                                    {(formData.fields || []).length === 0 ? (
+                                        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '8px 0 0 0', fontStyle: 'italic' }}>
+                                            No dynamic fields configured for this source yet.
+                                        </p>
+                                    ) : (
+                                        <div className="field-builder-list">
+                                            {(formData.fields || []).map((field, idx) => (
+                                                <div className="field-builder-item" key={idx}>
+                                                    <div className="field-builder-row">
+                                                        <div className="field-builder-col">
+                                                            <label>Field Name *</label>
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="e.g. Referring Doctor"
+                                                                value={field.name}
+                                                                onChange={(e) => {
+                                                                    const updatedFields = [...formData.fields];
+                                                                    updatedFields[idx].name = e.target.value;
+                                                                    setFormData({ ...formData, fields: updatedFields });
+                                                                }}
+                                                                required
+                                                            />
+                                                        </div>
+                                                        <div className="field-builder-col">
+                                                            <label>Field Type</label>
+                                                            <select
+                                                                value={field.type}
+                                                                onChange={(e) => {
+                                                                    const updatedFields = [...formData.fields];
+                                                                    updatedFields[idx].type = e.target.value;
+                                                                    setFormData({ ...formData, fields: updatedFields });
+                                                                }}
+                                                            >
+                                                                <option value="Text">Text</option>
+                                                                <option value="Number">Number</option>
+                                                                <option value="Date">Date</option>
+                                                                <option value="Select">Select</option>
+                                                                <option value="Textarea">Textarea</option>
+                                                            </select>
+                                                        </div>
+                                                        <button 
+                                                            type="button" 
+                                                            className="btn-remove-field"
+                                                            title="Remove Field"
+                                                            onClick={() => {
+                                                                const updatedFields = formData.fields.filter((_, i) => i !== idx);
+                                                                setFormData({ ...formData, fields: updatedFields });
+                                                            }}
+                                                        >
+                                                            <FiTrash2 />
+                                                        </button>
+                                                    </div>
+
+                                                    {field.type === 'Select' && (
+                                                        <div className="field-builder-row">
+                                                            <div className="field-builder-col options-col">
+                                                                <label>Select Options (comma-separated) *</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="e.g. Option A, Option B, Option C"
+                                                                    value={field.optionsString || ''}
+                                                                    onChange={(e) => {
+                                                                        const updatedFields = [...formData.fields];
+                                                                        updatedFields[idx].optionsString = e.target.value;
+                                                                        setFormData({ ...formData, fields: updatedFields });
+                                                                    }}
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="field-builder-checkbox-row">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            id={`required-${idx}`}
+                                                            checked={!!field.required}
+                                                            onChange={(e) => {
+                                                                const updatedFields = [...formData.fields];
+                                                                updatedFields[idx].required = e.target.checked;
+                                                                setFormData({ ...formData, fields: updatedFields });
+                                                            }}
+                                                        />
+                                                        <label htmlFor={`required-${idx}`}>Mark as Required</label>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="source-modal-footer">

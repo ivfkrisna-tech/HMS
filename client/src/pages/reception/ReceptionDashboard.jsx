@@ -28,10 +28,10 @@ const ReceptionDashboard = () => {
 
         if (user.coupleId) {
             const currentIsMale = (user.gender && user.gender.toLowerCase() === 'male') || user.partnerRelation === 'Wife';
-            
+
             let husbandName = '';
             let wifeName = '';
-            
+
             if (currentIsMale) {
                 husbandName = getFirstName(user.name);
                 wifeName = user.partnerPatientId ? getFirstName(user.partnerPatientId.name) : '';
@@ -39,7 +39,7 @@ const ReceptionDashboard = () => {
                 wifeName = getFirstName(user.name);
                 husbandName = user.partnerPatientId ? getFirstName(user.partnerPatientId.name) : '';
             }
-            
+
             if (husbandName && wifeName) {
                 return `${husbandName} - ${wifeName}`;
             } else if (husbandName) {
@@ -84,6 +84,10 @@ const ReceptionDashboard = () => {
     const [searchResults, setSearchResults] = useState([]);
     const [profilePatient, setProfilePatient] = useState(null);
     const [profileAppointments, setProfileAppointments] = useState([]);
+    const [lastConsultationDate, setLastConsultationDate] = useState(null);
+    const [feeRequired, setFeeRequired] = useState(false);
+    const [daysSinceLastVisit, setDaysSinceLastVisit] = useState(null);
+    const [followUpProgress, setFollowUpProgress] = useState(0);
     const [transactions, setTransactions] = useState([]);
 
     // Token mode — next token preview
@@ -279,6 +283,89 @@ const ReceptionDashboard = () => {
             .catch(() => setNextToken(null));
     }, [intakeForm.doctor, intakeForm.visitDate, hospitalContext]);
 
+
+    useEffect(() => {
+        // Agar basic requirement hi nahi hai, toh ruko
+        if (!intakeForm?.visitDate || !hospitalContext) {
+            return;
+        }
+
+        const standardFee = Number(hospitalContext?.appointmentFee) || 500;
+
+        // 🚨 CASE 1: Agar Last Consultation Date NAHI hai (New Patient / Fresh Booking)
+        if (!lastConsultationDate) {
+            console.log("[FollowUp] No last consultation date found. Setting standard fee.");
+            setFeeRequired(true); // Edit karne do aur standard fee lagao
+            setDaysSinceLastVisit(null);
+            setFollowUpStatus({
+                eligible: false,
+                days: null,
+                totalDays: parseInt(hospitalContext?.followUpDays) || 30,
+                progress: 0
+            });
+
+            setIntakeForm(prev => {
+                if (Number(prev?.consultationFee) === standardFee) return prev;
+                return {
+                    ...prev,
+                    consultationFee: standardFee,
+                    paymentMethod: prev?.paymentMethod === 'Cash' ? 'Pending' : prev?.paymentMethod
+                };
+            });
+            return; // Yahan se kaam khatam, aage calculation ki zaroorat nahi
+        }
+
+        // 🚨 CASE 2: Agar Last Consultation Date HAI (Purana Patient - Re-visit logic)
+        try {
+            const lastStr = new Date(lastConsultationDate).toISOString().split('T')[0];
+            const selectedStr = new Date(intakeForm.visitDate).toISOString().split('T')[0];
+
+            const last = new Date(lastStr);
+            const selected = new Date(selectedStr);
+
+            const diffTime = selected.getTime() - last.getTime();
+            const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+            console.log("[FollowUp] Days Difference:", days, "visitDate:", intakeForm.visitDate);
+
+            setDaysSinceLastVisit(days);
+
+            const p = parseInt(hospitalContext?.followUpDays) || 30;
+            const percent = Math.min(100, Math.round((days / p) * 100));
+            setFollowUpProgress(percent);
+
+            const eligible = days >= 0 && days <= p;
+            const newFee = eligible ? 0 : standardFee;
+
+            // State update for UI toggles
+            setFeeRequired(!eligible);
+
+            setFollowUpStatus({
+                eligible,
+                days,
+                totalDays: p,
+                progress: percent
+            });
+
+            // Form state update
+            setIntakeForm(prev => {
+                const prevFee = Number(prev?.consultationFee || 0);
+                if (prevFee === newFee) return prev;
+                return {
+                    ...prev,
+                    consultationFee: newFee,
+                    paymentMethod: eligible
+                        ? 'Cash'
+                        : (prev?.paymentMethod === 'Cash' ? 'Pending' : prev?.paymentMethod)
+                };
+            });
+        } catch (error) {
+            console.error("Error in follow-up calculation:", error);
+        }
+
+        // Sare relevant states ko dependency mein daal diya taaki real-time reaction mile
+    }, [lastConsultationDate, intakeForm?.visitDate, hospitalContext?.followUpDays, hospitalContext?.appointmentFee]);
+
     const fetchAppointments = async () => {
         setLoading(true);
         try {
@@ -420,6 +507,10 @@ const ReceptionDashboard = () => {
             } catch (err) { console.error('Follow-up status error:', err); }
         })();
 
+        if (patient.lastConsultation) {
+            setLastConsultationDate(new Date(patient.lastConsultation).toISOString().split('T')[0]);
+        }
+
         const p = patient.fertilityProfile || {};
         const getVal = (val) => val || '';
 
@@ -489,14 +580,14 @@ const ReceptionDashboard = () => {
                 startOfToday.setHours(0, 0, 0, 0);
                 const endOfToday = new Date();
                 endOfToday.setHours(23, 59, 59, 999);
-                
-                const aptItem = res.timeline.find(t => 
-                    t.type === 'appointment' && 
+
+                const aptItem = res.timeline.find(t =>
+                    t.type === 'appointment' &&
                     t.data?.status !== 'cancelled' &&
                     new Date(t.data?.appointmentDate) >= startOfToday &&
                     new Date(t.data?.appointmentDate) <= endOfToday
                 );
-                
+
                 if (aptItem && aptItem.data) {
                     setLinkedAppointment(aptItem.data);
                     setIntakeForm(prev => ({
@@ -758,6 +849,8 @@ const ReceptionDashboard = () => {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
 
+        console.log("Input Changed:", name, "Value:", value);
+
         if (name === 'mobile' || name === 'partnerMobile') {
             const numericValue = value.replace(/\D/g, '').slice(0, 10);
             setIntakeForm(prev => ({ ...prev, [name]: numericValue }));
@@ -767,7 +860,26 @@ const ReceptionDashboard = () => {
         if (name === 'source_sourceType') {
             setIntakeForm(prev => ({
                 ...prev,
-                sourceInformation: { sourceType: value, sourceName: '' }
+                sourceInformation: { sourceType: value, sourceName: '', dynamicValues: {} }
+            }));
+            return;
+        }
+
+        if (name === 'source_sourceName') {
+            const selectedSrc = activeSources.find(src => src.sourceType === intakeForm.sourceInformation?.sourceType && src.sourceName === value);
+            const initialDynamicValues = {};
+            if (selectedSrc && selectedSrc.fields) {
+                selectedSrc.fields.forEach(f => {
+                    initialDynamicValues[f.name] = '';
+                });
+            }
+            setIntakeForm(prev => ({
+                ...prev,
+                sourceInformation: {
+                    ...prev.sourceInformation,
+                    sourceName: value,
+                    dynamicValues: initialDynamicValues
+                }
             }));
             return;
         }
@@ -777,6 +889,21 @@ const ReceptionDashboard = () => {
             setIntakeForm(prev => ({
                 ...prev,
                 sourceInformation: { ...prev.sourceInformation, [field]: value }
+            }));
+            return;
+        }
+
+        if (name.startsWith('dynamicField_')) {
+            const fieldName = name.replace('dynamicField_', '');
+            setIntakeForm(prev => ({
+                ...prev,
+                sourceInformation: {
+                    ...(prev.sourceInformation || {}),
+                    dynamicValues: {
+                        ...(prev.sourceInformation?.dynamicValues || {}),
+                        [fieldName]: value
+                    }
+                }
             }));
             return;
         }
@@ -1422,6 +1549,79 @@ const ReceptionDashboard = () => {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Dynamic Source Fields */}
+                            {(() => {
+                                if (isInherited) {
+                                    if (intakeForm.sourceInformation?.dynamicValues && Object.keys(intakeForm.sourceInformation.dynamicValues).length > 0) {
+                                        return (
+                                            <div className="dynamic-source-fields" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '14px', padding: '14px', background: '#f1f5f9', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                                                {Object.entries(intakeForm.sourceInformation.dynamicValues).map(([name, val]) => (
+                                                    <div className="field" key={name} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>{name}</label>
+                                                        <input
+                                                            type="text"
+                                                            value={val || ''}
+                                                            disabled
+                                                            style={{ backgroundColor: '#e2e8f0', color: '#475569', cursor: 'not-allowed', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                }
+                                const sourceType = intakeForm.sourceInformation?.sourceType;
+                                const sourceName = intakeForm.sourceInformation?.sourceName;
+                                if (!sourceType || !sourceName) return null;
+                                const selectedSrc = activeSources.find(src => src.sourceType === sourceType && src.sourceName === sourceName);
+                                if (!selectedSrc || !selectedSrc.fields || selectedSrc.fields.length === 0) return null;
+                                return (
+                                    <div className="dynamic-source-fields" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '14px', padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        {selectedSrc.fields.map((field) => {
+                                            const val = intakeForm.sourceInformation?.dynamicValues?.[field.name] || '';
+                                            return (
+                                                <div className="field" key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>{field.name}{field.required ? ' *' : ''}</label>
+                                                    {field.type === 'Select' ? (
+                                                        <select
+                                                            name={`dynamicField_${field.name}`}
+                                                            value={val}
+                                                            onChange={handleInputChange}
+                                                            required={field.required}
+                                                            style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                                                        >
+                                                            <option value="">Select {field.name}</option>
+                                                            {(field.options || []).map(opt => (
+                                                                <option key={opt} value={opt}>{opt}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : field.type === 'Textarea' ? (
+                                                        <textarea
+                                                            name={`dynamicField_${field.name}`}
+                                                            value={val}
+                                                            onChange={handleInputChange}
+                                                            required={field.required}
+                                                            rows={2}
+                                                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontFamily: 'inherit' }}
+                                                        />
+                                                    ) : (
+                                                        <input
+                                                            type={field.type === 'Date' ? 'date' : field.type === 'Number' ? 'number' : 'text'}
+                                                            name={`dynamicField_${field.name}`}
+                                                            value={val}
+                                                            onChange={handleInputChange}
+                                                            required={field.required}
+                                                            style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
                         {/* Section 4: Vitals & Payment Details */}
@@ -1447,32 +1647,41 @@ const ReceptionDashboard = () => {
                                             <div className="field"><label>BMI</label><input name="bmi" value={intakeForm.bmi || ''} readOnly /></div>
                                             <div className="field">
                                                 <label>Consultation Fee</label>
-                                                <input
-                                                    name="consultationFee"
-                                                    value={
-                                                        followUpStatus?.eligible 
-                                                            ? '₹0 (Follow-Up)' 
-                                                            : (intakeForm.paymentMethod === 'Free' ? '₹0 (Free Consultation)' : intakeForm.consultationFee)
-                                                    }
-                                                    readOnly
-                                                    style={{
-                                                        backgroundColor: '#f1f5f9',
-                                                        color: (followUpStatus?.eligible || intakeForm.paymentMethod === 'Free') ? '#16a34a' : '#475569',
-                                                        cursor: 'not-allowed',
-                                                        fontWeight: (followUpStatus?.eligible || intakeForm.paymentMethod === 'Free') ? 700 : 400
-                                                    }}
-                                                />
-                                            </div>
+                                                    <input
+                                                        name="consultationFee"
+                                                        // UI Display Logic: Admin fee dikhayega ya Free Follow-Up text
+                                                        value={
+                                                            followUpStatus?.eligible 
+                                                                ? '₹0 (Follow-Up)' 
+                                                                : `₹${intakeForm?.consultationFee || hospitalContext?.appointmentFee || 500}`
+                                                        }
+                                                        
+                                                        // STRICT WARNING LOCK: Receptionist isko kabhi edit nahi kar payegi
+                                                        readOnly={true} 
+                                                        
+                                                        // Style ko hamesha ke liye grey aur locked look de diya
+                                                        style={{
+                                                            backgroundColor: '#f1f5f9', // Locked/Disabled Light Grey Background
+                                                            color: followUpStatus?.eligible ? '#16a34a' : '#475569', // Eligible hai toh Green, nahi toh Normal Grey
+                                                            cursor: 'not-allowed', // Mouse le jaane par ban-sign dikhega
+                                                            fontWeight: 700,
+                                                            border: '1px solid #cbd5e1',
+                                                            padding: '8px',
+                                                            borderRadius: '4px',
+                                                            width: '100%'
+                                                        }}
+                                                    />
+                                                </div>
                                         </div>
 
                                         <div className="form-row">
                                             <div className="field">
                                                 <label>Payment Method</label>
-                                                <select 
-                                                    name="paymentMethod" 
+                                                <select
+                                                    name="paymentMethod"
                                                     value={
                                                         followUpStatus?.eligible ? 'Cash' : intakeForm.paymentMethod
-                                                    } 
+                                                    }
                                                     onChange={handleInputChange}
                                                     disabled={!!followUpStatus?.eligible}
                                                     style={followUpStatus?.eligible ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}}
@@ -1490,8 +1699,8 @@ const ReceptionDashboard = () => {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', height: '42px', boxSizing: 'border-box' }}>
                                                     <span style={{ fontSize: '18px' }}>✅</span>
                                                     <span style={{ fontWeight: 600, color: '#15803d', fontSize: '14px' }}>
-                                                        {followUpStatus?.eligible 
-                                                            ? 'Free Follow-Up — Paid' 
+                                                        {followUpStatus?.eligible
+                                                            ? 'Free Follow-Up — Paid'
                                                             : (intakeForm.paymentMethod === 'Free' ? 'Consultation Fee Waived' : 'Payment Confirmed — Paid')}
                                                     </span>
                                                 </div>
@@ -1569,10 +1778,10 @@ const ReceptionDashboard = () => {
                                             dValid.setHours(0, 0, 0, 0);
                                             const dNow = new Date();
                                             dNow.setHours(0, 0, 0, 0);
-                                            
+
                                             const msDiff = dValid.getTime() - dNow.getTime();
                                             const daysDiff = Math.round(msDiff / (1000 * 60 * 60 * 24));
-                                            
+
                                             if (daysDiff === 2) return "2 Days Left";
                                             if (daysDiff === 1) return "1 Day Left";
                                             if (daysDiff === 0) return "Expires Today";
@@ -1704,7 +1913,25 @@ const ReceptionDashboard = () => {
                                             </div>
                                             <div className="field">
                                                 <label>Date</label>
-                                                <input type="date" name="visitDate" value={intakeForm.visitDate} min={todayStr} onChange={handleInputChange} disabled={!intakeForm.doctor} style={!intakeForm.doctor ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}} />
+                                                <input
+                                                    type="date"
+                                                    name="visitDate"
+                                                    value={intakeForm?.visitDate || ''}
+                                                    min={todayStr}
+                                                    onChange={(e) => {
+                                                        const newDate = e.target.value;
+                                                        if (!newDate || newDate < todayStr) return;
+
+                                                        // Syntax error fixed: Single key with proper commas
+                                                        setIntakeForm(prev => ({
+                                                            ...prev,
+                                                            visitDate: newDate,
+                                                            visitTime: '' // Forces slot re-selection
+                                                        }));
+                                                    }}
+                                                    disabled={!intakeForm?.doctor}
+                                                    style={!intakeForm?.doctor ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}}
+                                                />
                                             </div>
                                         </div>
                                         {isFollowUpMode && linkedPatientSelection && (

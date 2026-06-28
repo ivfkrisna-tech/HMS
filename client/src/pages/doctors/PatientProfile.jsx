@@ -705,6 +705,9 @@ const PatientProfile = () => {
                         {patient.sourceInformation?.sourceType && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: '#94a3b8', fontSize: '0.82rem', marginTop: '12px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
                                 <div style={{ fontWeight: 600, color: '#e2e8f0' }}>📢 Source: {patient.sourceInformation.sourceType}</div>
+                                {patient.sourceInformation.sourceName && (
+                                    <div style={{ fontWeight: 600, color: '#e2e8f0' }}>📌 Source Name: {patient.sourceInformation.sourceName}</div>
+                                )}
                                 {patient.sourceInformation.sourceType === 'Newspaper' && patient.sourceInformation.newspaperName && <div>📰 Newspaper: {patient.sourceInformation.newspaperName}</div>}
                                 {patient.sourceInformation.sourceType === 'Camp' && (
                                     <>
@@ -721,6 +724,15 @@ const PatientProfile = () => {
                                     </>
                                 )}
                                 {patient.sourceInformation.sourceType === 'Others' && patient.sourceInformation.description && <div>📝 Description: {patient.sourceInformation.description}</div>}
+                                {patient.sourceInformation.dynamicValues && Object.keys(patient.sourceInformation.dynamicValues).length > 0 && (
+                                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: '8px', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        {Object.entries(patient.sourceInformation.dynamicValues).map(([key, val]) => (
+                                            <div key={key}>
+                                                <strong>{key}:</strong> {val}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                         <div style={C.idGrid}>

@@ -60,7 +60,8 @@ const userSchema = new mongoose.Schema({
         referencePersonName: { type: String, default: null },
         doctorName: { type: String, default: null },
         hospitalName: { type: String, default: null },
-        description: { type: String, default: null }
+        description: { type: String, default: null },
+        dynamicValues: { type: mongoose.Schema.Types.Mixed, default: {} }
     },
 
     // Linked Patients — bidirectional family/relation links (e.g. husband ↔ wife)

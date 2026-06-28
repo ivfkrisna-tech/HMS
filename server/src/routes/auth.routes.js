@@ -6,6 +6,8 @@ const Role = require('../models/role.model');
 const Hospital = require('../models/hospital.model');
 const jwt = require('jsonwebtoken');
 
+console.log("✅ auth.routes.js loaded");
+
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -163,6 +165,7 @@ router.post('/signup', async (req, res) => {
 
 // Login Route
 router.post('/login', async (req, res) => {
+  console.log("🔥🔥 LOGIN ROUTE HIT");
   try {
     const { email, password, hospitalId } = req.body;
 
@@ -192,11 +195,11 @@ router.post('/login', async (req, res) => {
     let roleData = null;
     if (user.role === 'hospitaladmin') {
       roleData = {
-          name: 'hospitaladmin',
-          permissions: ['admin_manage_roles', 'admin_view_stats'],
-          dashboardPath: '/hospitaladmin',
-          navLinks: [],
-          isSystemRole: true
+        name: 'hospitaladmin',
+        permissions: ['admin_manage_roles', 'admin_view_stats'],
+        dashboardPath: '/hospitaladmin',
+        navLinks: [],
+        isSystemRole: true
       };
     } else {
       if (mongoose.Types.ObjectId.isValid(user.role)) {
@@ -233,23 +236,23 @@ router.post('/login', async (req, res) => {
     const isGlobalAdmin = globalAdminRoles.includes(userRoleStr);
 
     if (!isGlobalAdmin) {
-        if (hospitalId) {
-            // Staff/HospitalAdmin attempting to log in via a specific slug portal
-            if (!user.hospitalId || String(user.hospitalId) !== String(hospitalId)) {
-                return res.status(403).json({ success: false, message: 'Access denied: You are not authorized for this clinic. Check the URL.' });
-            }
-        } else {
-            // hospitaladmin can always log in via /login (simple clinic admins have no subdomain portal)
-            // Only block non-admin staff who must use their clinic's subdomain portal
-            if (user.hospitalId && userRoleStr !== 'hospitaladmin') {
-                return res.status(403).json({ success: false, message: 'Access denied: Please log in using your specific clinic portal URL.' });
-            }
+      if (hospitalId) {
+        // Staff/HospitalAdmin attempting to log in via a specific slug portal
+        if (!user.hospitalId || String(user.hospitalId) !== String(hospitalId)) {
+          return res.status(403).json({ success: false, message: 'Access denied: You are not authorized for this clinic. Check the URL.' });
         }
+      } else {
+        // hospitaladmin can always log in via /login (simple clinic admins have no subdomain portal)
+        // Only block non-admin staff who must use their clinic's subdomain portal
+        if (user.hospitalId && userRoleStr !== 'hospitaladmin') {
+          return res.status(403).json({ success: false, message: 'Access denied: Please log in using your specific clinic portal URL.' });
+        }
+      }
     } else {
-        // Global Admins should not be logging in via a specific hospital portal URL (they don't have one)
-        if (hospitalId) {
-            return res.status(403).json({ success: false, message: 'Global Admins must use the Central Admin login, not a clinic portal.' });
-        }
+      // Global Admins should not be logging in via a specific hospital portal URL (they don't have one)
+      if (hospitalId) {
+        return res.status(403).json({ success: false, message: 'Global Admins must use the Central Admin login, not a clinic portal.' });
+      }
     }
 
     const token = jwt.sign(
@@ -269,7 +272,7 @@ router.post('/login', async (req, res) => {
       try {
         const hosp = await Hospital.findById(user.hospitalId).select('clinicType');
         clinicType = hosp?.clinicType || 'hospital';
-      } catch (_) {}
+      } catch (_) { }
     }
 
     const userData = {

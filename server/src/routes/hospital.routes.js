@@ -362,6 +362,13 @@ router.post('/admin/login', async (req, res) => {
 
         // Only allow hospitaladmin role through this endpoint
         const userRole = typeof user.role === 'string' ? user.role : null;
+
+        console.log("========== LOGIN DEBUG ==========");
+        console.log("Email:", normalizedEmail);
+        console.log("User Found:", !!user);
+        console.log("User Role:", user.role);
+        console.log("Hospital ID:", user.hospitalId);
+
         if (userRole !== 'hospitaladmin') {
             return res.status(403).json({ success: false, message: 'This login is for Hospital Admins only.' });
         }
@@ -369,8 +376,12 @@ router.post('/admin/login', async (req, res) => {
         if (!user.hospitalId) {
             return res.status(403).json({ success: false, message: 'This account is not linked to any hospital. Contact your Central Admin.' });
         }
-
+        console.log("Stored Password Hash:", user.password);
         const isPasswordValid = await user.comparePassword(password);
+
+        console.log("Entered Password:", password);
+        console.log("Password Match:", isPasswordValid);
+
         if (!isPasswordValid) return res.status(401).json({ success: false, message: 'Invalid email or password' });
 
         const hospital = await Hospital.findById(user.hospitalId);
@@ -439,7 +450,7 @@ router.put('/my-hospital/facilities', verifyHospitalAdmin, async (req, res) => {
         if (req.user.role === 'centraladmin' || req.user.role === 'superadmin') {
             return res.status(403).json({ success: false, message: 'Only hospital admins manage their facilities this way' });
         }
-        
+
         const { facilities } = req.body;
         if (!facilities) return res.status(400).json({ success: false, message: 'Facilities data required' });
 
@@ -461,7 +472,7 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
         if (req.user.role === 'centraladmin' || req.user.role === 'superadmin') {
             return res.status(403).json({ success: false, message: 'Only hospital admins manage their department fees this way' });
         }
-        
+
         const { departmentFees, consultationValidityDays } = req.body;
         if (!departmentFees || typeof departmentFees !== 'object') {
             return res.status(400).json({ success: false, message: 'Department fees data required' });
@@ -910,24 +921,24 @@ router.put('/:id/branding', verifyCentralAdmin, async (req, res) => {
 
         // Merge branding fields (only update what is provided)
         const branding = hospital.branding || {};
-        if (appName    !== undefined) branding.appName    = appName;
-        if (tagline    !== undefined) branding.tagline    = tagline;
-        if (logoUrl    !== undefined) branding.logoUrl    = logoUrl;
+        if (appName !== undefined) branding.appName = appName;
+        if (tagline !== undefined) branding.tagline = tagline;
+        if (logoUrl !== undefined) branding.logoUrl = logoUrl;
         if (faviconUrl !== undefined) branding.faviconUrl = faviconUrl;
-        if (primaryColor    !== undefined) branding.primaryColor    = primaryColor;
-        if (secondaryColor  !== undefined) branding.secondaryColor  = secondaryColor;
-        if (accentColor     !== undefined) branding.accentColor     = accentColor;
-        if (successColor    !== undefined) branding.successColor    = successColor;
+        if (primaryColor !== undefined) branding.primaryColor = primaryColor;
+        if (secondaryColor !== undefined) branding.secondaryColor = secondaryColor;
+        if (accentColor !== undefined) branding.accentColor = accentColor;
+        if (successColor !== undefined) branding.successColor = successColor;
         if (backgroundColor !== undefined) branding.backgroundColor = backgroundColor;
-        if (textColor       !== undefined) branding.textColor       = textColor;
+        if (textColor !== undefined) branding.textColor = textColor;
         if (supportEmail !== undefined) branding.supportEmail = supportEmail;
         if (supportPhone !== undefined) branding.supportPhone = supportPhone;
-        if (address      !== undefined) branding.address      = address;
-        if (websiteUrl   !== undefined) branding.websiteUrl   = websiteUrl;
+        if (address !== undefined) branding.address = address;
+        if (websiteUrl !== undefined) branding.websiteUrl = websiteUrl;
         if (instagramUrl !== undefined) branding.instagramUrl = instagramUrl;
-        if (facebookUrl  !== undefined) branding.facebookUrl  = facebookUrl;
-        if (twitterUrl   !== undefined) branding.twitterUrl   = twitterUrl;
-        if (footerText   !== undefined) branding.footerText   = footerText;
+        if (facebookUrl !== undefined) branding.facebookUrl = facebookUrl;
+        if (twitterUrl !== undefined) branding.twitterUrl = twitterUrl;
+        if (footerText !== undefined) branding.footerText = footerText;
 
         hospital.branding = branding;
         hospital.markModified('branding');
@@ -989,7 +1000,7 @@ router.get('/my-hospital/staff-collections', verifyHospitalAdmin, async (req, re
         if (!hospitalId) return res.status(400).json({ success: false, message: 'No hospital context' });
 
         const { startDate, endDate } = req.query;
-        const match = { 
+        const match = {
             hospitalId: new mongoose.Types.ObjectId(hospitalId),
             paymentStatus: { $regex: /^paid$/i },
             bookedBy: { $exists: true, $ne: null }
