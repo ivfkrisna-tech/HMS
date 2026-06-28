@@ -26,6 +26,12 @@ import AdminLabTests from '../pages/admin/AdminLabTests';
 import DoctorPatientDetails from '../pages/doctors/DoctorPatientDetails';
 import UnifiedPatientProfile from '../pages/patient/UnifiedPatientProfile';
 
+// Nurse Pages
+import NursePatientsList from '../pages/nurse/NursePatientsList';
+import NursePatientProfile from '../pages/nurse/NursePatientProfile';
+import NurseVitalsEntry from '../pages/nurse/NurseVitalsEntry';
+import NursingNotesPage from '../pages/nurse/NursingNotesPage';
+
 // Hospital Admin (Tier 2) Pages
 import Admin from '../pages/admin/Admin';
 import AdminDoctors from '../pages/admin/AdminDoctors';
@@ -190,6 +196,12 @@ const MainRoutes = () => {
 
                             {/* Reception Pages */}
                             <Route path="reception/dashboard" element={<ProtectedRoute requiredPermissions={['appointment_manage', 'patient_create']}><ReceptionDashboard /></ProtectedRoute>} />
+
+                            {/* Nurse Pages */}
+                            <Route path="nurse/patients" element={<ProtectedRoute requiredPermissions={[]}><NursePatientsList /></ProtectedRoute>} />
+                            <Route path="nurse/patient/:id" element={<ProtectedRoute requiredPermissions={[]}><NursePatientProfile /></ProtectedRoute>} />
+                            <Route path="nurse/vitals" element={<ProtectedRoute requiredPermissions={[]}><NurseVitalsEntry /></ProtectedRoute>} />
+                            <Route path="nurse/notes" element={<ProtectedRoute requiredPermissions={[]}><NursingNotesPage /></ProtectedRoute>} />
 
                             {/* Accountant / Finance Pages */}
                             <Route path="accountant/dashboard" element={<ProtectedRoute requiredPermissions={['finance_view']} allowedRoles={['accountant', 'centraladmin', 'superadmin', 'hospitaladmin', 'reception', 'receptionist']}><AccountantDashboard /></ProtectedRoute>} />

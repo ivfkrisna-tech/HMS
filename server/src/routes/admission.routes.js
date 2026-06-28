@@ -11,7 +11,7 @@ const verifyAdmissionAccess = async (req, res, next) => {
         await verifyToken(req, res, async () => {
             const roleName = (req.user._roleData?.name || String(req.user.role || '')).toLowerCase();
             const perms = req.user._roleData?.permissions || [];
-            const allowed = ['reception', 'receptionist', 'accountant', 'cashier', 'hospitaladmin', 'centraladmin', 'superadmin', 'admin'];
+            const allowed = ['reception', 'receptionist', 'accountant', 'cashier', 'hospitaladmin', 'centraladmin', 'superadmin', 'admin', 'nurse', 'doctor'];
 
             if (allowed.includes(roleName) ||
                 perms.includes('billing_manage') ||

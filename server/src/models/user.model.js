@@ -84,7 +84,12 @@ const userSchema = new mongoose.Schema({
         fileUrl: { type: String, default: null },
         fileType: { type: String, default: null },
         uploadedAt: { type: Date, default: Date.now }
-    }]
+    }],
+
+    // --- NURSE & CLINICAL LOGS ---
+    nursingNotes: { type: Array, default: [] },
+    medicationLogs: { type: Array, default: [] },
+    vitalsHistory: { type: Array, default: [] }
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

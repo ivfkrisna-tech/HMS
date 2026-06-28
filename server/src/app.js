@@ -17,6 +17,7 @@ const uploadRoutes = require('./routes/upload.routes');
 const pharmacyRoutes = require('./routes/pharmacy.routes');
 const pharmacyOrdersRoutes = require('./routes/pharmacyOrders.routes');
 const receptionRoutes = require('./routes/reception.routes');
+const nurseRoutes = require('./routes/nurse.routes');
 
 // --- NEW IMPORTS FOR CLINICAL WORKFLOW ---
 const patientRoutes = require('./routes/patient.routes');
@@ -117,6 +118,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/pharmacy', pharmacyRoutes);
 app.use('/api/pharmacy/orders', pharmacyOrdersRoutes);
 app.use('/api/reception', receptionRoutes);
+app.use('/api/nurse', nurseRoutes);
 
 // --- NEW ROUTES REGISTERED HERE ---
 app.use('/api/patients', patientRoutes); // For searching & identifying patients (e.g. /api/patients/search)

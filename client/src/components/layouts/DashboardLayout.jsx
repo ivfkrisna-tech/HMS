@@ -78,10 +78,12 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'Billing/Payments', path: '/billing/patient', icon: <FiFileText /> },
             ];
         }
-        if (role === 'nurse') {
+        if (role === 'nurse' || role.includes('nurse')) {
             return [
-                { label: 'Patient Queue', path: '/doctor/patients', icon: <FiUsers /> },
-                { label: 'Appointments', path: '/appointment', icon: <FiCalendar /> },
+                { label: 'Nurse Dashboard', path: '/my-dashboard', icon: <FiClipboard /> },
+                { label: 'My Patients', path: '/nurse/patients', icon: <FiUsers /> },
+                { label: 'Vitals Entry', path: '/nurse/vitals', icon: <FiActivity /> },
+                { label: 'Nursing Notes', path: '/nurse/notes', icon: <FiFileText /> },
             ];
         }
         if (role.includes('billing')) {
