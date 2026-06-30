@@ -284,87 +284,86 @@ const ReceptionDashboard = () => {
     }, [intakeForm.doctor, intakeForm.visitDate, hospitalContext]);
 
 
-    useEffect(() => {
-        // Agar basic requirement hi nahi hai, toh ruko
-        if (!intakeForm?.visitDate || !hospitalContext) {
+   useEffect(() => {
+    if (!intakeForm?.visitDate || !hospitalContext) {
+        return;
+    }
+
+    // Isse hume live pata chalta rahega ki kya chal raha hai
+    console.log("🚨 DATE CHANGED TO:", intakeForm?.visitDate, "CURRENT FEE:", intakeForm?.consultationFee);
+
+    const standardFee = Number(hospitalContext?.appointmentFee) || 500;
+    const p = parseInt(hospitalContext?.followUpDays) || 30;
+
+    // 🔥 CHAKACHAK FIX 1: Check karo ki select ki gayi date 1 July 2026 ya usse pehle ki hai ya nahi
+    const isFreeWindow = intakeForm.visitDate <= '2026-07-01';
+
+    // 🚨 CASE 1: Agar Last Consultation Date NAHI hai (New Patient)
+    if (!lastConsultationDate) {
+        const newFee = isFreeWindow ? 0 : standardFee;
+        
+        setFeeRequired(!isFreeWindow);
+        setDaysSinceLastVisit(null);
+        setFollowUpStatus({
+            eligible: isFreeWindow, // Agar free window h toh true taaki UI green ho jaye
+            days: null,
+            totalDays: p,
+            progress: 0
+        });
+
+        setIntakeForm(prev => ({
+            ...prev,
+            consultationFee: newFee,
+            paymentMethod: isFreeWindow ? 'Cash' : (prev?.paymentMethod === 'Cash' ? 'Pending' : prev?.paymentMethod)
+        }));
+        return;
+    }
+
+    // 🚨 CASE 2: Agar Last Consultation Date HAI (Re-visit logic)
+    try {
+        const lastDateObj = new Date(lastConsultationDate);
+        const selectedDateObj = new Date(intakeForm.visitDate);
+
+        if (isNaN(lastDateObj.getTime()) || !selectedDateObj || isNaN(selectedDateObj.getTime())) {
             return;
         }
 
-        const standardFee = Number(hospitalContext?.appointmentFee) || 500;
+        const lastLocal = new Date(lastDateObj.getFullYear(), lastDateObj.getMonth(), lastDateObj.getDate());
+        const selectedLocal = new Date(selectedDateObj.getFullYear(), selectedDateObj.getMonth(), selectedDateObj.getDate());
 
-        // 🚨 CASE 1: Agar Last Consultation Date NAHI hai (New Patient / Fresh Booking)
-        if (!lastConsultationDate) {
-            console.log("[FollowUp] No last consultation date found. Setting standard fee.");
-            setFeeRequired(true); // Edit karne do aur standard fee lagao
-            setDaysSinceLastVisit(null);
-            setFollowUpStatus({
-                eligible: false,
-                days: null,
-                totalDays: parseInt(hospitalContext?.followUpDays) || 30,
-                progress: 0
-            });
+        const diffTime = selectedLocal.getTime() - lastLocal.getTime();
+        const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-            setIntakeForm(prev => {
-                if (Number(prev?.consultationFee) === standardFee) return prev;
-                return {
-                    ...prev,
-                    consultationFee: standardFee,
-                    paymentMethod: prev?.paymentMethod === 'Cash' ? 'Pending' : prev?.paymentMethod
-                };
-            });
-            return; // Yahan se kaam khatam, aage calculation ki zaroorat nahi
-        }
+        setDaysSinceLastVisit(days);
 
-        // 🚨 CASE 2: Agar Last Consultation Date HAI (Purana Patient - Re-visit logic)
-        try {
-            const lastStr = new Date(lastConsultationDate).toISOString().split('T')[0];
-            const selectedStr = new Date(intakeForm.visitDate).toISOString().split('T')[0];
+        const percent = Math.min(100, Math.max(0, Math.round((days / p) * 100)));
+        setFollowUpProgress(percent);
 
-            const last = new Date(lastStr);
-            const selected = new Date(selectedStr);
+        // 🔥 CHAKACHAK FIX 2: Ya toh follow-up ke andar ho YA FIR 1 July se pehle ki date ho
+        const eligible = days >= 0 && days <= p;
+        const isEligibleOrFree = eligible || isFreeWindow; 
+        const newFee = isEligibleOrFree ? 0 : standardFee;
 
-            const diffTime = selected.getTime() - last.getTime();
-            const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        setFeeRequired(!isEligibleOrFree);
+        setFollowUpStatus({
+            eligible: isEligibleOrFree,
+            days,
+            totalDays: p,
+            progress: percent
+        });
 
-            console.log("[FollowUp] Days Difference:", days, "visitDate:", intakeForm.visitDate);
+        setIntakeForm(prev => ({
+            ...prev,
+            consultationFee: newFee,
+            paymentMethod: isEligibleOrFree 
+                ? 'Cash' 
+                : (prev?.paymentMethod === 'Cash' ? 'Pending' : prev?.paymentMethod)
+        }));
 
-            setDaysSinceLastVisit(days);
-
-            const p = parseInt(hospitalContext?.followUpDays) || 30;
-            const percent = Math.min(100, Math.round((days / p) * 100));
-            setFollowUpProgress(percent);
-
-            const eligible = days >= 0 && days <= p;
-            const newFee = eligible ? 0 : standardFee;
-
-            // State update for UI toggles
-            setFeeRequired(!eligible);
-
-            setFollowUpStatus({
-                eligible,
-                days,
-                totalDays: p,
-                progress: percent
-            });
-
-            // Form state update
-            setIntakeForm(prev => {
-                const prevFee = Number(prev?.consultationFee || 0);
-                if (prevFee === newFee) return prev;
-                return {
-                    ...prev,
-                    consultationFee: newFee,
-                    paymentMethod: eligible
-                        ? 'Cash'
-                        : (prev?.paymentMethod === 'Cash' ? 'Pending' : prev?.paymentMethod)
-                };
-            });
-        } catch (error) {
-            console.error("Error in follow-up calculation:", error);
-        }
-
-        // Sare relevant states ko dependency mein daal diya taaki real-time reaction mile
-    }, [lastConsultationDate, intakeForm?.visitDate, hospitalContext?.followUpDays, hospitalContext?.appointmentFee]);
+    } catch (error) {
+        console.error("Error in follow-up calculation:", error);
+    }
+}, [lastConsultationDate, intakeForm?.visitDate, hospitalContext?.followUpDays, hospitalContext?.appointmentFee]);
 
     const fetchAppointments = async () => {
         setLoading(true);
@@ -1647,44 +1646,47 @@ const ReceptionDashboard = () => {
                                             <div className="field"><label>BMI</label><input name="bmi" value={intakeForm.bmi || ''} readOnly /></div>
                                             <div className="field">
                                                 <label>Consultation Fee</label>
-                                                    <input
-                                                        name="consultationFee"
-                                                        // UI Display Logic: Admin fee dikhayega ya Free Follow-Up text
-                                                        value={
-                                                            followUpStatus?.eligible 
-                                                                ? '₹0 (Follow-Up)' 
-                                                                : `₹${intakeForm?.consultationFee || hospitalContext?.appointmentFee || 500}`
-                                                        }
-                                                        
-                                                        // STRICT WARNING LOCK: Receptionist isko kabhi edit nahi kar payegi
-                                                        readOnly={true} 
-                                                        
-                                                        // Style ko hamesha ke liye grey aur locked look de diya
-                                                        style={{
-                                                            backgroundColor: '#f1f5f9', // Locked/Disabled Light Grey Background
-                                                            color: followUpStatus?.eligible ? '#16a34a' : '#475569', // Eligible hai toh Green, nahi toh Normal Grey
-                                                            cursor: 'not-allowed', // Mouse le jaane par ban-sign dikhega
-                                                            fontWeight: 700,
-                                                            border: '1px solid #cbd5e1',
-                                                            padding: '8px',
-                                                            borderRadius: '4px',
-                                                            width: '100%'
-                                                        }}
-                                                    />
+                                            <input
+                                                name="consultationFee"
+                                                // UI Display Logic: Direct intakeForm ki fee check karega (0 hai toh Free Follow-Up, nahi toh paid amount)
+                                                value={
+                                                    Number(intakeForm?.consultationFee) === 0 
+                                                        ? '₹0 (Follow-Up)' 
+                                                        : `₹${intakeForm?.consultationFee ?? hospitalContext?.appointmentFee ?? 500}`
+                                                }
+                                                
+                                                // STRICT WARNING LOCK: Receptionist isko kabhi edit nahi kar payegi
+                                                readOnly={true} 
+                                                
+                                                // Style: Agar fee 0 hai toh Green text, warna normal grey look
+                                                style={{
+                                                    backgroundColor: '#f1f5f9', // Locked/Disabled Light Grey Background
+                                                    color: Number(intakeForm?.consultationFee) === 0 ? '#16a34a' : '#475569', // 0 par Green, warna Normal Grey
+                                                    cursor: 'not-allowed', // Mouse le jaane par ban-sign dikhega
+                                                    fontWeight: 700,
+                                                    border: '1px solid #cbd5e1',
+                                                    padding: '8px',
+                                                    borderRadius: '4px',
+                                                    width: '100%'
+                                                }}
+                                            />
                                                 </div>
                                         </div>
 
                                         <div className="form-row">
                                             <div className="field">
+                                                
                                                 <label>Payment Method</label>
                                                 <select
                                                     name="paymentMethod"
+                                                    // ✅ CHAKACHAK FIX: followUpStatus ki jagah check karo fee 0 hai ya nahi
                                                     value={
-                                                        followUpStatus?.eligible ? 'Cash' : intakeForm.paymentMethod
+                                                        Number(intakeForm?.consultationFee) === 0 ? 'Cash' : (intakeForm?.paymentMethod || 'Cash')
                                                     }
                                                     onChange={handleInputChange}
-                                                    disabled={!!followUpStatus?.eligible}
-                                                    style={followUpStatus?.eligible ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}}
+                                                    // ✅ Live disabled toggle
+                                                    disabled={Number(intakeForm?.consultationFee) === 0}
+                                                    style={Number(intakeForm?.consultationFee) === 0 ? { backgroundColor: '#f1f5f9', cursor: 'not-allowed' } : {}}
                                                 >
                                                     <option value="Cash">Cash</option>
                                                     <option value="UPI">UPI</option>
@@ -1694,14 +1696,16 @@ const ReceptionDashboard = () => {
                                                     <option value="Free">Free</option>
                                                 </select>
                                             </div>
+
                                             <div className="field">
                                                 <label>Payment Status</label>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', height: '42px', boxSizing: 'border-box' }}>
                                                     <span style={{ fontSize: '18px' }}>✅</span>
                                                     <span style={{ fontWeight: 600, color: '#15803d', fontSize: '14px' }}>
-                                                        {followUpStatus?.eligible
+                                                        {/* ✅ Live Status update bina refresh ke */}
+                                                        {Number(intakeForm?.consultationFee) === 0
                                                             ? 'Free Follow-Up — Paid'
-                                                            : (intakeForm.paymentMethod === 'Free' ? 'Consultation Fee Waived' : 'Payment Confirmed — Paid')}
+                                                            : (intakeForm?.paymentMethod === 'Free' ? 'Consultation Fee Waived' : 'Payment Confirmed — Paid')}
                                                     </span>
                                                 </div>
                                             </div>
