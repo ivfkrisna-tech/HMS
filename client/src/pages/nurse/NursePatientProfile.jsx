@@ -21,14 +21,31 @@ const NursePatientProfile = () => {
         weight: '', height: '', bmi: '', bp: '', pulse: '', temp: '', spo2: '', respRate: '', chiefComplaint: '', nurseNotes: ''
     });
 
-    // Parses a time string like "08:00 AM" or "02:00 PM" into today's Date object
+    // Parses a time string like "08:00 AM", "02:00 PM", or "13:00" into today's Date object
     const parseScheduledTime = (timeStr) => {
         try {
+            if (!timeStr) return new Date(0);
+            
             const now = new Date();
-            const [time, period] = timeStr.split(' ');
-            let [hours, minutes] = time.split(':').map(Number);
-            if (period === 'PM' && hours !== 12) hours += 12;
-            if (period === 'AM' && hours === 12) hours = 0;
+            const cleanStr = String(timeStr).trim().toUpperCase();
+            
+            let hours, minutes;
+            if (cleanStr.includes('AM') || cleanStr.includes('PM')) {
+                const parts = cleanStr.split(' ');
+                const timeParts = parts[0].split(':');
+                hours = parseInt(timeParts[0], 10);
+                minutes = parseInt(timeParts[1], 10);
+                const period = parts[1];
+                
+                if (period === 'PM' && hours !== 12) hours += 12;
+                if (period === 'AM' && hours === 12) hours = 0;
+            } else {
+                const timeParts = cleanStr.split(':');
+                hours = parseInt(timeParts[0], 10);
+                minutes = parseInt(timeParts[1], 10);
+            }
+            
+            if (isNaN(hours) || isNaN(minutes)) return new Date(0);
             return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
         } catch {
             return new Date(0); // fallback: always unlocked
@@ -40,9 +57,13 @@ const NursePatientProfile = () => {
         const scheduled = parseScheduledTime(timeStr);
         const now = new Date();
         const diffMs = scheduled - now;
-        if (diffMs <= 0) return 'Due Now';
+        
+        // If time has passed or calculation is invalid, instantly unlock
+        if (diffMs <= 0 || isNaN(diffMs)) return 'Due Now';
+        
         const diffMins = Math.floor(diffMs / 60000);
         if (diffMins < 60) return `Locks until ${timeStr} (${diffMins}m)`;
+        
         const diffHrs = Math.floor(diffMins / 60);
         const remMins = diffMins % 60;
         return `Locks until ${timeStr} (${diffHrs}h ${remMins}m)`;

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { nurseAPI } from '../../utils/api';
-import { FiFileText, FiUser, FiSend, FiClock } from 'react-icons/fi';
+import { FiFileText, FiUser, FiSend, FiClock, FiSearch } from 'react-icons/fi';
 import './NurseDashboard.css';
 import './NursingNotesPage.css';
 
@@ -11,6 +11,18 @@ const NursingNotesPage = () => {
     const [newNote, setNewNote] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const filteredPatients = useMemo(() => {
+        const query = searchQuery.toLowerCase();
+        if (!query) return patients;
+        return patients.filter(p => 
+            p.name?.toLowerCase().includes(query) ||
+            p.mrn?.toLowerCase().includes(query) ||
+            p.phone?.includes(query) ||
+            p._id?.toLowerCase().includes(query)
+        );
+    }, [searchQuery, patients]);
 
     useEffect(() => {
         fetchPatients();
@@ -86,17 +98,43 @@ const NursingNotesPage = () => {
                     <label className="nn-sidebar-label">
                         <FiUser /> Active Patients Queue
                     </label>
+                    <div className="nn-search-container" style={{ position: 'relative', margin: '0 0 12px 0' }}>
+                        <FiSearch style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+                        <input
+                            type="text"
+                            placeholder="Search Name, ID, Phone..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '9px 10px 9px 32px',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                outline: 'none',
+                                fontSize: '13px',
+                                color: '#1e293b',
+                                backgroundColor: '#f8fafc',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onFocus={(e) => { e.target.style.borderColor = '#12b787'; e.target.style.backgroundColor = '#ffffff'; e.target.style.boxShadow = '0 0 0 3px rgba(18, 183, 135, 0.1)'; }}
+                            onBlur={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.backgroundColor = '#f8fafc'; e.target.style.boxShadow = 'none'; }}
+                        />
+                    </div>
                     <div className="nn-patient-list-wrapper">
-                        {patients.map(p => (
-                            <button
-                                key={p._id}
-                                onClick={() => setSelectedPatientId(p._id)}
-                                className={`nn-patient-btn ${selectedPatientId === p._id ? 'active' : ''}`}
-                            >
-                                <span className="nn-patient-name">{p.name}</span>
-                                <span className="nn-patient-meta">{p.mrn} • {p.ward || 'General Ward'}</span>
-                            </button>
-                        ))}
+                        {filteredPatients.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '13px' }}>No matching patients found.</div>
+                        ) : (
+                            filteredPatients.map(p => (
+                                <button
+                                    key={p._id}
+                                    onClick={() => setSelectedPatientId(p._id)}
+                                    className={`nn-patient-btn ${selectedPatientId === p._id ? 'active' : ''}`}
+                                >
+                                    <span className="nn-patient-name">{p.name}</span>
+                                    <span className="nn-patient-meta">{p.mrn} • {p.ward || 'General Ward'}</span>
+                                </button>
+                            ))
+                        )}
                     </div>
                 </div>
 

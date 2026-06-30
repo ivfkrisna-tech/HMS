@@ -1351,7 +1351,7 @@ const DoctorPatientDetails = () => {
                                                         e.preventDefault();
                                                         setSessionData(prev => ({
                                                             ...prev,
-                                                            medicines: [...prev.medicines, { medicineName: med.name, saltName: '', dose: '', days: '', volumeMl: '', administrationTime: '', gapDays: 0, startDate: '' }]
+                                                            medicines: [...prev.medicines, { medicineName: med.name, saltName: '', dose: '', days: '', volumeMl: '', administrationTime: '', gapDays: 0, startDate: '', dosePerAdmin: '', frequency: '', durationDays: '', vialSize: '', totalDosageRequired: 0 }]
                                                         }));
                                                         setInventorySearchQuery('');
                                                         setInventorySearchOpen(false);
@@ -1455,22 +1455,77 @@ const DoctorPatientDetails = () => {
                                                 {isInjection && (
                                                     <tr style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                                                         <td colSpan={5} style={{ padding: '8px 12px 14px 12px' }}>
-                                                            <div style={{ display: 'flex', gap: '10px', background: '#eef2ff', padding: '10px', borderRadius: '6px', border: '1px dashed #c7d2fe' }}>
-                                                                <div style={{ flex: 1 }}>
-                                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Volume (ml/IU)</label>
-                                                                    <input value={med.volumeMl || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], volumeMl: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 1.5 ml" />
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#eef2ff', padding: '10px', borderRadius: '6px', border: '1px dashed #c7d2fe' }}>
+                                                                
+                                                                {/* Multi-dose Calculation Row */}
+                                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Dose/Admin (ml)</label>
+                                                                        <input type="number" min="0" step="any" value={med.dosePerAdmin || ''} onChange={e => {
+                                                                            const val = parseFloat(e.target.value) || 0;
+                                                                            setSessionData(prev => { 
+                                                                                const m = [...prev.medicines]; 
+                                                                                const freq = parseFloat(m[idx].frequency) || 0;
+                                                                                const dur = parseFloat(m[idx].durationDays) || 0;
+                                                                                m[idx] = { ...m[idx], dosePerAdmin: e.target.value, totalDosageRequired: val * freq * dur }; 
+                                                                                return { ...prev, medicines: m }; 
+                                                                            });
+                                                                        }} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 1.5" />
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Frequency (/day)</label>
+                                                                        <input type="number" min="0" step="any" value={med.frequency || ''} onChange={e => {
+                                                                            const val = parseFloat(e.target.value) || 0;
+                                                                            setSessionData(prev => { 
+                                                                                const m = [...prev.medicines]; 
+                                                                                const dose = parseFloat(m[idx].dosePerAdmin) || 0;
+                                                                                const dur = parseFloat(m[idx].durationDays) || 0;
+                                                                                m[idx] = { ...m[idx], frequency: e.target.value, totalDosageRequired: dose * val * dur }; 
+                                                                                return { ...prev, medicines: m }; 
+                                                                            });
+                                                                        }} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 2" />
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Duration (days)</label>
+                                                                        <input type="number" min="0" value={med.durationDays || ''} onChange={e => {
+                                                                            const val = parseFloat(e.target.value) || 0;
+                                                                            setSessionData(prev => { 
+                                                                                const m = [...prev.medicines]; 
+                                                                                const dose = parseFloat(m[idx].dosePerAdmin) || 0;
+                                                                                const freq = parseFloat(m[idx].frequency) || 0;
+                                                                                m[idx] = { ...m[idx], durationDays: e.target.value, totalDosageRequired: dose * freq * val }; 
+                                                                                return { ...prev, medicines: m }; 
+                                                                            });
+                                                                        }} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 5" />
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Total Vial Size (ml)</label>
+                                                                        <input type="number" min="0" step="any" value={med.vialSize || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], vialSize: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 10" />
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#16a34a', display: 'block', marginBottom: '4px' }}>Total Reqd. (ml)</label>
+                                                                        <input type="text" readOnly value={med.totalDosageRequired || 0} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #86efac', borderRadius: '4px', background: '#dcfce7', color: '#166534', fontWeight: 'bold', boxSizing: 'border-box' }} />
+                                                                    </div>
                                                                 </div>
-                                                                <div style={{ flex: 1 }}>
-                                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Admin Time</label>
-                                                                    <input value={med.administrationTime || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], administrationTime: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 09:00 AM" />
-                                                                </div>
-                                                                <div style={{ flex: 1 }}>
-                                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Gap Days</label>
-                                                                    <input type="number" min="0" value={med.gapDays || 0} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], gapDays: parseInt(e.target.value) || 0 }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 2 for alternate" />
-                                                                </div>
-                                                                <div style={{ flex: 1 }}>
-                                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Start Date</label>
-                                                                    <input type="date" value={med.startDate || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], startDate: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} />
+
+                                                                {/* IVF Specific Schedule Row */}
+                                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Volume (ml/IU)</label>
+                                                                        <input value={med.volumeMl || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], volumeMl: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 1.5 ml" />
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Admin Time</label>
+                                                                        <input value={med.administrationTime || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], administrationTime: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 09:00 AM" />
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Gap Days</label>
+                                                                        <input type="number" min="0" value={med.gapDays || 0} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], gapDays: parseInt(e.target.value) || 0 }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 2 for alternate" />
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Start Date</label>
+                                                                        <input type="date" value={med.startDate || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], startDate: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} />
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -1490,7 +1545,7 @@ const DoctorPatientDetails = () => {
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => setSessionData(prev => ({ ...prev, medicines: [...prev.medicines, { medicineName: '', saltName: '', dose: '', days: '', volumeMl: '', administrationTime: '', gapDays: 0, startDate: '' }] }))}
+                                    onClick={() => setSessionData(prev => ({ ...prev, medicines: [...prev.medicines, { medicineName: '', saltName: '', dose: '', days: '', volumeMl: '', administrationTime: '', gapDays: 0, startDate: '', dosePerAdmin: '', frequency: '', durationDays: '', vialSize: '', totalDosageRequired: 0 }] }))}
                                     style={{ marginTop: '8px', padding: '6px 14px', fontSize: '12px', background: '#f0fdf4', border: '1px dashed #86efac', borderRadius: '6px', color: '#16a34a', cursor: 'pointer', fontWeight: '600' }}
                                 >
                                     + Add Row
