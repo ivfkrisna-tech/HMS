@@ -30,14 +30,16 @@ const NursePatientsList = () => {
         }
     };
 
-    const filteredPatients = patients.filter(p => {
-        const query = searchTerm.toLowerCase();
-        return (p.name || '').toLowerCase().includes(query) ||
-               (p.mrn || '').toLowerCase().includes(query) ||
-               (p.coupleId || '').toLowerCase().includes(query) ||
-               (p.doctorName || '').toLowerCase().includes(query) ||
-               (p.ward || '').toLowerCase().includes(query);
-    });
+    const filteredPatients = patients
+        .filter(p => p && p.status === 'admitted') // ── CLINICAL SAFETY GUARDRAIL ──
+        .filter(p => {
+            const query = searchTerm.toLowerCase();
+            return (p.name || '').toLowerCase().includes(query) ||
+                   (p.mrn || '').toLowerCase().includes(query) ||
+                   (p.coupleId || '').toLowerCase().includes(query) ||
+                   (p.doctorName || '').toLowerCase().includes(query) ||
+                   (p.ward || '').toLowerCase().includes(query);
+        });
 
     return (
         <div className="nurse-dashboard-container">

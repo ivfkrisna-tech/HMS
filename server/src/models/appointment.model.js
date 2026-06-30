@@ -4,7 +4,11 @@ const pharmacyItemSchema = new mongoose.Schema({
     medicineName: { type: String, required: [true, 'Medicine name is required'], trim: true },
     saltName: { type: String, default: '', trim: true },
     frequency: { type: String, default: '', trim: true },
-    duration: { type: String, default: '', trim: true }
+    duration: { type: String, default: '', trim: true },
+    volumeMl: { type: String, default: '', trim: true },
+    administrationTime: { type: String, default: '', trim: true },
+    gapDays: { type: Number, default: 0 },
+    startDate: { type: Date, default: null }
 }, { _id: false });
 
 const vitalsSchema = new mongoose.Schema({

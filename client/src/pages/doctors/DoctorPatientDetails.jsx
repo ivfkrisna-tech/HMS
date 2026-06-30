@@ -168,7 +168,9 @@ const DoctorPatientDetails = () => {
     const [dynamicLibrary, setDynamicLibrary] = useState(null);
     const [hospitalDepartments, setHospitalDepartments] = useState([]);
     const [isLocked, setIsLocked] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
     const [hospitalContext, setHospitalContext] = useState(null);
+    const [patientLatestVitals, setPatientLatestVitals] = useState(null);
 
     // Modal States
     const [showPrescribeModal, setShowPrescribeModal] = useState(false);
@@ -269,7 +271,12 @@ const DoctorPatientDetails = () => {
                             doctorAPI.getFullPatientProfile(res.appointment.userId._id)
                         ]);
                         if (histRes.success) setHistory(histRes.history || histRes.data || []);
-                        if (fpRes.success) setPatientLabReports(fpRes.labReports || []);
+                        if (fpRes.success) {
+                            setPatientLabReports(fpRes.labReports || []);
+                            if (fpRes.patient?.vitalsHistory?.length > 0) {
+                                setPatientLatestVitals(fpRes.patient.vitalsHistory[fpRes.patient.vitalsHistory.length - 1]);
+                            }
+                        }
                     }
 
                     setSessionData({
@@ -279,7 +286,11 @@ const DoctorPatientDetails = () => {
                             medicineName: p.medicineName || '',
                             saltName: p.saltName || '',
                             dose: p.frequency || '',
-                            days: p.duration || ''
+                            days: p.duration || '',
+                            volumeMl: p.volumeMl || '',
+                            administrationTime: p.administrationTime || '',
+                            gapDays: p.gapDays || 0,
+                            startDate: p.startDate ? p.startDate.split('T')[0] : ''
                         })),
                         labTests: (res.appointment.labTests || []).join(', ')
                     });
@@ -378,13 +389,22 @@ const DoctorPatientDetails = () => {
                     medicineName: m.medicineName?.trim() || '',
                     saltName: m.saltName?.trim() || '',
                     frequency: m.dose?.trim() || '',
-                    duration: m.days?.trim() || ''
+                    duration: m.days?.trim() || '',
+                    volumeMl: m.volumeMl?.trim() || '',
+                    administrationTime: m.administrationTime?.trim() || '',
+                    gapDays: m.gapDays ? parseInt(m.gapDays, 10) : 0,
+                    startDate: m.startDate || null
                 }))
             };
             await doctorAPI.updateSession(appointmentId, payload);
 
             alert("✅ Session saved successfully!");
-            navigate('/doctor/patients');
+            if (isEditing) {
+                setIsEditing(false);
+                setIsLocked(true);
+            } else {
+                navigate('/doctor/patients');
+            }
         } catch (err) {
             alert("Error: " + err.message);
         } finally { setSaving(false); }
@@ -1158,6 +1178,17 @@ const DoctorPatientDetails = () => {
                             </span>
                         </div>
 
+                        {patientLatestVitals && (
+                            <div style={{ margin: '0 20px 15px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#0f172a', width: '100%' }}>🩺 Recent Vitals from Nurse ({(new Date(patientLatestVitals.timestamp || Date.now())).toLocaleString()})</div>
+                                {patientLatestVitals.bp && <div style={{ fontSize: '13px', color: '#475569' }}><b>BP:</b> {patientLatestVitals.bp}</div>}
+                                {patientLatestVitals.pulse && <div style={{ fontSize: '13px', color: '#475569' }}><b>Pulse:</b> {patientLatestVitals.pulse} bpm</div>}
+                                {patientLatestVitals.spo2 && <div style={{ fontSize: '13px', color: '#475569' }}><b>SpO2:</b> {patientLatestVitals.spo2}%</div>}
+                                {patientLatestVitals.temp && <div style={{ fontSize: '13px', color: '#475569' }}><b>Temp:</b> {patientLatestVitals.temp}</div>}
+                                {patientLatestVitals.weight && <div style={{ fontSize: '13px', color: '#475569' }}><b>Weight:</b> {patientLatestVitals.weight} kg</div>}
+                            </div>
+                        )}
+
                         {isLocked && (
                             <div style={{ padding: '15px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <span style={{ fontSize: '20px' }}>⚠️</span>
@@ -1230,7 +1261,7 @@ const DoctorPatientDetails = () => {
                                         💾 Save Profile
                                     </button>
                                     <button className="dpd-btn-finish" onClick={handleSaveAndMerge} disabled={saving}>
-                                        {saving ? '⏳ Saving...' : '✅ Save & Generate Prescription'}
+                                        {saving ? '⏳ Saving...' : (isEditing ? '🔄 Update & Save Changes' : '✅ Save & Generate Prescription')}
                                     </button>
                                 </>
                             ) : (
@@ -1240,6 +1271,13 @@ const DoctorPatientDetails = () => {
                                         onClick={generatePrescriptionPDF}
                                     >
                                         📄 Reprint Prescription
+                                    </button>
+                                    <button 
+                                        className="dpd-btn-save-draft" 
+                                        style={{ background: '#f59e0b', color: '#fff', border: 'none' }}
+                                        onClick={() => { setIsLocked(false); setIsEditing(true); }}
+                                    >
+                                        ✏️ Edit Consultation
                                     </button>
                                     <button className="dpd-btn-finish" onClick={() => navigate('/doctor/patients')} style={{ background: '#64748b' }}>
                                         ← Back to Queue
@@ -1313,7 +1351,7 @@ const DoctorPatientDetails = () => {
                                                         e.preventDefault();
                                                         setSessionData(prev => ({
                                                             ...prev,
-                                                            medicines: [...prev.medicines, { medicineName: med.name, saltName: '', dose: '', days: '' }]
+                                                            medicines: [...prev.medicines, { medicineName: med.name, saltName: '', dose: '', days: '', volumeMl: '', administrationTime: '', gapDays: 0, startDate: '' }]
                                                         }));
                                                         setInventorySearchQuery('');
                                                         setInventorySearchOpen(false);
@@ -1356,8 +1394,11 @@ const DoctorPatientDetails = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sessionData.medicines.map((med, idx) => (
-                                                <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                            {sessionData.medicines.map((med, idx) => {
+                                                const isInjection = (med.medicineName || '').toLowerCase().includes('inj') || (med.medicineName || '').toLowerCase().includes('drip') || (med.category === 'Injection');
+                                                return (
+                                                <React.Fragment key={idx}>
+                                                <tr style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
                                                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
                                                         <MedicineSearchInput
                                                             value={med.medicineName}
@@ -1411,7 +1452,32 @@ const DoctorPatientDetails = () => {
                                                         >×</button>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                {isInjection && (
+                                                    <tr style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                                        <td colSpan={5} style={{ padding: '8px 12px 14px 12px' }}>
+                                                            <div style={{ display: 'flex', gap: '10px', background: '#eef2ff', padding: '10px', borderRadius: '6px', border: '1px dashed #c7d2fe' }}>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Volume (ml/IU)</label>
+                                                                    <input value={med.volumeMl || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], volumeMl: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 1.5 ml" />
+                                                                </div>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Admin Time</label>
+                                                                    <input value={med.administrationTime || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], administrationTime: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 09:00 AM" />
+                                                                </div>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Gap Days</label>
+                                                                    <input type="number" min="0" value={med.gapDays || 0} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], gapDays: parseInt(e.target.value) || 0 }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 2 for alternate" />
+                                                                </div>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Start Date</label>
+                                                                    <input type="date" value={med.startDate || ''} onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], startDate: e.target.value }; return { ...prev, medicines: m }; })} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} />
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                </React.Fragment>
+                                            )})}
                                             {sessionData.medicines.length === 0 && (
                                                 <tr>
                                                     <td colSpan={5} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
@@ -1424,7 +1490,7 @@ const DoctorPatientDetails = () => {
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => setSessionData(prev => ({ ...prev, medicines: [...prev.medicines, { medicineName: '', saltName: '', dose: '', days: '' }] }))}
+                                    onClick={() => setSessionData(prev => ({ ...prev, medicines: [...prev.medicines, { medicineName: '', saltName: '', dose: '', days: '', volumeMl: '', administrationTime: '', gapDays: 0, startDate: '' }] }))}
                                     style={{ marginTop: '8px', padding: '6px 14px', fontSize: '12px', background: '#f0fdf4', border: '1px dashed #86efac', borderRadius: '6px', color: '#16a34a', cursor: 'pointer', fontWeight: '600' }}
                                 >
                                     + Add Row

@@ -26,6 +26,10 @@ const pharmacyOrderSchema = new mongoose.Schema({
         medicineName: String,
         frequency: String,
         duration: String,
+        volumeMl: { type: String, default: '' },
+        administrationTime: { type: String, default: '' },
+        gapDays: { type: Number, default: 0 },
+        startDate: { type: Date, default: null },
         price: { type: Number, default: 0 },
         purchased: { type: Boolean, default: false }
     }],

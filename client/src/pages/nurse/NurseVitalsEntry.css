@@ -1,0 +1,528 @@
+/* --- PREMIUM DARK COMPACT LAYOUT FOR VITALS ENTRY PANEL --- */
+
+.nv-dashboard-container {
+    padding: 16px;
+    background: #151a26;
+    /* Dark background layout matching dashboard */
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    box-sizing: border-box;
+}
+
+.nv-page-header {
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.nv-activity-icon {
+    color: #ef4444;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.nv-page-header h2 {
+    margin: 0;
+    font-size: 1.4rem;
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.nv-subtitle {
+    margin: 3px 0 0 0;
+    font-size: 0.85rem;
+    color: #707e94;
+}
+
+/* Slick Slate Card Layout */
+.nv-dark-card {
+    background: #1e2538;
+    /* Exact matching theme color */
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    max-width: 760px;
+    /* Perfectly aligned central width */
+    margin: 0 auto;
+    padding: 20px 24px;
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+}
+
+.nv-card-header {
+    border-b: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+}
+
+.nv-card-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.nv-card-meta {
+    margin: 4px 0 0 0;
+    font-size: 0.78rem;
+    color: #707e94;
+}
+
+.nv-loading-text {
+    text-align: center;
+    padding: 24px;
+    color: #707e94;
+    font-size: 0.9rem;
+}
+
+/* Patient Metadata Badge Strip */
+.nv-patient-badge-row {
+    background: rgba(37, 45, 64, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 14px;
+    font-size: 0.76rem;
+    display: flex;
+    justify-content: space-between;
+    color: #93a2b7;
+}
+
+.nv-patient-badge-row strong {
+    color: #ffffff;
+}
+
+.nv-text-highlight {
+    color: #3b82f6 !important;
+}
+
+/* Grid Compression for Inputs */
+.nv-vitals-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 18px;
+    /* Tighter gap to make it look short and clean */
+}
+
+@media (max-width: 540px) {
+    .nv-vitals-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.nv-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.nv-form-group.full-width {
+    grid-column: span 2;
+}
+
+@media (max-width: 540px) {
+    .nv-form-group.full-width {
+        grid-column: span 1;
+    }
+}
+
+.nv-form-group label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #93a2b7;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Inputs & Textareas matching Second Image */
+.nv-form-group input,
+.nv-select-input,
+.nv-form-group textarea {
+    background: #252d40;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 8px 12px;
+    /* Height decreased */
+    font-size: 0.85rem;
+    color: #ffffff;
+    outline: none;
+    font-family: inherit;
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.nv-form-group input:focus,
+.nv-select-input:focus,
+.nv-form-group textarea:focus {
+    border-color: #12b787;
+    background: #293247;
+    box-shadow: 0 0 0 3px rgba(18, 183, 135, 0.15);
+}
+
+.nv-form-group textarea {
+    resize: none;
+    height: 48px;
+    /* Compact height for long text spaces */
+}
+
+/* Readonly fields (BMI Auto Calc) */
+.nv-readonly-field {
+    background: #1e2433 !important;
+    color: #64748b !important;
+    cursor: not-allowed;
+}
+
+/* Footer Section */
+.nv-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 14px;
+}
+
+.nv-btn-save {
+    background: #12b787;
+    /* Emerald design styling */
+    border: none;
+    color: #ffffff;
+    padding: 9px 20px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.84rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(18, 183, 135, 0.2);
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.nv-btn-save:hover {
+    background: #0fa377;
+    transform: translateY(-1px);
+}
+
+.nv-btn-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+/* --- PREMIUM SELECT DROPDOWN RE-DESIGN --- */
+
+.nv-input-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Dropdown Container */
+.nv-select-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+/* Custom Vector Arrow (Replacing default browser arrow) */
+.nv-select-wrapper::after {
+    content: '';
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid #64748b;
+    border-bottom: 2px solid #64748b;
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+    transition: border-color 0.2s ease;
+}
+
+.nv-select-wrapper:focus-within::after {
+    border-color: #12b787; /* Glow focus matching green ring */
+}
+
+/* Main Input Field Style */
+.nv-select-input {
+    width: 100%;
+    background: #1e2640 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 8px !important;
+    padding: 11px 40px 11px 14px !important; /* Space on right for the arrow */
+    font-size: 0.88rem;
+    color: #ffffff;
+    outline: none;
+    cursor: pointer;
+    appearance: none; /* Removes native ugly arrow */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    text-transform: capitalize; /* Automatically fixes lowercase names to 'Jayesh Sharma' */
+    transition: all 0.2s ease;
+}
+
+.nv-select-input:focus {
+    border-color: #12b787 !important;
+    background: #232c4a !important;
+    box-shadow: 0 0 0 3px rgba(18, 183, 135, 0.15) !important;
+}
+
+/* Dropdown Menu List Options Styling */
+.nv-select-option {
+    background: #181f32; /* Dark professional theme option list background */
+    color: #ffffff;
+    padding: 12px !important;
+    font-size: 0.88rem;
+    text-transform: capitalize;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SMART SEARCH PATIENT SELECTOR
+═══════════════════════════════════════════════════════ */
+
+.nv-smart-search-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #93a2b7;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 6px;
+}
+
+/* Input wrapper with icon slots */
+.nv-search-field-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.nv-search-icon-left {
+    position: absolute;
+    left: 13px;
+    color: #12b787;
+    font-size: 15px;
+    pointer-events: none;
+    z-index: 2;
+    flex-shrink: 0;
+}
+
+.nv-smart-search-input {
+    width: 100%;
+    background: #1e2640 !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 10px !important;
+    padding: 11px 42px 11px 40px !important;
+    font-size: 0.88rem;
+    color: #ffffff;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    box-sizing: border-box;
+    caret-color: #12b787;
+}
+
+.nv-smart-search-input::placeholder {
+    color: #475569;
+}
+
+.nv-smart-search-input:focus {
+    border-color: #12b787 !important;
+    background: #232c4a !important;
+    box-shadow: 0 0 0 3px rgba(18, 183, 135, 0.15) !important;
+}
+
+.nv-search-clear-btn {
+    position: absolute;
+    right: 12px;
+    background: rgba(239, 68, 68, 0.12);
+    border: none;
+    color: #ef4444;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: background 0.15s ease;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.nv-search-clear-btn:hover {
+    background: rgba(239, 68, 68, 0.25);
+}
+
+.nv-search-chevron {
+    position: absolute;
+    right: 14px;
+    color: #475569;
+    font-size: 15px;
+    pointer-events: none;
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+
+.nv-smart-search-input:focus ~ .nv-search-chevron {
+    color: #12b787;
+}
+
+/* ── Dropdown panel ── */
+.nv-search-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: #1a2236;
+    border: 1px solid rgba(18, 183, 135, 0.25);
+    border-radius: 12px;
+    box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.04);
+    z-index: 9999;
+    max-height: 280px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: #2d3a55 transparent;
+}
+
+.nv-search-dropdown::-webkit-scrollbar {
+    width: 5px;
+}
+.nv-search-dropdown::-webkit-scrollbar-track {
+    background: transparent;
+}
+.nv-search-dropdown::-webkit-scrollbar-thumb {
+    background: #2d3a55;
+    border-radius: 4px;
+}
+
+/* ── Individual patient rows ── */
+.nv-search-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    user-select: none;
+}
+
+.nv-search-item:hover {
+    background: rgba(18, 183, 135, 0.08);
+}
+
+.nv-search-item--active {
+    background: rgba(18, 183, 135, 0.12);
+    border: 1px solid rgba(18, 183, 135, 0.2);
+}
+
+/* Avatar circle */
+.nv-search-item-avatar {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #12b787, #0891b2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #ffffff;
+    flex-shrink: 0;
+}
+
+.nv-search-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.nv-search-item-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: capitalize;
+}
+
+.nv-search-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 4px;
+}
+
+/* Small info pills */
+.nv-meta-pill {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 20px;
+    letter-spacing: 0.2px;
+}
+
+.nv-meta-mrn {
+    background: rgba(99, 102, 241, 0.18);
+    color: #a5b4fc;
+}
+
+.nv-meta-phone {
+    background: rgba(251, 191, 36, 0.12);
+    color: #fbbf24;
+}
+
+.nv-meta-ward {
+    background: rgba(18, 183, 135, 0.12);
+    color: #34d399;
+}
+
+/* Active checkmark */
+.nv-search-item-check {
+    width: 22px;
+    height: 22px;
+    background: #12b787;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    flex-shrink: 0;
+}
+
+/* Empty state */
+.nv-search-empty {
+    padding: 18px 14px;
+    text-align: center;
+    color: #475569;
+    font-size: 0.84rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.nv-search-empty span {
+    font-size: 1.6rem;
+}
+
+.nv-search-empty strong {
+    color: #94a3b8;
+}

@@ -13,6 +13,17 @@ const PharmacyOrder = require('../models/pharmacyOrder.model');
 const Inventory = require('../models/inventory.model');
 const { getTenantModels } = require('../db/tenantModels');
 
+// Utility for IST Date String (YYYY-MM-DD)
+const getISTDateStr = (dateObj = new Date()) => {
+    const istTime = new Date(dateObj.getTime() + (5.5 * 60 * 60 * 1000));
+    return istTime.toISOString().split('T')[0];
+};
+
+const getISTDisplayDate = (dateObj = new Date()) => {
+    const istTime = new Date(dateObj.getTime() + (5.5 * 60 * 60 * 1000));
+    return istTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+};
+
 // Helper to get Tenant Admission model if multitenancy DB is active
 const getAdmissionModel = (req) => {
     if (req.tenantDb) return getTenantModels(req.tenantDb).Admission;
@@ -52,6 +63,8 @@ const getPatientPrescriptions = async (realUserId, hospitalFilter) => {
     const orders = await PharmacyOrder.find({ $or: [{ userId: realUserId }, { patientId: userIdStr }], ...hospitalFilter }).sort({ createdAt: -1 }).limit(10).lean();
 
     const medMap = new Map();
+
+    // ── Step 1: Seed from ClinicalVisits (lower priority) ──
     visits.forEach(v => {
         if (v.doctorConsultation?.prescription && Array.isArray(v.doctorConsultation.prescription)) {
             v.doctorConsultation.prescription.forEach((p, idx) => {
@@ -68,35 +81,47 @@ const getPatientPrescriptions = async (realUserId, hospitalFilter) => {
                         duration: p.duration || '5 days',
                         instruction: p.instruction || 'As prescribed',
                         prescriptionDate: v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(v.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                        doctorName: 'Assigned Doctor'
+                        rawDate: v.visitDate || v.createdAt,
+                        doctorName: 'Assigned Doctor',
+                        volumeMl: p.volumeMl || '',
+                        administrationTime: p.administrationTime || '',
+                        gapDays: Number(p.gapDays) || 0,
+                        startDate: p.startDate || null
                     });
                 }
             });
         }
     });
 
+    // ── Step 2: Overwrite with PharmacyOrders (higher priority — contains latest injection fields) ──
     orders.forEach(o => {
         if (o.items && Array.isArray(o.items)) {
             o.items.forEach((item, idx) => {
                 const name = item.medicineName || item.name;
                 if (!name) return;
                 const lower = name.toLowerCase();
-                if (!medMap.has(lower)) {
-                    medMap.set(lower, {
-                        id: `ord_${o._id}_${idx}`,
-                        name: name,
-                        dose: item.dose || 'Standard Dose',
-                        frequency: item.frequency || 'Twice daily',
-                        type: lower.includes('inj') ? 'Injection' : (lower.includes('drip') || lower.includes('infusion') || lower.includes('cef') ? 'IV Drip' : 'Tablet'),
-                        duration: item.duration || '5 days',
-                        instruction: item.instruction || 'As prescribed',
-                        prescriptionDate: o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A',
-                        doctorName: 'Assigned Doctor'
-                    });
-                }
+                // Always overwrite: PharmacyOrder reflects the doctor's latest save,
+                // which is the authoritative source for volumeMl, gapDays, startDate, etc.
+                medMap.set(lower, {
+                    id: `ord_${o._id}_${idx}`,
+                    name: name,
+                    dose: item.dose || 'Standard Dose',
+                    frequency: item.frequency || 'Twice daily',
+                    type: lower.includes('inj') ? 'Injection' : (lower.includes('drip') || lower.includes('infusion') || lower.includes('cef') ? 'IV Drip' : 'Tablet'),
+                    duration: item.duration || '5 days',
+                    instruction: item.instruction || 'As prescribed',
+                    prescriptionDate: o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A',
+                    rawDate: o.createdAt,
+                    doctorName: 'Assigned Doctor',
+                    volumeMl: item.volumeMl || '',
+                    administrationTime: item.administrationTime || '',
+                    gapDays: Number(item.gapDays) || 0,
+                    startDate: item.startDate || null
+                });
             });
         }
     });
+
 
     return Array.from(medMap.values());
 };
@@ -107,11 +132,23 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
         const hospitalId = req.hospitalId || req.user.hospitalId;
         const hospitalFilter = hospitalId ? { hospitalId } : {};
 
+        // ── CLINICAL SAFETY GUARDRAIL: NURSE STATE LOCK ──────────────────────
+        const userFilter = {};
+        const roleName = (req.user._roleData?.name || '').toLowerCase();
+        if (roleName === 'nurse') {
+            userFilter.status = 'admitted';
+        }
+        // ──────────────────────────────────────────────────────────────────────
+
         const Admission = getAdmissionModel(req);
         const activeAdmissions = await Admission.find({
             status: 'Admitted',
             ...hospitalFilter
-        }).populate('patientId', 'name mrn coupleId patientId dob gender avatar phone fertilityProfile vitalsHistory medicationLogs').populate('admittedBy', 'name').lean();
+        }).populate({
+            path: 'patientId',
+            match: userFilter,
+            select: 'name mrn coupleId patientId dob gender avatar phone fertilityProfile vitalsHistory medicationLogs status'
+        }).populate('admittedBy', 'name').lean();
 
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -119,10 +156,14 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
             appointmentDate: { $gte: thirtyDaysAgo },
             status: { $ne: 'cancelled' },
             ...hospitalFilter
-        }).populate('userId', 'name mrn coupleId patientId dob gender avatar phone fertilityProfile vitalsHistory medicationLogs').populate('doctorId', 'name').lean();
+        }).populate({
+            path: 'userId',
+            match: userFilter,
+            select: 'name mrn coupleId patientId dob gender avatar phone fertilityProfile vitalsHistory medicationLogs status'
+        }).populate('doctorId', 'name').lean();
 
         const patientMap = new Map();
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getISTDateStr();
 
         // Process admitted patients
         for (const adm of activeAdmissions) {
@@ -154,6 +195,7 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
                 allGiven: pendingCount === 0 && meds.length > 0,
                 hasPrescription: meds.length > 0,
                 isAdmitted: true,
+                status: p.status,
                 admissionDate: adm.admissionDate ? new Date(adm.admissionDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A',
                 followUpStatus: 'Inpatient Care',
                 appointmentStatus: 'Admitted'
@@ -197,6 +239,7 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
                 allGiven: pendingCount === 0 && meds.length > 0,
                 hasPrescription: meds.length > 0,
                 isAdmitted: false,
+                status: p.status,
                 admissionDate: 'N/A',
                 followUpStatus: appt.status || 'Scheduled',
                 appointmentStatus: appt.status || 'Confirmed'
@@ -260,20 +303,27 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
 
         // Build dynamic Medication Journey
         const medLogs = user.medicationLogs || [];
-        const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const todayStr = new Date().toISOString().split('T')[0];
-        const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+        const now = new Date();
+        const yesterdayStr = getISTDateStr(new Date(now.getTime() - 86400000));
+        const todayStr = getISTDateStr(now);
+        const tomorrowStr = getISTDateStr(new Date(now.getTime() + 86400000));
 
         const isLogged = (name, dateStr, timeStr) => medLogs.some(l => l.medicineName === name && l.date === dateStr && (!timeStr || l.time === timeStr));
+
+        const patientAdmissionDate = admission?.admissionDate || user.admissionDate || user.updatedAt || user.createdAt;
+        const admissionDateStr = patientAdmissionDate ? getISTDateStr(new Date(patientAdmissionDate)) : todayStr;
 
         const yesterdayItems = [];
         const todayItems = [];
         const tomorrowItems = [];
 
         currentMedicines.forEach((med, i) => {
+            const medStartDateStr = med.rawDate ? getISTDateStr(new Date(med.rawDate)) : todayStr;
             const freq = (med.frequency || '').toLowerCase();
             let times = ['09:00 AM'];
-            if (freq.includes('twice') || freq.includes('bid') || freq.includes('2')) {
+            if (med.administrationTime) {
+                times = [med.administrationTime];
+            } else if (freq.includes('twice') || freq.includes('bid') || freq.includes('2')) {
                 times = ['08:00 AM', '08:00 PM'];
             } else if (freq.includes('thrice') || freq.includes('tid') || freq.includes('3')) {
                 times = ['08:00 AM', '02:00 PM', '08:00 PM'];
@@ -281,52 +331,86 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
                 times = ['06:00 AM', '12:00 PM', '06:00 PM', '10:00 PM'];
             }
 
+            const isInjection = med.type === 'Injection';
+            const gapDays = med.gapDays || 0;
+            const actualStartDate = med.startDate ? new Date(med.startDate) : (med.rawDate ? new Date(med.rawDate) : now);
+            
+            const yesterdayDate = new Date(now.getTime() - 86400000);
+            yesterdayDate.setHours(0,0,0,0);
+            const todayDate = new Date(now);
+            todayDate.setHours(0,0,0,0);
+            const tomorrowDate = new Date(now.getTime() + 86400000);
+            tomorrowDate.setHours(0,0,0,0);
+            const normalizedStart = new Date(actualStartDate);
+            normalizedStart.setHours(0,0,0,0);
+
+            const isDayValid = (targetDate) => {
+                if (!isInjection || gapDays === 0) return true;
+                if (targetDate < normalizedStart) return false;
+                const diff = Math.round((targetDate.getTime() - normalizedStart.getTime()) / 86400000);
+                return diff >= 0 && diff % gapDays === 0;
+            };
+
             times.forEach((t, idx) => {
-                const yLogged = isLogged(med.name, yesterdayStr, t);
-                yesterdayItems.push({
-                    id: `y_${i}_${idx}`,
-                    name: med.name,
-                    time: t,
-                    type: med.type,
-                    status: yLogged ? 'Given' : 'Completed',
-                    progress: yLogged ? 'Administered' : 'Logged',
-                    isGiven: yLogged
-                });
+                if (medStartDateStr <= yesterdayStr && yesterdayStr >= admissionDateStr) {
+                    if (isDayValid(yesterdayDate)) {
+                        const yLogged = isLogged(med.name, yesterdayStr, t);
+                        yesterdayItems.push({
+                            id: `y_${i}_${idx}`,
+                            name: med.name,
+                            time: t,
+                            type: med.type,
+                            volumeMl: med.volumeMl,
+                            administrationTime: med.administrationTime,
+                            status: yLogged ? 'Given' : 'Missed',
+                            progress: yLogged ? 'Administered' : 'Not Logged',
+                            isGiven: yLogged
+                        });
+                    }
+                }
 
-                const tLogged = isLogged(med.name, todayStr, t);
-                todayItems.push({
-                    id: `t_${i}_${idx}`,
-                    name: med.name,
-                    time: t,
-                    type: med.type,
-                    status: tLogged ? 'Given' : 'Due Now',
-                    progress: tLogged ? 'Administered today' : `${med.duration} course`,
-                    isGiven: tLogged
-                });
+                if (isDayValid(todayDate)) {
+                    const tLogged = isLogged(med.name, todayStr, t);
+                    todayItems.push({
+                        id: `t_${i}_${idx}`,
+                        name: med.name,
+                        time: t,
+                        type: med.type,
+                        volumeMl: med.volumeMl,
+                        administrationTime: med.administrationTime,
+                        status: tLogged ? 'Given' : 'Due Now',
+                        progress: tLogged ? 'Administered today' : `${med.duration} course`,
+                        isGiven: tLogged
+                    });
+                }
 
-                tomorrowItems.push({
-                    id: `tm_${i}_${idx}`,
-                    name: med.name,
-                    time: t,
-                    type: med.type,
-                    status: 'Scheduled',
-                    progress: 'Scheduled tomorrow',
-                    isGiven: false
-                });
+                if (isDayValid(tomorrowDate)) {
+                    tomorrowItems.push({
+                        id: `tm_${i}_${idx}`,
+                        name: med.name,
+                        time: t,
+                        type: med.type,
+                        volumeMl: med.volumeMl,
+                        administrationTime: med.administrationTime,
+                        status: 'Scheduled',
+                        progress: 'Scheduled tomorrow',
+                        isGiven: false
+                    });
+                }
             });
         });
 
         const medicationJourney = {
             yesterday: {
-                date: new Date(Date.now() - 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                date: getISTDisplayDate(new Date(now.getTime() - 86400000)),
                 items: yesterdayItems
             },
             today: {
-                date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                date: getISTDisplayDate(now),
                 items: todayItems
             },
             tomorrow: {
-                date: new Date(Date.now() + 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                date: getISTDisplayDate(new Date(now.getTime() + 86400000)),
                 items: tomorrowItems
             }
         };
@@ -408,9 +492,21 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
 // 3. POST /api/nurse/patient/:id/dose-status — Mark dose given/pending
 router.post('/patient/:id/dose-status', verifyToken, resolveTenant, async (req, res) => {
     try {
+        // ── CLINICAL SAFETY GUARDRAIL ──────────────────────────────────────────
+        // Only nursing staff may mark a dose as administered.
+        // Role name is resolved from the populated _roleData set by verifyToken.
+        const roleName = (req.user._roleData?.name || '').toLowerCase();
+        if (roleName !== 'nurse') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only nursing staff can administer medication. Doctors may prescribe only.'
+            });
+        }
+        // ──────────────────────────────────────────────────────────────────────
+
         const { id } = req.params;
         const { medicineName, time, status } = req.body;
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getISTDateStr();
 
         const user = await MasterUser.findById(id);
         if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });

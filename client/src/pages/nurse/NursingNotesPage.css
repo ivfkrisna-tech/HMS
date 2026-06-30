@@ -1,0 +1,282 @@
+/* --- PREMIUM LIGHT SLATE STANDARD DASHBOARD THEME --- */
+
+.nn-dashboard-container {
+    padding: 24px;
+    background: #f8fafc;
+    /* Professional clean workspace tint */
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    box-sizing: border-box;
+}
+
+.nn-page-header {
+    margin-bottom: 24px;
+}
+
+.nn-title-block h2 {
+    margin: 0;
+    font-size: 1.45rem;
+    color: #0f172a;
+    /* Slate 900 for solid readability */
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nn-header-icon {
+    color: #eab308;
+    /* Balanced Clinical Yellow Accent */
+    vertical-align: middle;
+}
+
+.nn-subtitle {
+    margin: 4px 0 0 0;
+    font-size: 0.88rem;
+    color: #64748b;
+}
+
+/* Core Split Layout Workspace */
+.nn-layout-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    /* Distinct sidebar sizing layout */
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 768px) {
+    .nn-layout-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* White Solid Surface Panels styling */
+.nn-sidebar-card,
+.nn-feed-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    box-sizing: border-box;
+}
+
+.nn-sidebar-card {
+    padding: 20px;
+}
+
+.nn-sidebar-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+/* Patient Selector Stack */
+.nn-patient-list-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.nn-patient-btn {
+    text-align: left;
+    background: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 10px;
+    padding: 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.nn-patient-btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+/* Highlight Active States (Doctor Dashboard Matching Blue) */
+.nn-patient-btn.active {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.08);
+}
+
+.nn-patient-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1e293b;
+    text-transform: capitalize;
+}
+
+.nn-patient-btn.active .nn-patient-name {
+    color: #1e40af;
+    font-weight: 700;
+}
+
+.nn-patient-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* Feed Column Container Structure */
+.nn-feed-card {
+    padding: 24px;
+    height: 560px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.nn-feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+}
+
+.nn-active-patient-details h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: #0f172a;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.nn-active-patient-details p {
+    margin: 4px 0 0 0;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+.nn-badge-safe {
+    background: #dcfce7;
+    color: #15803d;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 100px;
+    letter-spacing: 0.3px;
+}
+
+/* Notes Dynamic Stream Scroller */
+.nn-notes-stream {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 6px;
+}
+
+.nn-empty-state {
+    text-align: center;
+    color: #94a3b8;
+    font-style: italic;
+    font-size: 0.88rem;
+    margin-top: 80px;
+}
+
+/* Elegant Text Chat-like Note Bubbles */
+.nn-note-bubble {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 14px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.nn-note-meta-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.74rem;
+}
+
+.nn-note-author {
+    font-weight: 700;
+    color: #475569;
+}
+
+.nn-note-time {
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nn-note-text {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #334155;
+    line-height: 1.5;
+    font-weight: 500;
+}
+
+/* Bottom Text Submission Bar */
+.nn-input-action-bar {
+    display: flex;
+    gap: 12px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 16px;
+    margin-top: 12px;
+}
+
+.nn-note-input-field {
+    flex: 1;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.88rem;
+    color: #334155;
+    outline: none;
+    transition: all 0.15s ease;
+}
+
+.nn-note-input-field:focus {
+    border-color: #3b82f6;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.nn-btn-submit {
+    background: #2563eb;
+    /* Royal Premium Blue */
+    color: #ffffff;
+    border: none;
+    font-weight: 700;
+    font-size: 0.88rem;
+    padding: 0 22px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.15);
+}
+
+.nn-btn-submit:hover:not(:disabled) {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.nn-btn-submit:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+}

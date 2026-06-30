@@ -3,6 +3,7 @@ const router = express.Router();
 const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const MasterAdmission = require('../models/admission.model');
+const MasterUser = require('../models/user.model');
 const { getTenantModels } = require('../db/tenantModels');
 
 // Admission access: reception, accountant, admin
@@ -63,6 +64,13 @@ router.post('/', verifyAdmissionAccess, async (req, res) => {
         });
 
         await admission.save();
+
+        // ── CLINICAL SAFETY GUARDRAIL: RECEPTIONIST STEP ──────────────────
+        await MasterUser.findByIdAndUpdate(patientId, {
+            $set: { status: 'admitted', isAdmitted: true }
+        }, { strict: false });
+        // ──────────────────────────────────────────────────────────────────────
+
         res.status(201).json({ success: true, message: 'Patient admitted successfully', admission });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
