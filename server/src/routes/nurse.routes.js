@@ -126,6 +126,30 @@ const getPatientPrescriptions = async (realUserId, hospitalFilter) => {
     return Array.from(medMap.values());
 };
 
+// Helper to determine if a patient has an ongoing Injection/Drip treatment course
+const hasOngoingTreatment = (meds) => {
+    if (!meds || !Array.isArray(meds)) return false;
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+
+    return meds.some(med => {
+        const lowerType = (med.type || '').toLowerCase();
+        // Check for 'injection' or 'drip' (e.g. 'injection', 'iv drip')
+        const isInjectionOrDrip = lowerType.includes('injection') || lowerType.includes('drip');
+        if (!isInjectionOrDrip) return false;
+
+        const actualStartDate = med.startDate ? new Date(med.startDate) : (med.rawDate ? new Date(med.rawDate) : new Date());
+        const start = new Date(actualStartDate);
+        start.setHours(0, 0, 0, 0);
+
+        const durationDays = parseInt(med.duration) || 0;
+        const end = new Date(start.getTime());
+        end.setDate(end.getDate() + durationDays);
+
+        return currentDate >= start && currentDate <= end;
+    });
+};
+
 // 1. GET /api/nurse/patients — Get all patients under nurse care dynamically from DB
 router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
     try {
@@ -133,11 +157,8 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
         const hospitalFilter = hospitalId ? { hospitalId } : {};
 
         // ── CLINICAL SAFETY GUARDRAIL: NURSE STATE LOCK ──────────────────────
-        const userFilter = {};
-        const roleName = (req.user._roleData?.name || '').toLowerCase();
-        if (roleName === 'nurse') {
-            userFilter.status = 'admitted';
-        }
+        // For the nurse queue, we check both active admissions AND ongoing injection/drip treatments.
+        // We retrieve the populated details and do active filtering in JS memory.
         // ──────────────────────────────────────────────────────────────────────
 
         const Admission = getAdmissionModel(req);
@@ -146,7 +167,6 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
             ...hospitalFilter
         }).populate({
             path: 'patientId',
-            match: userFilter,
             select: 'name mrn coupleId patientId dob gender avatar phone fertilityProfile vitalsHistory medicationLogs status'
         }).populate('admittedBy', 'name').lean();
 
@@ -158,7 +178,6 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
             ...hospitalFilter
         }).populate({
             path: 'userId',
-            match: userFilter,
             select: 'name mrn coupleId patientId dob gender avatar phone fertilityProfile vitalsHistory medicationLogs status'
         }).populate('doctorId', 'name').lean();
 
@@ -179,6 +198,7 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
             const medLogs = p.medicationLogs || [];
             const todayLogs = medLogs.filter(l => l.date === todayStr);
             const pendingCount = Math.max(0, meds.length - todayLogs.length);
+            const activeMed = hasOngoingTreatment(meds);
 
             patientMap.set(idStr, {
                 _id: p._id,
@@ -196,6 +216,7 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
                 hasPrescription: meds.length > 0,
                 isAdmitted: true,
                 status: p.status,
+                hasActiveMedication: activeMed,
                 admissionDate: adm.admissionDate ? new Date(adm.admissionDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A',
                 followUpStatus: 'Inpatient Care',
                 appointmentStatus: 'Admitted'
@@ -223,6 +244,7 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
             const medLogs = p.medicationLogs || [];
             const todayLogs = medLogs.filter(l => l.date === todayStr);
             const pendingCount = Math.max(0, meds.length - todayLogs.length);
+            const activeMed = hasOngoingTreatment(meds);
 
             patientMap.set(idStr, {
                 _id: p._id,
@@ -240,13 +262,20 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
                 hasPrescription: meds.length > 0,
                 isAdmitted: false,
                 status: p.status,
+                hasActiveMedication: activeMed,
                 admissionDate: 'N/A',
                 followUpStatus: appt.status || 'Scheduled',
                 appointmentStatus: appt.status || 'Confirmed'
             });
         }
 
-        const patientsList = Array.from(patientMap.values());
+        const patientsList = Array.from(patientMap.values()).filter(p => {
+            const roleName = (req.user._roleData?.name || '').toLowerCase();
+            if (roleName === 'nurse') {
+                return p.isAdmitted || p.status === 'admitted' || p.hasActiveMedication;
+            }
+            return true;
+        });
         res.json({ success: true, patients: patientsList });
     } catch (error) {
         console.error("Get Nurse Patients Error:", error);

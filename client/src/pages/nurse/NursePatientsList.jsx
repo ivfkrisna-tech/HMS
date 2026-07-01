@@ -31,7 +31,7 @@ const NursePatientsList = () => {
     };
 
     const filteredPatients = patients
-        .filter(p => p && p.status === 'admitted') // ── CLINICAL SAFETY GUARDRAIL ──
+        .filter(p => p && (p.status === 'admitted' || p.isAdmitted || p.hasActiveMedication)) // ── CLINICAL SAFETY GUARDRAIL ──
         .filter(p => {
             const query = searchTerm.toLowerCase();
             return (p.name || '').toLowerCase().includes(query) ||
