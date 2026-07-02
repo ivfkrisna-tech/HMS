@@ -562,6 +562,8 @@ router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (
 
         const enrichedAppointments = appointments.map(apt => ({
             ...apt,
+            userId: apt.userId || { name: 'Unknown/Deleted Patient', patientId: 'N/A' },
+            doctorId: apt.doctorId || { name: 'Unassigned/Deleted Doctor' },
             isHospitalized: apt.userId?._id ? admittedSet.has(String(apt.userId._id)) : false
         }));
 
@@ -834,7 +836,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
         }
 
         const finalAmount = (isSharedAppointment || isFollowUp) ? 0 : (Number(amount) || doctor.consultationFee || 0);
-        const finalPaymentStatus = (isSharedAppointment || isFollowUp) ? 'Paid' : (paymentStatus || 'Paid');
+        const finalPaymentStatus = 'Paid';
 
         const newAppointment = new Appointment({
             userId: patient._id,
@@ -851,7 +853,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             amount: finalAmount,
             status: 'confirmed',
             paymentStatus: finalPaymentStatus,
-            paymentMethod: paymentMethod || 'Cash',
+            paymentMethod: 'Cash',
             paymentProofUrl: paymentMethod === 'Cash' ? null : (paymentProofUrl || null),
             paymentProofFileName: paymentMethod === 'Cash' ? null : (paymentProofFileName || null),
             notes: notes || 'Walk-in created by reception',
@@ -994,12 +996,19 @@ router.get('/transactions', verifyToken, verifyReception, async (req, res) => {
         if (req.user.hospitalId) {
             queryFilter.hospitalId = req.user.hospitalId;
         }
-        const transactions = await Appointment.find(queryFilter)
+        const transactionsData = await Appointment.find(queryFilter)
             .populate('userId', 'name phone patientId email')
             .populate('doctorId', 'name')
             .sort({ createdAt: -1 })
             .limit(100)
             .lean();
+        
+        const transactions = transactionsData.map(txn => ({
+            ...txn,
+            userId: txn.userId || { name: 'Unknown/Deleted Patient', patientId: 'N/A' },
+            doctorId: txn.doctorId || { name: 'Unassigned/Deleted Doctor' }
+        }));
+        
         res.json({ success: true, transactions });
     } catch (e) { res.status(500).json({ message: e.message }); }
 });

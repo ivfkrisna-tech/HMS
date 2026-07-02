@@ -314,7 +314,7 @@ const ReceptionDashboard = () => {
         setIntakeForm(prev => ({
             ...prev,
             consultationFee: newFee,
-            paymentMethod: isFreeWindow ? 'Cash' : (prev?.paymentMethod === 'Cash' ? 'Pending' : prev?.paymentMethod)
+            paymentMethod: isFreeWindow ? 'Cash' : (prev?.paymentMethod || 'Cash')
         }));
         return;
     }
@@ -357,7 +357,7 @@ const ReceptionDashboard = () => {
             consultationFee: newFee,
             paymentMethod: isEligibleOrFree 
                 ? 'Cash' 
-                : (prev?.paymentMethod === 'Cash' ? 'Pending' : prev?.paymentMethod)
+                : (prev?.paymentMethod || 'Cash')
         }));
 
     } catch (error) {
@@ -1053,7 +1053,7 @@ const ReceptionDashboard = () => {
             }
 
             const isFree = !!followUpStatus?.eligible || intakeForm.paymentMethod === 'Free' || !!linkedAppointment;
-            if (!hasActiveAppointment && !isFree && !['Cash', 'Free'].includes(intakeForm.paymentMethod)) {
+            if (!hasActiveAppointment && !isFree && ['UPI', 'Online', 'Card', 'NEFT/RTGS'].includes(intakeForm.paymentMethod)) {
                 if (!intakeForm.transactionId) {
                     alert(`Please enter a UPI ID / Transaction ID for ${intakeForm.paymentMethod} payment before booking.`);
                     setSaving(false); return;

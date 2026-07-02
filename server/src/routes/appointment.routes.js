@@ -222,7 +222,8 @@ router.post('/create', verifyToken, resolveTenant, async (req, res) => {
             labTests: labTests || [],
             dietPlan: dietPlan || [],
             status: 'pending',
-            paymentStatus: 'Pending'
+            paymentStatus: 'Paid',
+            paymentMethod: 'Cash'
         });
 
         const savedAppointment = await appointment.save();

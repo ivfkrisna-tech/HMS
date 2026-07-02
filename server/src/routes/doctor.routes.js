@@ -251,7 +251,8 @@ router.post('/session/start', verifyToken, async (req, res) => {
             appointmentTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
             status: 'confirmed',
             amount: doctor.consultationFee,
-            paymentStatus: 'pending'
+            paymentStatus: 'Paid',
+            paymentMethod: 'Cash'
         });
 
         await newSession.save();

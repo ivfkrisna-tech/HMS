@@ -811,8 +811,7 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
             ...createdDateFilter
         });
 
-        // 10. Recent appointments (last 10 within filter)
-        const recentAppointments = await Appointment.find({
+        const recentAppointmentsRaw = await Appointment.find({
             doctorId: { $in: doctorObjectIds },
             ...dateFilter
         })
@@ -821,6 +820,12 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
             .sort({ createdAt: -1 })
             .limit(10)
             .lean();
+
+        const recentAppointments = recentAppointmentsRaw.map(apt => ({
+            ...apt,
+            userId: apt.userId || { name: 'Unknown/Deleted Patient', patientId: 'N/A' },
+            doctorId: apt.doctorId || { name: 'Unassigned/Deleted Doctor', specialty: 'N/A' }
+        }));
 
         // 11. All staff list (excluding patients)
         const staffList = await User.find({

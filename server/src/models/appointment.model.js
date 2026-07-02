@@ -60,8 +60,8 @@ const appointmentSchema = new mongoose.Schema({
         default: 'pending',
         index: true
     },
-    paymentStatus: { type: String, enum: ['pending', 'paid', 'refunded', 'Paid', 'Pending'], default: 'pending' },
-    paymentMethod: { type: String, default: 'Cash' },
+    paymentStatus: { type: String, enum: ['pending', 'paid', 'refunded', 'Paid', 'Pending', 'Refunded', 'unpaid', 'Unpaid'], default: 'pending' },
+    paymentMethod: { type: String, enum: ['Cash', 'UPI', 'Card', 'NEFT/RTGS', 'Free', 'Online'], default: 'Cash' },
     
     // Dedicated field to save the UPI text input / Reference ID from the reception registration dashboard
     transactionId: { type: String, default: '', trim: true },
