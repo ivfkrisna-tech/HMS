@@ -7,10 +7,7 @@ import { FiBell, FiChevronDown, FiLogOut, FiLogIn, FiHome, FiSettings } from 're
 import { useBranding } from '../context/BrandingContext';
 import './Navbar.css';
 
-/* ---- Brand Logo ---- */
-const BrandLogo = () => (
-  <img src="/logo.png" alt="Krisna IVF" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-);
+/* ---- Brand Logo (No longer used, relying on dynamic branding) ---- */
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -42,15 +39,13 @@ const Navbar = () => {
         {/* Logo/Brand */}
         <NavLink to="/" className="navbar-brand">
           <div className="navbar-logo-icon">
-            {branding.logoUrl ? (
-              <img src={branding.logoUrl} alt={branding.appName || 'Krisna IVF'} className="navbar-custom-logo" />
-            ) : (
-              <BrandLogo />
+            {branding.logoUrl && (
+              <img src={branding.logoUrl} alt={branding.appName || 'Hospital Portal'} className="navbar-custom-logo" />
             )}
           </div>
           {!branding.logoUrl && (
             <div className="navbar-logo-text">
-              <span className="navbar-logo-main">{branding.appName || 'Krisna IVF'}</span>
+              <span className="navbar-logo-main">{branding.appName || 'Hospital Portal'}</span>
               <span className="navbar-logo-sub">{branding.tagline || 'Healthcare Suite'}</span>
             </div>
           )}

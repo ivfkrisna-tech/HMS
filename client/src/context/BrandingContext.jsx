@@ -11,12 +11,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { hospitalAPI } from '../utils/api';
 import socket from '../utils/socket';
 
-// Default Krisna IVF branding (platform defaults)
+// Default generic branding (platform defaults)
 const DEFAULT_BRANDING = {
-    appName: 'Krisna IVF',
+    appName: 'Hospital Portal',
     tagline: 'Healthcare Suite',
-    logoUrl: '/logo.png',
-    faviconUrl: '/logo.png',
+    logoUrl: '',
+    faviconUrl: '',
     primaryColor: '#14b8a6',
     secondaryColor: '#0a2647',
     accentColor: '#6366f1',
@@ -35,7 +35,7 @@ const DEFAULT_BRANDING = {
 
 const BrandingContext = createContext({
     branding: DEFAULT_BRANDING,
-    hospitalName: 'Krisna IVF',
+    hospitalName: 'Hospital Portal',
     hospitalId: null,
     loadBranding: async () => {},
     resetBranding: () => {},
@@ -121,7 +121,7 @@ function resetBrandingFromCSS() {
         '--shadow-brand', '--surface-1', '--gray-900', '--gray-800',
     ];
     overrides.forEach(v => root.style.removeProperty(v));
-    document.title = 'Krisna IVF';
+    document.title = 'Hospital Portal';
 }
 
 export const BrandingProvider = ({ children }) => {
@@ -132,7 +132,7 @@ export const BrandingProvider = ({ children }) => {
         } catch { return DEFAULT_BRANDING; }
     });
 
-    const [hospitalName, setHospitalName] = useState(() => localStorage.getItem('hospitalBrandingName') || 'Krisna IVF');
+    const [hospitalName, setHospitalName] = useState(() => localStorage.getItem('hospitalBrandingName') || 'Hospital Portal');
     const [hospitalId, setHospitalId] = useState(() => localStorage.getItem('hospitalBrandingId') || null);
     const [isCustomBranded, setIsCustomBranded] = useState(false);
 
@@ -147,7 +147,7 @@ export const BrandingProvider = ({ children }) => {
             if (res.success) {
                 const merged = { ...DEFAULT_BRANDING, ...res.branding };
                 setBranding(merged);
-                setHospitalName(res.hospitalName || 'Krisna IVF');
+                setHospitalName(res.hospitalName || 'Hospital Portal');
                 setHospitalId(hId);
                 setIsCustomBranded(true);
                 applyBrandingToCSS(merged);
@@ -162,11 +162,11 @@ export const BrandingProvider = ({ children }) => {
     }, []);
 
     /**
-     * Reset to default Krisna IVF branding
+     * Reset to default branding
      */
     const resetBranding = useCallback(() => {
         setBranding(DEFAULT_BRANDING);
-        setHospitalName('Krisna IVF');
+        setHospitalName('Hospital Portal');
         setHospitalId(null);
         setIsCustomBranded(false);
         resetBrandingFromCSS();

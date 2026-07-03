@@ -239,7 +239,7 @@ const HospitalLogin = () => {
                                 <h2>Isolated <br /> Medical Ecosystem.</h2>
                                 <p>
                                     Your data resides in a dedicated instance for {hospital?.name}.
-                                    Powered by Krisna IVF Enterprise Security.
+                                    Powered by {hospital?.parentEnterprise || 'Medical Security Systems'}.
                                 </p>
                             </div>
                         </div>

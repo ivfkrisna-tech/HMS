@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch, useAuth } from '../../store/hooks';
 import { loginHospitalAdmin, clearError } from '../../store/slices/authSlice';
+import { useBranding } from '../../context/BrandingContext';
 import { motion } from 'framer-motion';
-import { RiInformationLine } from 'react-icons/ri';
+import { RiInformationLine, RiHospitalLine } from 'react-icons/ri';
 import '../user/Login.css';
 
 const HospitalAdminLogin = () => {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const { loading, error, isAuthenticated, user } = useAuth();
+    const { branding } = useBranding();
 
     const [formData, setFormData] = useState({ email: '', password: '' });
 
@@ -55,7 +57,14 @@ const HospitalAdminLogin = () => {
                     <div className="auth-form-container">
                         <div className="auth-box">
                             <div className="hospital-brand">
-                                <img src="/logo.png" alt="Krisna IVF" style={{ height: '40px', objectFit: 'contain' }} />
+                                {branding.logoUrl ? (
+                                    <img src={branding.logoUrl} alt={branding.appName} style={{ height: '40px', objectFit: 'contain' }} />
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--brand-600)' }}>
+                                        <RiHospitalLine />
+                                        {branding.appName}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="auth-header">
