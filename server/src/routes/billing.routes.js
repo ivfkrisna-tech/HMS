@@ -89,7 +89,12 @@ router.get('/search-patients', verifyBillingAccess, async (req, res) => {
 router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
     try {
         const { identifier } = req.params;
-        const { User, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission } = getModels(req);
+        const { User } = getModels(req);
+        const Appointment = MasterAppointment;
+        const LabReport = MasterLabReport;
+        const PharmacyOrder = MasterPharmacyOrder;
+        const FacilityCharge = MasterFacilityCharge;
+        const Admission = MasterAdmission;
 
         const mongoose = require('mongoose');
         const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
@@ -169,7 +174,7 @@ router.post('/facility-charge', verifyBillingAccess, async (req, res) => {
             return res.status(400).json({ success: false, message: 'All fields are required' });
         }
 
-        const { FacilityCharge } = getModels(req);
+        const FacilityCharge = MasterFacilityCharge;
         const charge = new FacilityCharge({
             hospitalId: req.hospitalId || req.user.hospitalId,
             patientId,
@@ -200,7 +205,11 @@ router.put('/pay', verifyBillingAccess, async (req, res) => {
             paymentMode = 'Cash'
         } = req.body;
 
-        const { Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission } = getModels(req);
+        const Appointment = MasterAppointment;
+        const LabReport = MasterLabReport;
+        const PharmacyOrder = MasterPharmacyOrder;
+        const FacilityCharge = MasterFacilityCharge;
+        const Admission = MasterAdmission;
 
         await Promise.all([
             appointmentIds.length > 0 && Appointment.updateMany(
