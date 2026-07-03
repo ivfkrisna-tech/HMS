@@ -793,9 +793,10 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
 
         // ─── Follow-up eligibility check (server-side safety net) ─────────────
         let isFollowUp = false;
+        let hospitalDoc = null;
         if (!isSharedAppointment) {
             const Hospital = require('../models/hospital.model');
-            const hospitalDoc = hospitalId ? await Hospital.findById(hospitalId).select('consultationValidityDays') : null;
+            hospitalDoc = hospitalId ? await Hospital.findById(hospitalId).select('consultationValidityDays appointmentFee') : null;
             const validityDays = hospitalDoc?.consultationValidityDays ?? 3;
             const hFilter = hospitalId ? { hospitalId } : {};
 
@@ -835,7 +836,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             }
         }
 
-        const finalAmount = (isSharedAppointment || isFollowUp) ? 0 : (Number(amount) || doctor.consultationFee || 0);
+        const finalAmount = (isSharedAppointment || isFollowUp) ? 0 : (Number(amount) || doctor.consultationFee || hospitalDoc?.appointmentFee || 0);
         const finalPaymentStatus = 'Paid';
 
         const newAppointment = new Appointment({

@@ -60,15 +60,10 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
         let dateFilter = {};
         if (startDate || endDate) {
             dateFilter.createdAt = {};
-            if (startDate) dateFilter.createdAt.$gte = new Date(startDate);
-            if (endDate) dateFilter.createdAt.$lte = new Date(endDate);
-        }
-
-        let appointmentDateFilter = {};
-        if (startDate || endDate) {
-            appointmentDateFilter.appointmentDate = {};
-            if (startDate) appointmentDateFilter.appointmentDate.$gte = new Date(startDate);
-            if (endDate) appointmentDateFilter.appointmentDate.$lte = new Date(endDate);
+            if (startDate && startDate !== 'undefined') dateFilter.createdAt.$gte = new Date(startDate);
+            if (endDate && endDate !== 'undefined') dateFilter.createdAt.$lte = new Date(endDate);
+            // Clean up if empty
+            if (Object.keys(dateFilter.createdAt).length === 0) delete dateFilter.createdAt;
         }
 
         // HARD ISOLATION: Direct hospitalId filter — no doctor lookup needed
@@ -97,10 +92,10 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
         // 1. Consultations Revenue
         const consultations = await Appointment.find({
             paymentStatus: { $in: ['paid', 'Paid', 'PAID'] },
-            ...appointmentDateFilter,
+            ...dateFilter,
             ...hospitalFilter
         });
-        const totalConsultationRevenue = consultations.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+        const totalConsultationRevenue = consultations.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
         // 2. Lab Tests Revenue
         const labReports = await LabReport.find({
@@ -108,7 +103,7 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
             ...dateFilter,
             ...hospitalFilter
         });
-        const totalLabRevenue = labReports.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+        const totalLabRevenue = labReports.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
         // 3. Medicines Revenue & Cost
         const pharmacyOrders = await PharmacyOrder.find({
@@ -122,9 +117,9 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
 
         // Aggregate totals stored in order if any, or fall back to calculating via inventory mapping
         for (const order of pharmacyOrders) {
-            if (order.totalAmount > 0 || order.totalCost > 0) {
-                totalMedicineRevenue += order.totalAmount || 0;
-                totalMedicineCost += order.totalCost || 0;
+            if (Number(order.totalAmount) > 0 || Number(order.totalCost) > 0) {
+                totalMedicineRevenue += Number(order.totalAmount) || 0;
+                totalMedicineCost += Number(order.totalCost) || 0;
             } else {
                 // If the order has items but no saved amount/cost, estimate it now using Inventory
                 for (const item of order.items) {
@@ -132,8 +127,8 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
                     const invItem = await Inventory.findOne({ name: { $regex: new RegExp(`^${escapedName}$`, 'i') } });
                     if (invItem) {
                         const qty = 1; // Simplistic approximation if quantity isn't cleanly stored
-                        totalMedicineRevenue += (invItem.sellingPrice || 0) * qty;
-                        totalMedicineCost += (invItem.buyingPrice || 0) * qty;
+                        totalMedicineRevenue += (Number(invItem.sellingPrice) || 0) * qty;
+                        totalMedicineCost += (Number(invItem.buyingPrice) || 0) * qty;
                     }
                 }
             }

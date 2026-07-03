@@ -103,6 +103,12 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 { name: { $regex: identifier, $options: 'i' } }
             ]
         };
+        
+        const roleIdStr = String(req.user.role || '').toLowerCase();
+        const roleName = String(req.user._roleData?.name || '').toLowerCase();
+        if (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(roleIdStr) && !['centraladmin', 'superadmin'].includes(roleName)) {
+            searchQuery.hospitalId = req.user.hospitalId;
+        }
 
         let patient = await MasterUser.findOne(searchQuery);
 
@@ -115,20 +121,23 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
 
         // Return ALL records for every category — frontend splits paid vs pending by paymentStatus field
+        const tFilter = (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(roleIdStr) && !['centraladmin', 'superadmin'].includes(roleName)) 
+            ? { hospitalId: req.user.hospitalId } : {};
+
         const [appointments, labReports, pharmacyOrders, facilityCharges, admissions] = await Promise.all([
-            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }] })
+            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], ...tFilter })
                 .select('appointmentDate appointmentTime amount paymentStatus paymentMode serviceName doctorName status createdAt')
                 .sort({ appointmentDate: -1 }).lean(),
-            LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient._id }] })
+            LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], ...tFilter })
                 .select('testNames testName amount price paymentStatus paymentMode testStatus createdAt')
                 .sort({ createdAt: -1 }).lean(),
-            PharmacyOrder.find({ $or: [{ userId: patient._id }, { patientId: patient._id }] })
+            PharmacyOrder.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], ...tFilter })
                 .select('items totalAmount paymentStatus orderStatus createdAt')
                 .sort({ createdAt: -1 }).lean(),
-            FacilityCharge.find({ patientId: patient._id })
+            FacilityCharge.find({ patientId: patient._id, ...tFilter })
                 .select('facilityName pricePerDay days totalAmount paymentStatus createdAt')
                 .sort({ createdAt: -1 }).lean(),
-            Admission.find({ patientId: patient._id })
+            Admission.find({ patientId: patient._id, ...tFilter })
                 .sort({ admissionDate: -1 }).lean(),
         ]);
 
