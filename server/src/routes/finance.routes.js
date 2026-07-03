@@ -68,26 +68,16 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
 
         // HARD ISOLATION: Direct hospitalId filter — no doctor lookup needed
         let hospitalFilter = {};
-        if (!req.tenantDb && targetHospitalId) {
+        if (targetHospitalId) {
             hospitalFilter = { hospitalId: targetHospitalId };
         }
 
-        let Appointment = require('../models/appointment.model');
-        let LabReport = require('../models/labReport.model');
-        let PharmacyOrder = require('../models/pharmacyOrder.model');
-        let Inventory = require('../models/inventory.model');
-        let FacilityCharge = require('../models/facilityCharge.model');
-        let Admission = require('../models/admission.model');
-
-        if (req.tenantDb) {
-            const tenantModels = getTenantModels(req.tenantDb);
-            Appointment = tenantModels.Appointment || Appointment;
-            LabReport = tenantModels.LabReport || LabReport;
-            PharmacyOrder = tenantModels.PharmacyOrder || PharmacyOrder;
-            Inventory = tenantModels.Inventory || Inventory;
-            FacilityCharge = tenantModels.FacilityCharge || FacilityCharge;
-            Admission = tenantModels.Admission || Admission;
-        }
+        const Appointment = require('../models/appointment.model');
+        const LabReport = require('../models/labReport.model');
+        const PharmacyOrder = require('../models/pharmacyOrder.model');
+        const Inventory = require('../models/inventory.model');
+        const FacilityCharge = require('../models/facilityCharge.model');
+        const Admission = require('../models/admission.model');
 
         // 1. Consultations Revenue
         const consultations = await Appointment.find({
