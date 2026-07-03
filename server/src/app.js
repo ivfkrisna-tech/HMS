@@ -1,4 +1,16 @@
 const express = require('express');
+
+// --- GLOBAL OBJECTID VALIDATION ---
+const validateObjectId = require('./middleware/validateObjectId');
+const originalRouter = express.Router;
+express.Router = function(options) {
+    const router = originalRouter(options);
+    const idParams = ['id', 'patientId', 'clinicId', 'hospitalId', 'visitId', 'doctorId', 'userId', 'pharmacyId', 'labId'];
+    idParams.forEach(param => router.param(param, validateObjectId));
+    return router;
+};
+// ----------------------------------
+
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');

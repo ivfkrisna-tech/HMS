@@ -188,7 +188,11 @@ router.post('/verify-aadhaar-otp', verifyToken, verifyReception, async (req, res
             return res.status(400).json({ success: false, message: 'Invalid OTP. Try 123456.' });
         }
 
-        const existingUser = await User.findOne({ aadhaarNumber });
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const query = { aadhaarNumber };
+        if (hospitalId) query.hospitalId = hospitalId;
+        const existingUser = await User.findOne(query);
+        
         if (existingUser) {
             return res.status(409).json({ success: false, message: `Aadhaar already linked to patient: ${existingUser.name} (${existingUser.phone})` });
         }
@@ -811,7 +815,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
 
             // Also check partner if couple
             if (patient.coupleId) {
-                const partnerUser = await User.findOne({ coupleId: patient.coupleId, _id: { $ne: patient._id } });
+                const partnerUser = await User.findOne({ coupleId: patient.coupleId, _id: { $ne: patient._id }, ...hFilter });
                 if (partnerUser) {
                     const partnerPaid = await Appointment.findOne({
                         userId: partnerUser._id,
@@ -874,7 +878,8 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
         if (bookForPartnerAlso && patient.coupleId) {
             const partnerUser = await User.findOne({
                 coupleId: patient.coupleId,
-                _id: { $ne: patient._id }
+                _id: { $ne: patient._id },
+                ...(hospitalId ? { hospitalId } : {})
             });
             if (partnerUser) {
                 // Check if partner already has an active appointment on this date

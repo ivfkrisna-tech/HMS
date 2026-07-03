@@ -66,9 +66,11 @@ router.post('/', verifyAdmissionAccess, async (req, res) => {
         await admission.save();
 
         // ── CLINICAL SAFETY GUARDRAIL: RECEPTIONIST STEP ──────────────────
-        await MasterUser.findByIdAndUpdate(patientId, {
-            $set: { status: 'admitted', isAdmitted: true }
-        }, { strict: false });
+        await MasterUser.findOneAndUpdate(
+            { _id: patientId, hospitalId: req.hospitalId || req.user.hospitalId },
+            { $set: { status: 'admitted', isAdmitted: true } },
+            { strict: false }
+        );
         // ──────────────────────────────────────────────────────────────────────
 
         res.status(201).json({ success: true, message: 'Patient admitted successfully', admission });

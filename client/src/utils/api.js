@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { getStoreRef } from '../store/storeRef';
+import { logout } from '../store/slices/authSlice';
 
 // FIX: Local testing ke liye empty string aur Live ke liye VITE_API_URL
 const getBaseURL = () => {
@@ -57,16 +59,17 @@ apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // CIRCULAR DEPENDENCY FIX:
-            // Instead of dispatching logout action here, we simply clear storage and redirect.
-            // The authSlice will pick up the initial state from localStorage on reload.
-            const identityField = localStorage.getItem('user');
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-
-            // Only redirect if not already on the login page to avoid loops
-            if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login';
+            const store = getStoreRef();
+            window.dispatchEvent(new Event('auth-expired'));
+            
+            if (store) {
+                store.dispatch(logout());
+            } else {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                if (!window.location.pathname.includes('/login')) {
+                    window.location.href = '/login';
+                }
             }
         }
         return Promise.reject(error);

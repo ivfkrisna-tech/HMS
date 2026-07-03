@@ -537,7 +537,10 @@ router.post('/patient/:id/dose-status', verifyToken, resolveTenant, async (req, 
         const { medicineName, time, status } = req.body;
         const todayStr = getISTDateStr();
 
-        const user = await MasterUser.findById(id);
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const query = { _id: id };
+        if (hospitalId) query.hospitalId = hospitalId;
+        const user = await MasterUser.findOne(query);
         if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });
 
         let medLogs = user.medicationLogs || [];
@@ -573,7 +576,10 @@ router.post('/vitals', verifyToken, resolveTenant, async (req, res) => {
         const { patientId, weight, height, bmi, bp, pulse, temp, spo2, respRate, chiefComplaint, nurseNotes } = req.body;
         if (!patientId) return res.status(400).json({ success: false, message: 'patientId is required' });
 
-        const user = await MasterUser.findById(patientId);
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const query = { _id: patientId };
+        if (hospitalId) query.hospitalId = hospitalId;
+        const user = await MasterUser.findOne(query);
         if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });
 
         const newVitalEntry = {
@@ -656,7 +662,10 @@ router.post('/vitals', verifyToken, resolveTenant, async (req, res) => {
 // 5. GET & POST /api/nurse/notes/:patientId — Nursing notes management
 router.get('/notes/:patientId', verifyToken, resolveTenant, async (req, res) => {
     try {
-        const user = await MasterUser.findById(req.params.patientId).lean();
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const query = { _id: req.params.patientId };
+        if (hospitalId) query.hospitalId = hospitalId;
+        const user = await MasterUser.findOne(query).lean();
         if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });
         res.json({ success: true, notes: (user.nursingNotes || []).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)) });
     } catch (error) {
@@ -669,7 +678,10 @@ router.post('/notes/:patientId', verifyToken, resolveTenant, async (req, res) =>
         const { note } = req.body;
         if (!note) return res.status(400).json({ success: false, message: 'Note content is required' });
 
-        const user = await MasterUser.findById(req.params.patientId);
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const query = { _id: req.params.patientId };
+        if (hospitalId) query.hospitalId = hospitalId;
+        const user = await MasterUser.findOne(query);
         if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });
 
         const newNote = {
