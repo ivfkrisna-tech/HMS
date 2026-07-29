@@ -4,7 +4,11 @@ const pharmacyItemSchema = new mongoose.Schema({
     medicineName: { type: String, required: [true, 'Medicine name is required'], trim: true },
     saltName: { type: String, default: '', trim: true },
     frequency: { type: String, default: '', trim: true },
-    duration: { type: String, default: '', trim: true }
+    duration: { type: String, default: '', trim: true },
+    volumeMl: { type: String, default: '', trim: true },
+    administrationTime: { type: String, default: '', trim: true },
+    gapDays: { type: Number, default: 0 },
+    startDate: { type: Date, default: null }
 }, { _id: false });
 
 const vitalsSchema = new mongoose.Schema({
@@ -56,8 +60,8 @@ const appointmentSchema = new mongoose.Schema({
         default: 'pending',
         index: true
     },
-    paymentStatus: { type: String, enum: ['pending', 'paid', 'refunded', 'Paid', 'Pending'], default: 'pending' },
-    paymentMethod: { type: String, default: 'Cash' },
+    paymentStatus: { type: String, enum: ['pending', 'paid', 'refunded', 'Paid', 'Pending', 'Refunded', 'unpaid', 'Unpaid'], default: 'pending' },
+    paymentMethod: { type: String, enum: ['Cash', 'UPI', 'Card', 'NEFT/RTGS', 'Free', 'Online'], default: 'Cash' },
     
     // Dedicated field to save the UPI text input / Reference ID from the reception registration dashboard
     transactionId: { type: String, default: '', trim: true },

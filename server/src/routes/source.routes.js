@@ -125,7 +125,7 @@ router.post('/', verifyToken, resolveTenant, verifyHospitalAdmin, async (req, re
             return res.status(400).json({ success: false, message: 'Hospital ID not found' });
         }
 
-        const { sourceType, sourceName, status } = req.body;
+        const { sourceType, sourceName, status, fields } = req.body;
         if (!sourceType || !sourceName) {
             return res.status(400).json({ success: false, message: 'Source Type and Source Name are required' });
         }
@@ -148,7 +148,8 @@ router.post('/', verifyToken, resolveTenant, verifyHospitalAdmin, async (req, re
             sourceType,
             sourceName: sourceName.trim(),
             status: status || 'Active',
-            createdBy: req.user._id
+            createdBy: req.user._id,
+            fields: fields || []
         });
 
         await newSource.save();
@@ -164,7 +165,7 @@ router.put('/:id', verifyToken, resolveTenant, verifyHospitalAdmin, async (req, 
     try {
         const hospitalId = req.user.hospitalId || req.hospitalId;
         const { id } = req.params;
-        const { sourceName, status } = req.body;
+        const { sourceName, status, fields } = req.body;
 
         const { Source, User } = getModels(req);
 
@@ -216,6 +217,10 @@ router.put('/:id', verifyToken, resolveTenant, verifyHospitalAdmin, async (req, 
 
         if (status) {
             source.status = status;
+        }
+
+        if (fields !== undefined) {
+            source.fields = fields;
         }
 
         await source.save();

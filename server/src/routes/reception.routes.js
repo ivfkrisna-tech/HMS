@@ -188,7 +188,11 @@ router.post('/verify-aadhaar-otp', verifyToken, verifyReception, async (req, res
             return res.status(400).json({ success: false, message: 'Invalid OTP. Try 123456.' });
         }
 
-        const existingUser = await User.findOne({ aadhaarNumber });
+        const hospitalId = req.hospitalId || req.user.hospitalId;
+        const query = { aadhaarNumber };
+        if (hospitalId) query.hospitalId = hospitalId;
+        const existingUser = await User.findOne(query);
+        
         if (existingUser) {
             return res.status(409).json({ success: false, message: `Aadhaar already linked to patient: ${existingUser.name} (${existingUser.phone})` });
         }
@@ -562,6 +566,8 @@ router.get('/appointments', verifyToken, verifyReception, resolveTenant, async (
 
         const enrichedAppointments = appointments.map(apt => ({
             ...apt,
+            userId: apt.userId || { name: 'Unknown/Deleted Patient', patientId: 'N/A' },
+            doctorId: apt.doctorId || { name: 'Unassigned/Deleted Doctor' },
             isHospitalized: apt.userId?._id ? admittedSet.has(String(apt.userId._id)) : false
         }));
 
@@ -791,9 +797,10 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
 
         // ─── Follow-up eligibility check (server-side safety net) ─────────────
         let isFollowUp = false;
+        let hospitalDoc = null;
         if (!isSharedAppointment) {
             const Hospital = require('../models/hospital.model');
-            const hospitalDoc = hospitalId ? await Hospital.findById(hospitalId).select('consultationValidityDays') : null;
+            hospitalDoc = hospitalId ? await Hospital.findById(hospitalId).select('consultationValidityDays appointmentFee') : null;
             const validityDays = hospitalDoc?.consultationValidityDays ?? 3;
             const hFilter = hospitalId ? { hospitalId } : {};
 
@@ -808,7 +815,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
 
             // Also check partner if couple
             if (patient.coupleId) {
-                const partnerUser = await User.findOne({ coupleId: patient.coupleId, _id: { $ne: patient._id } });
+                const partnerUser = await User.findOne({ coupleId: patient.coupleId, _id: { $ne: patient._id }, ...hFilter });
                 if (partnerUser) {
                     const partnerPaid = await Appointment.findOne({
                         userId: partnerUser._id,
@@ -833,8 +840,8 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             }
         }
 
-        const finalAmount = (isSharedAppointment || isFollowUp) ? 0 : (Number(amount) || doctor.consultationFee || 0);
-        const finalPaymentStatus = (isSharedAppointment || isFollowUp) ? 'Paid' : (paymentStatus || 'Paid');
+        const finalAmount = (isSharedAppointment || isFollowUp) ? 0 : (Number(amount) || doctor.consultationFee || hospitalDoc?.appointmentFee || 0);
+        const finalPaymentStatus = 'Paid';
 
         const newAppointment = new Appointment({
             userId: patient._id,
@@ -851,7 +858,7 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
             amount: finalAmount,
             status: 'confirmed',
             paymentStatus: finalPaymentStatus,
-            paymentMethod: paymentMethod || 'Cash',
+            paymentMethod: 'Cash',
             paymentProofUrl: paymentMethod === 'Cash' ? null : (paymentProofUrl || null),
             paymentProofFileName: paymentMethod === 'Cash' ? null : (paymentProofFileName || null),
             notes: notes || 'Walk-in created by reception',
@@ -871,7 +878,8 @@ router.post('/book-appointment', verifyToken, verifyReception, async (req, res) 
         if (bookForPartnerAlso && patient.coupleId) {
             const partnerUser = await User.findOne({
                 coupleId: patient.coupleId,
-                _id: { $ne: patient._id }
+                _id: { $ne: patient._id },
+                ...(hospitalId ? { hospitalId } : {})
             });
             if (partnerUser) {
                 // Check if partner already has an active appointment on this date
@@ -994,12 +1002,19 @@ router.get('/transactions', verifyToken, verifyReception, async (req, res) => {
         if (req.user.hospitalId) {
             queryFilter.hospitalId = req.user.hospitalId;
         }
-        const transactions = await Appointment.find(queryFilter)
+        const transactionsData = await Appointment.find(queryFilter)
             .populate('userId', 'name phone patientId email')
             .populate('doctorId', 'name')
             .sort({ createdAt: -1 })
             .limit(100)
             .lean();
+        
+        const transactions = transactionsData.map(txn => ({
+            ...txn,
+            userId: txn.userId || { name: 'Unknown/Deleted Patient', patientId: 'N/A' },
+            doctorId: txn.doctorId || { name: 'Unassigned/Deleted Doctor' }
+        }));
+        
         res.json({ success: true, transactions });
     } catch (e) { res.status(500).json({ message: e.message }); }
 });

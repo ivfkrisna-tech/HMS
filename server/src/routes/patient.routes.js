@@ -73,7 +73,12 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
         
         // Find the user first to get their actual ObjectId for relations
         // Always use MasterUser — patients are registered in master DB
-                const userQuery = isObjectId ? { _id: userId } : { patientId: userId };
+        const userQuery = isObjectId ? { _id: userId } : { patientId: userId };
+        
+        if (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(userRole) && !['centraladmin', 'superadmin'].includes(dynRole)) {
+            userQuery.hospitalId = req.user.hospitalId;
+        }
+
         let user = await MasterUser.findOne(userQuery)
             .populate({
                 path: 'partnerPatientId',
@@ -86,10 +91,11 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
         }
 
         if (user.coupleId) {
-            const partner = await MasterUser.findOne({
-                coupleId: user.coupleId,
-                _id: { $ne: user._id }
-            })
+            const partnerQuery = { coupleId: user.coupleId, _id: { $ne: user._id } };
+            if (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(userRole) && !['centraladmin', 'superadmin'].includes(dynRole)) {
+                partnerQuery.hospitalId = req.user.hospitalId;
+            }
+            const partner = await MasterUser.findOne(partnerQuery)
             .select('name firstName lastName mrn patientId gender phone mobile linkedAppointmentId coupleId')
             .lean();
             if (partner) {

@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAppDispatch, useAuth } from '../../store/hooks';
 import { loginAdmin, clearError } from '../../store/slices/authSlice';
+import { useBranding } from '../../context/BrandingContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiOutlineMail, HiOutlineLockClosed } from 'react-icons/hi';
-import { RiArrowLeftLine } from 'react-icons/ri';
+import { RiArrowLeftLine, RiHospitalLine } from 'react-icons/ri';
 import '../user/Login.css';
 
 const CentralAdminLogin = () => {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const { loading, error, isAuthenticated, user } = useAuth();
+    const { branding } = useBranding();
 
     const [formData, setFormData] = useState({ email: '', password: '' });
 
@@ -64,7 +66,14 @@ const CentralAdminLogin = () => {
                                 </button>
 
                                 <div className="hospital-brand">
-                                    <img src="logo.png" alt="Krisna IVF" style={{ height: '40px', objectFit: 'contain' }} />
+                                    {branding.logoUrl ? (
+                                        <img src={branding.logoUrl} alt={branding.appName} style={{ height: '40px', objectFit: 'contain' }} />
+                                    ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--brand-600)' }}>
+                                            <RiHospitalLine />
+                                            {branding.appName}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="auth-header">
@@ -90,7 +99,7 @@ const CentralAdminLogin = () => {
                                             <input
                                                 type="email"
                                                 name="email"
-                                                placeholder="admin@krisnaivf.com"
+                                                placeholder="admin@portal.com"
                                                 value={formData.email}
                                                 onChange={handleChange}
                                                 required

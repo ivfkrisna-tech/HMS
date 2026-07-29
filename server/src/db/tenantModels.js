@@ -49,7 +49,8 @@ const userSchema = new mongoose.Schema({
         referencePersonName: { type: String, default: null },
         doctorName: { type: String, default: null },
         hospitalName: { type: String, default: null },
-        description: { type: String, default: null }
+        description: { type: String, default: null },
+        dynamicValues: { type: mongoose.Schema.Types.Mixed, default: {} }
     }
 }, { timestamps: true });
 
@@ -151,7 +152,15 @@ const sourceSchema = new mongoose.Schema({
     sourceType: { type: String, enum: ['B2B', 'B2C'], required: true },
     sourceName: { type: String, required: true },
     status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    fields: [
+        {
+            name: { type: String, required: true },
+            type: { type: String, enum: ['Text', 'Number', 'Date', 'Select', 'Textarea'], required: true },
+            options: [{ type: String }],
+            required: { type: Boolean, default: false }
+        }
+    ]
 }, { timestamps: true });
 
 const serviceMasterSchema = new mongoose.Schema({

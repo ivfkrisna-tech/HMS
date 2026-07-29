@@ -1,10 +1,19 @@
 import axios from 'axios';
+import { getStoreRef } from '../store/storeRef';
+import { logout } from '../store/slices/authSlice';
 
-// Base URL from Environment (Vercel / Local)
-const baseURL = import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+// FIX: Local testing ke liye empty string aur Live ke liye VITE_API_URL
+const getBaseURL = () => {
+    // Agar local development mode hai, toh empty string rakhein taaki proxy chale
+    if (import.meta.env.MODE === 'development') {
+        return '';
+    }
+    // Production/Live ke liye VITE_API_URL ya default Render URL
+    return import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+};
 
 const apiClient = axios.create({
-    baseURL: baseURL,
+    baseURL: getBaseURL(), // Yahan function call karein
     headers: { 'Content-Type': 'application/json' },
 });
 
@@ -18,21 +27,49 @@ apiClient.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
+// ... baaki response interceptor waisa hi rehne dein
+/*import axios from 'axios';
+
+//temporary add
+axios.defaults.baseURL = process.env.NODE_ENV === 'production'
+    ? "https://hms-h939.onrender.com"
+    : "";
+
+// Base URL from Environment (Vercel / Local)
+const baseURL = import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+
+const apiClient = axios.create({
+    baseURL: baseURL,
+    headers: { 'Content-Type': 'application/json' },
+});
+
+
+// Request Interceptor
+apiClient.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) config.headers.Authorization = `Bearer ${token}`;
+        return config;
+    },
+    (error) => Promise.reject(error)
+);*/
+
 // Response Interceptor
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // CIRCULAR DEPENDENCY FIX:
-            // Instead of dispatching logout action here, we simply clear storage and redirect.
-            // The authSlice will pick up the initial state from localStorage on reload.
-            const identityField = localStorage.getItem('user');
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-
-            // Only redirect if not already on the login page to avoid loops
-            if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login';
+            const store = getStoreRef();
+            window.dispatchEvent(new Event('auth-expired'));
+            
+            if (store) {
+                store.dispatch(logout());
+            } else {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                if (!window.location.pathname.includes('/login')) {
+                    window.location.href = '/login';
+                }
             }
         }
         return Promise.reject(error);
@@ -151,11 +188,11 @@ export const receptionAPI = {
         return response.data;
     },
     confirmPayment: async (id, paymentMethod, amount, paymentProofUrl = null, paymentProofFileName = null) => {
-        const response = await apiClient.patch(`/api/reception/appointments/${id}/confirm-payment`, { 
-            paymentMethod, 
-            amount, 
-            paymentProofUrl, 
-            paymentProofFileName 
+        const response = await apiClient.patch(`/api/reception/appointments/${id}/confirm-payment`, {
+            paymentMethod,
+            amount,
+            paymentProofUrl,
+            paymentProofFileName
         });
         return response.data;
     },

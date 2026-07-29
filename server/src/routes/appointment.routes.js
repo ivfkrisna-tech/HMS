@@ -165,7 +165,7 @@ router.post('/create', verifyToken, resolveTenant, async (req, res) => {
 
         // Determine appointment mode for this hospital
         const hospitalId = req.hospitalId || req.user.hospitalId;
-        const hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode') : null;
+        const hospital = hospitalId ? await Hospital.findById(hospitalId).select('appointmentMode appointmentFee') : null;
         const isTokenMode = hospital?.appointmentMode === 'token';
 
         let finalTime = appointmentTime;
@@ -212,7 +212,7 @@ router.post('/create', verifyToken, resolveTenant, async (req, res) => {
             appointmentDate: new Date(reqDateStr),
             appointmentTime: finalTime || '',
             tokenNumber,
-            amount: amount || doctorDoc.consultationFee || 500,
+            amount: Number(amount) || doctorDoc.consultationFee || hospital?.appointmentFee || 0,
             notes: notes || '',
             prescriptionDescription: prescriptionDescription || '',
             doctorNotes: doctorNotes || '',
@@ -222,7 +222,8 @@ router.post('/create', verifyToken, resolveTenant, async (req, res) => {
             labTests: labTests || [],
             dietPlan: dietPlan || [],
             status: 'pending',
-            paymentStatus: 'Pending'
+            paymentStatus: 'Paid',
+            paymentMethod: 'Cash'
         });
 
         const savedAppointment = await appointment.save();

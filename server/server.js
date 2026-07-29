@@ -1,7 +1,6 @@
-// server/server.js
 require('dotenv').config();
 const app = require('./src/app');
-const connectDB = require('./src/db/db'); // <--- Import the DB connection logic
+const connectDB = require('./src/db/db');
 
 const http = require('http');
 const { Server } = require('socket.io');
@@ -14,11 +13,16 @@ connectDB();
 
 // 2. HTTP Server and Socket.io
 const server = http.createServer(app);
+
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
+    // 1. Localhost allow karein
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
-    
-    // Support multi-tenant subdomains during development (e.g., http://kindle-womb-ivf-centre.localhost:5173)
+
+    // 2. Apni current local IP allow karein
+    if (origin.includes('192.168.183.171')) return true;
+
+    // Support multi-tenant subdomains during development
     if (/^https?:\/\/[\w-]+\.localhost(:\d+)?$/.test(origin)) return true;
 
     if (origin === 'https://medical365.in') return true;
@@ -47,8 +51,6 @@ app.set('io', io);
 
 io.on('connection', (socket) => {
     console.log('New client connected', socket.id);
-
-    // Clients can join a room based on their user ID or role to receive targeted events
     socket.on('join', (room) => {
         socket.join(room);
         console.log(`Socket ${socket.id} joined room ${room}`);

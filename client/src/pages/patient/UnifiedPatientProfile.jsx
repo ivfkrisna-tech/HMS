@@ -446,6 +446,15 @@ const UnifiedPatientProfile = () => {
                                     </>
                                 )}
                                 {patientData.sourceInformation.sourceType === 'Others' && patientData.sourceInformation.description && <div>📝 Description: {patientData.sourceInformation.description}</div>}
+                                {patientData.sourceInformation.dynamicValues && Object.keys(patientData.sourceInformation.dynamicValues).length > 0 && (
+                                    <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '8px', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        {Object.entries(patientData.sourceInformation.dynamicValues).map(([key, val]) => (
+                                            <div key={key}>
+                                                <strong>{key}:</strong> {val}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

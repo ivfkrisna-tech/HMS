@@ -1,0 +1,1061 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* --- Global Utilities for Layout --- */
+.np-profile-container {
+    padding: 24px;
+    background: #f8fafc;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: #1e293b;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+/* --- Loader & Errors --- */
+.np-loading-screen,
+.np-error-screen {
+    padding: 48px;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.np-error-screen {
+    color: #ef4444;
+}
+
+/* --- Top Navigation --- */
+.np-nav-row {
+    margin-bottom: 16px;
+}
+
+.np-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.np-back-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+/* --- Premium Banner Header --- */
+.np-header-banner {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.np-banner-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.np-patient-identity {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.np-avatar-circle {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #edf2ff;
+    color: #3b82f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.np-identity-meta h2 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.np-mrn-sub {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-top: 4px;
+    display: block;
+}
+
+.np-alert-pill {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Pills row */
+.np-banner-pills-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.np-info-badge {
+    background: #f1f5f9;
+    color: #475569;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.np-info-badge.badge-doc {
+    background: #eff6ff;
+    color: #1e40af;
+    font-weight: 600;
+}
+
+.np-info-badge.status-tag {
+    font-weight: 600;
+}
+
+.status-stable {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.status-critical {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+/* --- 4 Summary Stats Cards --- */
+.np-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.np-stat-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.np-stat-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.np-stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+}
+
+.np-stat-sub {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 6px;
+}
+
+.text-orange-semibold {
+    color: #f97316 !important;
+}
+
+/* Subtle top border colors for specific stats cards */
+.card-blue {
+    border-top: 4px solid #3b82f6;
+}
+
+.card-teal {
+    border-top: 4px solid #0d9488;
+}
+
+.card-purple {
+    border-top: 4px solid #8b5cf6;
+}
+
+.card-orange {
+    border-top: 4px solid #f97316;
+}
+
+/* --- Container Card Structures --- */
+.np-section-card,
+.np-section-wrapper {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.np-card-title,
+.np-section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.np-section-subtitle {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin: 4px 0 0;
+}
+
+.np-card-header-flex,
+.np-section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+/* --- Empty Prescription State --- */
+.np-empty-prescription-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 48px;
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.np-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+}
+
+.np-empty-prescription-card h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 8px;
+}
+
+.np-empty-text {
+    color: #64748b;
+    font-size: 0.9rem;
+    max-width: 480px;
+    margin: 0 auto 12px;
+    line-height: 1.5;
+}
+
+.np-empty-footnote {
+    color: #94a3b8;
+    font-size: 0.78rem;
+    font-style: italic;
+}
+
+/* --- Medication Journey Board & Columns --- */
+.np-legend-container {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.np-legend-dot {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.np-legend-dot::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot-given::before {
+    background: #22c55e;
+}
+
+.dot-due::before {
+    background: #ef4444;
+}
+
+.dot-upcoming::before {
+    background: #eab308;
+}
+
+.dot-scheduled::before {
+    background: #3b82f6;
+}
+
+.np-journey-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.np-column-pane {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.np-column-pane.pane-active-today {
+    background: #f0f7ff;
+    border-color: #bfdbfe;
+}
+
+.np-pane-heading {
+    margin-bottom: 14px;
+}
+
+.np-pane-heading h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.np-pane-heading.heading-today h4 {
+    color: #1d4ed8;
+}
+
+.np-date-label {
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.np-pane-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Medicine Inner Cards */
+.np-med-row-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.item-given-border {
+    border-left-color: #22c55e;
+}
+
+.item-due-border {
+    border-left-color: #ef4444;
+    background: #fff5f5;
+}
+
+.item-upcoming-border {
+    border-left-color: #eab308;
+}
+
+.item-scheduled-border {
+    border-left-color: #3b82f6;
+}
+
+.np-med-main-info h5 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.np-med-sub-text {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-top: 4px;
+    display: block;
+}
+
+.np-med-action-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed #f1f5f9;
+}
+
+.np-status-text {
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.text-success {
+    color: #16a34a;
+}
+
+.text-danger {
+    color: #dc2626;
+}
+
+.text-warning {
+    color: #ca8a04;
+}
+
+.text-info {
+    color: #2563eb;
+}
+
+.np-progress-text {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.np-action-pill-btn {
+    border: none;
+    background: #2563eb;
+    color: #ffffff;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.np-action-pill-btn:hover {
+    background: #1d4ed8;
+}
+
+/* ── Locked / Disabled Button State ── */
+.np-action-pill-btn.btn-locked {
+    background: #94a3b8;
+    color: #f1f5f9;
+    cursor: not-allowed;
+    opacity: 0.85;
+    font-size: 0.7rem;
+    padding: 5px 10px;
+    letter-spacing: 0.1px;
+}
+
+.np-action-pill-btn.btn-locked:hover {
+    background: #94a3b8;
+}
+
+/* ── Dose Status Badges ── */
+.np-dose-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 20px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+}
+
+/* ✅ Given — Clean Green */
+.badge-given {
+    background: #dcfce7;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+}
+
+/* ⏱️ Scheduled — Neutral Gray (future time, not due yet) */
+.badge-scheduled {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+/* ⚠️ Overdue — Pulsing Red Alert (time passed, nurse hasn't clicked) */
+.badge-overdue {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+/* Pulsing animation for overdue badge */
+.np-pulse {
+    animation: np-pulse-anim 1.6s ease-in-out infinite;
+}
+
+@keyframes np-pulse-anim {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35);
+        opacity: 1;
+    }
+    50% {
+        box-shadow: 0 0 0 5px rgba(220, 38, 38, 0);
+        opacity: 0.8;
+    }
+}
+
+/* --- Vitals Display Box Grid --- */
+.np-vitals-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.np-vitals-pill-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}
+
+.np-vitals-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #94a3b8;
+    letter-spacing: 0.5px;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.np-vitals-value {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.np-primary-action-btn {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+}
+
+.np-primary-action-btn:hover {
+    background: #1d4ed8;
+}
+
+/* --- Clean Enterprise Table Layout --- */
+.np-table-scroll-container {
+    overflow-x: auto;
+    margin-top: 12px;
+}
+
+.np-enterprise-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.88rem;
+}
+
+.np-enterprise-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    text-transform: uppercase;
+}
+
+.np-enterprise-table td {
+    padding: 14px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+}
+
+.np-empty-table-text {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-style: italic;
+    margin-top: 10px;
+}
+
+.text-success-bold {
+    color: #16a34a !important;
+    font-weight: 700;
+}
+
+.text-muted-xs {
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+/* --- Lab Reports Wrap Stack --- */
+.np-reports-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.np-report-sub-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    background: #fafafa;
+}
+
+.np-report-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.np-report-meta-row h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.np-status-badge-pill {
+    background: #e0f2fe;
+    color: #0369a1;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+
+/* --- Clean Centered Overlay Modal --- */
+.np-modal-blur-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.np-modal-content-card {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 680px;
+    padding: 24px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    animation: npModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+@keyframes npModalFadeIn {
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.np-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 14px;
+}
+
+.np-modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.np-modal-header p {
+    margin: 4px 0 0;
+    font-size: 0.82rem;
+    color: #64748b;
+}
+
+.np-modal-close-cross {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #94a3b8;
+}
+
+.np-modal-close-cross:hover {
+    color: #475569;
+}
+
+/* Grid Forms Inside Modal */
+.np-modal-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.np-form-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.np-form-item.full-width-field {
+    margin-bottom: 14px;
+}
+
+.np-form-item label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.np-form-item input,
+.np-form-item textarea {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    outline: none;
+    color: #1e293b;
+}
+
+.np-form-item input:focus,
+.np-form-item textarea:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.np-readonly-input {
+    background: #f8fafc;
+    color: #64748b !important;
+}
+
+.np-modal-action-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 16px;
+}
+
+.np-btn-cancel {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
+.np-btn-cancel:hover {
+    background: #f8fafc;
+}
+
+.np-btn-save {
+    background: #2563eb;
+    border: none;
+    color: #ffffff;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
+.np-btn-save:hover {
+    background: #1d4ed8;
+}
+
+/* --- PRESET / OVERRIDE FOR THE DARK MODAL (image_a1e1c0.jpg Reference) --- */
+
+.np-dark-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 20, 32, 0.6);
+    /* Soft dark backdrop dimming effect */
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 16px;
+}
+
+.np-dark-modal-card {
+    background: #1e2538;
+    /* Exact dark slate theme background */
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    /* 20px se chota karke more premium 16px kiya */
+    width: 100%;
+    max-width: 490px;
+    /* Width 580px se choti karke compact ki */
+    padding: 18px 22px;
+    /* Padding 28px se kam ki taaki vertical space bache */
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-sizing: border-box;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+
+    /* Safety Check: Agar screen choti ho toh modal upar-neeche se katega nahi, andar hi scroll hoga */
+    max-height: 92vh;
+    overflow-y: auto;
+}
+
+/* Modal internal scrollbar styling */
+.np-dark-modal-card::-webkit-scrollbar {
+    width: 5px;
+}
+
+.np-dark-modal-card::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.np-dark-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    /* Margin 24px se 14px kiya */
+}
+
+.np-dark-modal-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 1.18rem;
+    /* Font size thoda chota kiya */
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.np-dark-modal-meta {
+    margin: 4px 0 0 0;
+    font-size: 0.78rem;
+    color: #707e94;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+}
+
+.np-highlight-white {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.np-dark-modal-close {
+    background: transparent;
+    border: none;
+    color: #5c6b84;
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px;
+    transition: color 0.1s ease;
+}
+
+.np-dark-modal-close:hover {
+    color: #ffffff;
+}
+
+/* 2-Column Layout Grid compressed */
+.np-dark-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 16px;
+    /* Vertical gap 16px se 10px kiya */
+    margin-bottom: 10px;
+}
+
+@media (max-width: 480px) {
+    .np-dark-modal-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.np-dark-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    /* Label aur input ka gap 8px se 4px kiya */
+}
+
+.np-dark-form-group.full-width {
+    grid-column: span 2;
+    margin-top: 2px;
+    margin-bottom: 4px;
+}
+
+@media (max-width: 480px) {
+    .np-dark-form-group.full-width {
+        grid-column: span 1;
+    }
+}
+
+.np-dark-form-group label {
+    font-size: 0.68rem;
+    /* Text size thoda sharp kiya */
+    font-weight: 700;
+    color: #93a2b7;
+    letter-spacing: 0.5px;
+}
+
+/* Compact Inputs & Textareas */
+.np-dark-form-group input {
+    background: #252d40;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 8px 12px;
+    /* Vertical padding 11px se 8px ki */
+    font-size: 0.85rem;
+    color: #ffffff;
+    outline: none;
+    font-family: inherit;
+    transition: all 0.15s ease;
+}
+
+.np-dark-form-group textarea {
+    background: #252d40;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    color: #ffffff;
+    outline: none;
+    font-family: inherit;
+    transition: all 0.15s ease;
+    resize: none;
+    /* Manual resize handle hataya uniformity ke liye */
+    height: 48px;
+    /* Textareas ki height sleek aur fixed kar di */
+}
+
+.np-dark-form-group input:focus,
+.np-dark-form-group textarea:focus {
+    border-color: #12b787;
+    background: #293247;
+    box-shadow: 0 0 0 3px rgba(18, 183, 135, 0.15);
+}
+
+.np-dark-form-group input::placeholder,
+.np-dark-form-group textarea::placeholder {
+    color: #4f5d75;
+}
+
+/* Readonly BMI custom behavior */
+.np-dark-readonly {
+    background: #202737 !important;
+    color: #64748b !important;
+    cursor: not-allowed;
+}
+
+/* Footer layout optimized */
+.np-dark-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    /* Space 24px se 14px kiya */
+}
+
+.np-dark-btn-cancel {
+    background: #2e364a;
+    border: none;
+    color: #94a3b8;
+    padding: 8px 16px;
+    /* Compact button size */
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.84rem;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.np-dark-btn-cancel:hover {
+    background: #374159;
+    color: #ffffff;
+}
+
+.np-dark-btn-save {
+    background: #12b787;
+    border: none;
+    color: #ffffff;
+    padding: 8px 18px;
+    /* Compact button size */
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.84rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 4px 12px rgba(18, 183, 135, 0.2);
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.np-dark-btn-save:hover {
+    background: #0fa377;
+    transform: translateY(-1px);
+}
+
+.np-dark-btn-save:active {
+    transform: translateY(0);
+}

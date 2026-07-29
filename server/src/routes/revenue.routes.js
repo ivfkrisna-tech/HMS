@@ -83,11 +83,11 @@ router.get('/system', verifyCentralAdmin, async (req, res) => {
             month: currentMonth,
             year: currentYear,
         }).lean();
-        const perPatientRevenue = currentSubs.reduce((s, x) => s + (x.totalAmount || 0), 0);
+        const perPatientRevenue = currentSubs.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0);
 
         // Model A — fixed_monthly: sum of monthlyFee for all active entities
         const fixedMonthlyRevenue = byModel.fixed_monthly.reduce(
-            (s, h) => s + (h.revenueConfig?.monthlyFee || 0), 0
+            (s, h) => s + (Number(h.revenueConfig?.monthlyFee) || 0), 0
         );
 
         // Model C — per_login: future (always 0 for now)
@@ -103,7 +103,7 @@ router.get('/system', verifyCentralAdmin, async (req, res) => {
             const y = d.getFullYear();
 
             const subs = await ClinicSubscription.find({ month: m, year: y }).lean();
-            const ppAmt = subs.reduce((s, x) => s + (x.totalAmount || 0), 0);
+            const ppAmt = subs.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0);
             const fmAmt = fixedMonthlyRevenue; // same monthly fee each month
 
             monthlyBreakdown.push({
@@ -131,7 +131,7 @@ router.get('/system', verifyCentralAdmin, async (req, res) => {
                 const mm = md.getMonth() + 1;
                 const yy = md.getFullYear();
                 const subs = await ClinicSubscription.find({ month: mm, year: yy }).lean();
-                qTotal += subs.reduce((s, x) => s + (x.totalAmount || 0), 0);
+                qTotal += subs.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0);
                 qTotal += fixedMonthlyRevenue;
             }
             quarterlyBreakdown.push({ label: quarterLabel, total: qTotal });
