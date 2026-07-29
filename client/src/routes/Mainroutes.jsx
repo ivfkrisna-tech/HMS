@@ -74,6 +74,7 @@ import CompletedReports from '../pages/lab/CompletedReports';
 // Pharmacy Management Pages
 import PharmacyInventory from '../pages/pharmacy/PharmacyInventory';
 import PharmacyOrders from '../pages/pharmacy/PharmacyOrders';
+import PharmacyReturns from '../pages/pharmacy/PharmacyReturns';
 
 // Reception Pages
 import ReceptionDashboard from '../pages/reception/ReceptionDashboard';
@@ -193,6 +194,7 @@ const MainRoutes = () => {
                             {/* Pharmacy Management Pages */}
                             <Route path="pharmacy/inventory" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyInventory /></ProtectedRoute>} />
                             <Route path="pharmacy/orders" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyOrders /></ProtectedRoute>} />
+                            <Route path="pharmacy/returns" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyReturns /></ProtectedRoute>} />
 
                             {/* Reception Pages */}
                             <Route path="reception/dashboard" element={<ProtectedRoute requiredPermissions={['appointment_manage', 'patient_create']}><ReceptionDashboard /></ProtectedRoute>} />
