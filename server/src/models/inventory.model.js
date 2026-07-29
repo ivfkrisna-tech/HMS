@@ -18,6 +18,8 @@ const inventorySchema = new mongoose.Schema({
     unit: { type: String, default: 'Tablets' },
     buyingPrice: { type: Number, default: 0 },
     sellingPrice: { type: Number, default: 0 },
+    sgst: { type: Number, default: 0 },
+    cgst: { type: Number, default: 0 },
     vendor: { type: String, default: '' },
     batchNumber: { type: String, default: '' },
     expiryDate: { type: Date, default: null },

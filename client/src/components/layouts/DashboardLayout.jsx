@@ -6,7 +6,7 @@ import { useBranding } from '../../context/BrandingContext';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
-    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers
+    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers, FiRefreshCcw
 } from 'react-icons/fi';
 import './DashboardLayout.css';
 
@@ -66,6 +66,7 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             return [
                 { label: 'Inventory', path: '/pharmacy/inventory', icon: <FiPackage /> },
                 { label: 'Pharmacy Orders', path: '/pharmacy/orders', icon: <FiClipboard /> },
+                { label: 'Return & Exchange', path: '/pharmacy/returns', icon: <FiRefreshCcw /> },
             ];
         }
         if (role === 'accountant') {

@@ -60,8 +60,12 @@ router.post('/inventory', verifyToken, async (req, res) => {
 // DELETE medicine
 router.delete('/inventory/:id', verifyToken, async (req, res) => {
     try {
-        const deleteQuery = { _id: req.params.id, pharmacyId: req.user.id };
-        if (req.user.hospitalId) deleteQuery.hospitalId = req.user.hospitalId;
+        const deleteQuery = { _id: req.params.id };
+        if (req.user.hospitalId) {
+            deleteQuery.hospitalId = req.user.hospitalId;
+        } else {
+            deleteQuery.pharmacyId = req.user.id;
+        }
         const deletedItem = await Inventory.findOneAndDelete(deleteQuery);
 
         if (!deletedItem) {
@@ -69,6 +73,31 @@ router.delete('/inventory/:id', verifyToken, async (req, res) => {
         }
 
         res.json({ success: true, message: 'Item deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+// UPDATE medicine
+router.put('/inventory/:id', verifyToken, async (req, res) => {
+    try {
+        const updateQuery = { _id: req.params.id };
+        if (req.user.hospitalId) {
+            updateQuery.hospitalId = req.user.hospitalId;
+        } else {
+            updateQuery.pharmacyId = req.user.id;
+        }
+        
+        const updatedItem = await Inventory.findOneAndUpdate(
+            updateQuery,
+            { $set: req.body },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedItem) {
+            return res.status(404).json({ success: false, message: "Item not found or unauthorized" });
+        }
+
+        res.json({ success: true, data: updatedItem });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
