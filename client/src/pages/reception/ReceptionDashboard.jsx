@@ -412,7 +412,7 @@ const ReceptionDashboard = () => {
         const monthDiff = today.getMonth() - dobDate.getMonth();
         if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dobDate.getDate())) {
             age--;
-        }
+        }   
         return age >= 0 ? `${age} Years` : '0 Years';
     };
 
