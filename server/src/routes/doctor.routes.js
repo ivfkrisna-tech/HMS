@@ -363,7 +363,7 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
         const findQuery = { _id: req.params.id };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
 
-        const Appointment = require('../models/appointment.model'); // Safety require
+        const Appointment = require('../models/appointment.model');
         const appointment = await Appointment.findOne(findQuery);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
 
@@ -420,13 +420,17 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
         await appointment.save();
 
         if (appointment.labTests && appointment.labTests.length > 0) {
-            // 👇 Yahan LabReport require karna zaroori tha!
             const LabReport = require('../models/labReport.model');
             const User = require('../models/user.model');
             const LabTest = require('../models/labTest.model');
             const TestPackage = require('../models/testPackage.model');
+            const Notification = require('../models/notification.model');
 
+            let reportId = null;
             const existingReport = await LabReport.findOne({ appointmentId: appointment._id });
+            if (existingReport) {
+                reportId = existingReport._id;
+            }
 
             let pId = appointment.patientId;
             let pName = 'Patient';
@@ -478,9 +482,8 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                 }
             });
 
-            // Agar report nahi hai toh naye tarike se create kar do
             if (!existingReport) {
-                await LabReport.create({
+                const newReport = await LabReport.create({
                     appointmentId: appointment._id,
                     patientId: pId,
                     patientName: pName,
@@ -489,6 +492,8 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                     totalAmount: totalAmount,
                     status: 'Pending'
                 }).catch(err => console.log("LabReport creation note:", err.message));
+
+                if (newReport) reportId = newReport._id;
             }
 
             // --- Dispatch Lab Notification ---
@@ -497,21 +502,22 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                 recipientRole: 'lab',
                 message: `New lab tests prescribed for ${pName} (${pId || 'N/A'})`,
                 referenceType: 'LabReport',
-                referenceId: reportId, // Make sure reportId is declared/defined if used
+                referenceId: reportId,
                 patientId: pId || 'N/A'
-            });
+            }).catch(() => { });
 
             const io = req.app.get('io');
             if (io) {
                 io.to('lab').emit('newNotification', { message: `New lab tests prescribed for ${pName}` });
             }
         } else {
-            // Remove pending reports if no tests prescribed anymore
-            await LabReport.deleteOne({ appointmentId: appointment._id, testStatus: 'PENDING' });
+            const LabReport = require('../models/labReport.model');
+            await LabReport.deleteOne({ appointmentId: appointment._id, testStatus: 'PENDING' }).catch(() => { });
         }
 
-        // --- Create or Update Pharmacy Order (upsert so re-saves propagate to Nurse panel) ---
+        // --- Create or Update Pharmacy Order ---
         if (appointment.pharmacy && appointment.pharmacy.length > 0) {
+            const PharmacyOrder = require('../models/pharmacyOrder.model');
             const orderItems = appointment.pharmacy.map(p => ({
                 medicineName: p.medicineName,
                 frequency: p.frequency,
@@ -546,7 +552,7 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                     }
                 },
                 { upsert: true, new: true }
-            );
+            ).catch(() => { });
         }
 
         // ── CLINICAL SAFETY GUARDRAIL: FORCE APPOINTMENT & PATIENT STATUS ──
@@ -554,29 +560,22 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
             const mongoose = require('mongoose');
             const User = require('../models/user.model');
 
-            // 1. Force appointment status to 'confirmed' so it appears on the Receptionist Dashboard
-            // (The Appointment schema enum only allows: 'pending', 'confirmed', 'completed', 'cancelled')
             appointment.status = 'confirmed';
             await appointment.save();
-            console.log(`[HMS Guardrail] Appointment ${appointment._id} status forced to confirmed`);
 
-            // 2. Strictly target the real Patient ID (ignoring doctor's userId)
             const realPatientId = appointment.patientId || appointment.patient?._id || appointment.patient;
 
             if (realPatientId && mongoose.Types.ObjectId.isValid(realPatientId)) {
                 const existingUser = await User.findById(realPatientId);
-                // Do not downgrade if already admitted
                 if (existingUser && existingUser.status !== 'admitted') {
                     await User.findByIdAndUpdate(realPatientId, {
                         $set: { status: 'recommended_ipd' }
                     }, { strict: false });
-                    console.log(`[HMS Guardrail] Patient ${realPatientId} status set to recommended_ipd`);
                 }
             }
         } catch (err) {
             console.error("[HMS Guardrail Critical Error]:", err.message);
         }
-        // ───────────────────────────────────────────────────────────────────
 
         res.json({ success: true, message: 'Prescription saved successfully', appointment });
     } catch (error) {
