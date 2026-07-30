@@ -4,13 +4,13 @@ import { logout } from '../store/slices/authSlice';
 
 // FIX: Local testing ke liye empty string aur Live ke liye VITE_API_URL
 const getBaseURL = () => {
-    // Localhost par yeh empty string dega (Proxy chalane ke liye)
+    // 1. Local ke liye direct localhost:3000 likh do (Proxy ki koi zaroorat nahi)
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return '';
+        return 'http://localhost:3000'; 
     }
-
-    // Live site ke liye Render ka asli URL daal do
-    return import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com';
+    
+    // 2. Live site ke liye Render ka asli URL
+    return import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com'; 
 };
 
 const apiClient = axios.create({

@@ -235,16 +235,23 @@ const PharmacyOrders = () => {
         try {
             const purchasedIndices = Array.from({ length: totalItems }, (_, i) => i);
             const payload = payloadObj || { purchasedIndices };
-            
+
             console.log("🚀 [FRONTEND CHECKOUT] Payload to send:", JSON.stringify(payload, null, 2));
             console.log("🚀 [FRONTEND CHECKOUT] Frontend Totals:", payload.frontendTotals);
 
             const token = localStorage.getItem('token');
-            const res = await fetch(`/api/pharmacy/orders/${orderId}/complete`, {
+
+            // 👇 Yeh rasta seedha Render backend ki taraf jayega
+            const backendUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'http://localhost:3000'
+                : (import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com');
+
+            const res = await fetch(`${backendUrl}/api/pharmacy/orders/${orderId}/complete`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
+
             const data = await res.json();
             if (data.success) {
                 alert("Order completed!");
@@ -255,7 +262,6 @@ const PharmacyOrders = () => {
             alert("Failed to update order.");
         }
     };
-
     const handleViewBill = (order) => {
         setSelectedOrder(order);
         setShowBillModal(true);
