@@ -123,19 +123,21 @@ router.put('/:id/discharge', verifyAdmissionAccess, async (req, res) => {
         
         // Calculate days (minimum 1 day)
         let diffTime = finalDischargeDate.getTime() - admissionDate.getTime();
-        let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays <= 0) diffDays = 1;
+        let diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
         
         let grandTotal = 0;
         
         // Update facility charges based on actual days stayed
         if (admission.selectedFacilities && admission.selectedFacilities.length > 0) {
             admission.selectedFacilities = admission.selectedFacilities.map(f => {
-                const fTotal = diffDays * Number(f.pricePerDay || 0);
+                const manualDays = Number(f.days || 0);
+                const actualDays = manualDays > 0 ? manualDays : diffDays;
+                
+                const fTotal = actualDays * Number(f.pricePerDay || 0);
                 grandTotal += fTotal;
                 return {
                     ...f.toObject ? f.toObject() : f,
-                    days: diffDays,
+                    days: actualDays,
                     totalAmount: fTotal
                 };
             });

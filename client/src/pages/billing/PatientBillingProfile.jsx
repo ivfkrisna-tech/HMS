@@ -32,17 +32,29 @@ const PatientBillingProfile = () => {
         } catch (err) { console.error(err); }
     };
 
-    const calcDaysSince = (dateStr) =>
-        Math.max(1, Math.ceil((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24)));
+    const calcDays = (adm) => {
+        if (!adm.admissionDate && !adm.createdAt) return 1;
+        const start = new Date(adm.admissionDate || adm.createdAt).getTime();
+        const end = (adm.status === 'Discharged' && adm.dischargeDate) 
+            ? new Date(adm.dischargeDate).getTime() 
+            : Date.now();
+        return Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+    };
 
     const enrichAdmissions = (admissions) => admissions.map(adm => {
-        if (adm.status === 'Admitted') {
-            const diffDays = calcDaysSince(adm.admissionDate);
+        // Recalculate days and totals dynamically to prevent stale data
+        if (isPending(adm.paymentStatus)) {
+            const diffDays = calcDays(adm);
             let grandTotal = 0;
             adm.selectedFacilities = (adm.selectedFacilities || []).map(f => {
-                const fTotal = diffDays * Number(f.pricePerDay || 0);
+                // Check if a manual days field exists and is > 0. Use it directly! 
+                // Only fall back to timestamp calculation if no manual days provided.
+                const manualDays = Number(f.days || 0);
+                const actualDays = manualDays > 0 ? manualDays : diffDays;
+                
+                const fTotal = actualDays * Number(f.pricePerDay || 0);
                 grandTotal += fTotal;
-                return { ...f, days: diffDays, totalAmount: fTotal };
+                return { ...f, days: actualDays, totalAmount: fTotal };
             });
             adm.totalAmount = grandTotal;
         }
@@ -54,10 +66,12 @@ const PatientBillingProfile = () => {
     const enrichFacilityCharges = (facilityCharges, enrichedAdmissions) => {
         const activeAdm = enrichedAdmissions.find(a => a.status === 'Admitted');
         if (!activeAdm) return facilityCharges;
-        const admissionDays = calcDaysSince(activeAdm.admissionDate);
+        const admissionDays = calcDays(activeAdm);
         return facilityCharges.map(fc => {
             if (isPending(fc.paymentStatus)) {
-                return { ...fc, days: admissionDays, totalAmount: Number(fc.pricePerDay || 0) * admissionDays };
+                const manualDays = Number(fc.days || 0);
+                const actualDays = manualDays > 0 ? manualDays : admissionDays;
+                return { ...fc, days: actualDays, totalAmount: Number(fc.pricePerDay || 0) * actualDays };
             }
             return fc;
         });
