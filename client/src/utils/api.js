@@ -4,12 +4,13 @@ import { logout } from '../store/slices/authSlice';
 
 // FIX: Local testing ke liye empty string aur Live ke liye VITE_API_URL
 const getBaseURL = () => {
-    // Agar local development mode hai, toh empty string rakhein taaki proxy chale
-    if (import.meta.env.MODE === 'development') {
+    // Localhost par yeh empty string dega (Proxy chalane ke liye)
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return '';
     }
-    // Production/Live ke liye VITE_API_URL ya default Render URL
-    return import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+
+    // Live site ke liye Render ka asli URL daal do
+    return import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com';
 };
 
 const apiClient = axios.create({
