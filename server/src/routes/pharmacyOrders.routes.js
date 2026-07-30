@@ -223,7 +223,7 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
 // ─────────────────────────────────────────────
 // COMPLETE AN ORDER — POST /api/pharmacy/orders/:id/complete
 // ─────────────────────────────────────────────
-router.post('/:id/complete', verifyToken, async (req, res) => {
+router.patch('/:id/complete', verifyToken, async (req, res) => {
     try {
         console.log("\n🚀 [BACKEND CHECKOUT] Received req.body:", JSON.stringify(req.body, null, 2));
         const { purchasedIndices, paymentMode, paymentStatus, authorizedByDoctor, authorizedDoctorName, authorizationNote, frontendTotals } = req.body;
