@@ -14,7 +14,12 @@ const pharmacyItemSchema = new mongoose.Schema({
     numericFrequency: { type: Number, default: 0 },
     durationDays: { type: Number, default: 0 },
     vialSize: { type: Number, default: 0 },
-    scheduleText: { type: String, default: '' }
+    scheduleText: { type: String, default: '' },
+    doseAdmin: { type: Number, default: 1 },
+    dose: { type: String, default: '' },
+    dosage: { type: String, default: '' },
+    qtyPerDose: { type: Number, default: 0 },
+    days: { type: Number, default: 1 }
 }, { _id: false });
 
 const vitalsSchema = new mongoose.Schema({
@@ -66,6 +71,7 @@ const appointmentSchema = new mongoose.Schema({
         default: 'pending',
         index: true
     },
+    cancellationRemark: { type: String, default: '' },
     paymentStatus: { type: String, enum: ['pending', 'paid', 'refunded', 'Paid', 'Pending', 'Refunded', 'unpaid', 'Unpaid'], default: 'pending' },
     paymentMethod: { type: String, enum: ['Cash', 'UPI', 'Card', 'NEFT/RTGS', 'Free', 'Online'], default: 'Cash' },
     

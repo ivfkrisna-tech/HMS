@@ -590,9 +590,14 @@ router.patch('/appointments/:id/reschedule', verifyToken, verifyReception, async
 });
 
 router.patch('/appointments/:id/cancel', verifyToken, verifyReception, async (req, res) => {
+    const { cancellationRemark } = req.body;
     const cancelQuery = { _id: req.params.id };
     if (req.user.hospitalId) cancelQuery.hospitalId = req.user.hospitalId;
-    const appt = await Appointment.findOneAndUpdate(cancelQuery, { status: 'cancelled' });
+    
+    const updateData = { status: 'cancelled' };
+    if (cancellationRemark) updateData.cancellationRemark = cancellationRemark;
+
+    const appt = await Appointment.findOneAndUpdate(cancelQuery, updateData);
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found or unauthorized' });
     res.json({ success: true });
 });

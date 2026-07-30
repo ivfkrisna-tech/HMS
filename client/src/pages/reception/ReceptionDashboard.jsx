@@ -734,9 +734,10 @@ const ReceptionDashboard = () => {
     };
 
     const handleCancelAppointment = async (appointmentId) => {
-        if (!window.confirm('Cancel this appointment?')) return;
+        const remark = window.prompt("Please enter the reason for cancellation:");
+        if (remark === null) return;
         try {
-            const res = await receptionAPI.cancelAppointment(appointmentId);
+            const res = await receptionAPI.cancelAppointment(appointmentId, { cancellationRemark: remark });
             if (res.success) fetchAppointments();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to cancel appointment.');
@@ -928,6 +929,16 @@ const ReceptionDashboard = () => {
                 ...prev,
                 dob: value,
                 age: calculatedAge
+            }));
+            return;
+        }
+
+        if (name === 'marriageDate') {
+            const calculatedYears = calculateAge(value);
+            setIntakeForm(prev => ({
+                ...prev,
+                marriageDate: value,
+                marriageYears: calculatedYears
             }));
             return;
         }
@@ -1410,6 +1421,10 @@ const ReceptionDashboard = () => {
                                 <div className="field" style={{ flex: '0 0 calc(50% - 7px)', minWidth: '160px' }}>
                                     <label>Marriage Date</label>
                                     <input type="date" name="marriageDate" value={intakeForm.marriageDate || ''} onChange={handleInputChange} max={todayStr} />
+                                </div>
+                                <div className="field">
+                                    <label>Marriage Years</label>
+                                    <input name="marriageYears" value={intakeForm.marriageYears || ''} readOnly style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#475569', fontWeight: 'bold' }} />
                                 </div>
                             </div>
 

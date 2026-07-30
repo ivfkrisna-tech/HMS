@@ -34,13 +34,23 @@ const pharmacyOrderSchema = new mongoose.Schema({
         purchased: { type: Boolean, default: false },
         quantity: { type: Number, default: 0 },
         returnedQty: { type: Number, default: 0 },
-        scheduleText: { type: String, default: '' }
+        scheduleText: { type: String, default: '' },
+        dosePerAdmin: { type: Number, default: 1 },
+        doseAdmin: { type: Number, default: 1 },
+        dose: { type: String },
+        qtyPerDose: { type: Number, default: 0 },
+        days: { type: Number, default: 1 },
+        totalDosageRequired: { type: Number, default: 0 }
     }],
     paymentStatus: {
         type: String,
-        enum: ['Pending', 'Paid'],
+        enum: ['Pending', 'Paid', 'PAID_BY_DOCTOR'],
         default: 'Pending'
     },
+    paymentMode: { type: String },
+    authorizedByDoctor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    authorizedDoctorName: { type: String },
+    authorizationNote: { type: String },
     totalAmount: {
         type: Number,
         default: 0

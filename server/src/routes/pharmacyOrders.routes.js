@@ -91,7 +91,7 @@ router.get('/search-bill', verifyToken, async (req, res) => {
 // Process Return/Exchange
 router.post('/process-return', verifyToken, async (req, res) => {
     try {
-        const { originalOrderId, returnType, returnedItems, exchangedItems, netAmount } = req.body;
+        const { originalOrderId, returnType, returnedItems, exchangedItems, netAmount, returnReason, refundAmount } = req.body;
         
         let hospitalFilter = {};
         if (req.user.hospitalId) hospitalFilter.hospitalId = req.user.hospitalId;
@@ -102,9 +102,17 @@ router.post('/process-return', verifyToken, async (req, res) => {
         // Process returned items (add back to inventory)
         for (const item of returnedItems) {
             if (item.quantity > 0) {
-                // Find inventory item
+                // Find inventory item — use safe char-by-char regex escape (matches /complete route)
                 const actualName = (item.medicineName || '').split(' - ')[0].trim().toLowerCase();
-                const escapedName = actualName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                let escapedName = "";
+                for (let i = 0; i < actualName.length; i++) {
+                    const char = actualName[i];
+                    if (['.', '*', '+', '?', '^', '$', '{', '}', '(', ')', '|', '[', ']', '\\'].includes(char)) {
+                        escapedName += '\\' + char;
+                    } else {
+                        escapedName += char;
+                    }
+                }
                 let invQuery = { name: { $regex: new RegExp(`^${escapedName}$`, 'i') }, ...hospitalFilter };
                 let invItem = await Inventory.findOne(invQuery);
                 
@@ -142,13 +150,22 @@ router.post('/process-return', verifyToken, async (req, res) => {
             returnType,
             returnedItems,
             exchangedItems: returnType === 'Exchange' ? exchangedItems : [],
-            netAmount
+            netAmount,
+            returnReason: returnReason || '',
+            refundAmount: refundAmount || 0
         });
 
         await pharmacyReturn.save();
 
+        // Update original order's returnStatus
+        const totalOrderItems = order.items.filter(i => i.purchased).length;
+        const totalReturnedItems = returnedItems.length;
+        order.returnStatus = totalReturnedItems >= totalOrderItems ? 'FULLY_RETURNED' : 'PARTIALLY_RETURNED';
+        await order.save();
+
         res.json({ success: true, message: `Successfully processed ${returnType}`, data: pharmacyReturn });
     } catch (error) {
+        console.error('[Process Return Error]', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
@@ -206,7 +223,8 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
 // Complete order and payment
 router.patch('/:id/complete', verifyToken, async (req, res) => {
     try {
-        const { purchasedIndices, paymentMode, paymentStatus, authorizedByDoctor, authorizedDoctorName, authorizationNote } = req.body;
+        console.log("\n🚀 [BACKEND CHECKOUT] Received req.body:", JSON.stringify(req.body, null, 2));
+        const { purchasedIndices, paymentMode, paymentStatus, authorizedByDoctor, authorizedDoctorName, authorizationNote, frontendTotals } = req.body;
         // HARD ISOLATION: Only allow completing orders from your hospital
         const findQuery = { _id: req.params.id };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
@@ -340,7 +358,9 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                     const itemSgst = (itemTaxable * sgstPercent) / 100;
                     const itemTotal = itemTaxable + itemCgst + itemSgst;
 
-                    item.price = itemTaxable; // keeping price as taxable for legacy compatibility
+                    if (!frontendTotals) {
+                        item.price = itemTaxable; // keeping price as taxable for legacy compatibility
+                    }
                     
                     taxableAmount += itemTaxable;
                     cgstAmount += itemCgst;
@@ -388,23 +408,38 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
         }
         order.markModified('items');
         
-        // Finalize pricing
-        order.taxableAmount = taxableAmount;
-        order.cgstAmount = cgstAmount;
-        order.sgstAmount = sgstAmount;
-        order.totalAmount = totalAmount;
+        // Finalize pricing: Preserve frontend calculations to prevent liquid bill inflation
+        if (frontendTotals) {
+            order.taxableAmount = frontendTotals.taxableAmount || taxableAmount;
+            order.cgstAmount = frontendTotals.cgstAmount || cgstAmount;
+            order.sgstAmount = frontendTotals.sgstAmount || sgstAmount;
+            order.totalAmount = frontendTotals.totalAmount || totalAmount;
+        } else {
+            order.taxableAmount = taxableAmount;
+            order.cgstAmount = cgstAmount;
+            order.sgstAmount = sgstAmount;
+            order.totalAmount = totalAmount;
+        }
 
         // Apply provided payment details or fallback
         if (paymentStatus) order.paymentStatus = paymentStatus;
         else order.paymentStatus = totalAmount > 0 ? 'Paid' : 'Pending';
         
         if (paymentMode) order.paymentMode = paymentMode;
-        if (authorizedByDoctor) order.authorizedByDoctor = authorizedByDoctor;
+        
+        // Safely handle authorizedByDoctor to prevent CastError
+        if (authorizedByDoctor && authorizedByDoctor !== 'undefined' && authorizedByDoctor !== 'null' && authorizedByDoctor.length === 24) {
+            order.authorizedByDoctor = authorizedByDoctor;
+        } else {
+            order.authorizedByDoctor = undefined;
+        }
+        
         if (authorizedDoctorName) order.authorizedDoctorName = authorizedDoctorName;
         if (authorizationNote) order.authorizationNote = authorizationNote;
 
         order.orderStatus = 'Completed';
 
+        console.log("🚀 [BACKEND CHECKOUT] Order Object right before save():", JSON.stringify(order, null, 2));
         await order.save();
 
         const io = req.app.get('io');

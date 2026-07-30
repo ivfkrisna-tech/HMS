@@ -94,7 +94,14 @@ router.post('/diagnose/:visitId', verifyToken, async (req, res) => {
                     items: prescription.map(p => ({
                         medicineName: p.medicine,
                         frequency: p.dosage,
-                        duration: p.duration
+                        duration: p.duration,
+                        dosePerAdmin: Number(p.dosePerAdmin || p.doseAdmin || p.dose || 1),
+                        doseAdmin: Number(p.doseAdmin || p.dosePerAdmin || p.dose || 1),
+                        dose: p.dose || '',
+                        qtyPerDose: Number(p.qtyPerDose) || 0,
+                        days: Number(p.days || p.duration || 1),
+                        totalDosageRequired: Number(p.totalDosageRequired) || 0,
+                        quantity: Number(p.totalDosageRequired) || 0
                     })),
                     orderStatus: 'Upcoming',
                     paymentStatus: 'Pending'

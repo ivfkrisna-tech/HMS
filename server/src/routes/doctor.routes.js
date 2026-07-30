@@ -397,11 +397,16 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                     gapDays: Number(item.gapDays) || 0,
                     startDate: item.startDate ? new Date(item.startDate) : null,
                     totalDosageRequired: Number(item.totalDosageRequired) || 0,
-                    dosePerAdmin: Number(item.dosePerAdmin) || 0,
+                    dosePerAdmin: Number(item.dosePerAdmin || item.doseAdmin || item.dose || 1),
+                    doseAdmin: Number(item.doseAdmin || item.dosePerAdmin || item.dose || 1),
                     numericFrequency: Number(item.numericFrequency) || 0,
                     durationDays: Number(item.durationDays) || 0,
                     vialSize: Number(item.vialSize) || 0,
-                    scheduleText: item.scheduleText || ''
+                    scheduleText: item.scheduleText || '',
+                    dose: item.dose || '',
+                    qtyPerDose: Number(item.qtyPerDose) || 0,
+                    dosage: item.dosage || '',
+                    days: Number(item.days || item.duration || item.durationDays || 1)
                 }));
             }
         }
@@ -522,7 +527,13 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                 gapDays:            p.gapDays            || 0,
                 startDate:          p.startDate          || null,
                 quantity:           p.totalDosageRequired || 0,
-                scheduleText:       p.scheduleText       || ''
+                scheduleText:       p.scheduleText       || '',
+                dosePerAdmin:       p.dosePerAdmin       || 1,
+                doseAdmin:          p.doseAdmin          || 1,
+                dose:               p.dose               || '',
+                qtyPerDose:         p.qtyPerDose         || 0,
+                days:               p.days               || 1,
+                totalDosageRequired: p.totalDosageRequired || 0
             }));
 
             await PharmacyOrder.findOneAndUpdate(

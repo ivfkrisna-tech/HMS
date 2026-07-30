@@ -183,8 +183,8 @@ export const receptionAPI = {
         const response = await apiClient.patch(`/api/reception/appointments/${id}/reschedule`, { date, time });
         return response.data;
     },
-    cancelAppointment: async (id) => {
-        const response = await apiClient.patch(`/api/reception/appointments/${id}/cancel`);
+    cancelAppointment: async (id, data = {}) => {
+        const response = await apiClient.patch(`/api/reception/appointments/${id}/cancel`, data);
         return response.data;
     },
     confirmPayment: async (id, paymentMethod, amount, paymentProofUrl = null, paymentProofFileName = null) => {

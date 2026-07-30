@@ -95,6 +95,33 @@ const PharmacyReturns = () => {
         setExchangedItems(exchangedItems.filter((_, i) => i !== idx));
     };
 
+    // Dynamically calculate correct unit price for an item (mirrors Invoice UI logic)
+    const getItemUnitPrice = (item) => {
+        // If item.price was saved correctly by the backend, use it
+        if (item.price && item.price > 0) return item.price;
+
+        // Otherwise, derive it dynamically from item/medicine data
+        const rawName = String(item.medicineName || '').toLowerCase();
+        const isLiquidOrInj = rawName.includes('injection') || rawName.includes('inj') || rawName.includes('syrup') || rawName.includes('ceftriaxone');
+
+        let sellingPrice = Number(item.sellingPrice || item.unitRate || 0);
+        if (sellingPrice === 0) {
+            sellingPrice = isLiquidOrInj ? 120 : 15;
+        }
+        // Prevent cross-contamination between tablet and injection prices
+        if (!isLiquidOrInj && sellingPrice >= 120) {
+            sellingPrice = 15;
+        }
+
+        let effectiveRate = sellingPrice;
+        if (isLiquidOrInj) {
+            const volumePerUnit = Number(item.volumePerUnit || item.packSize || item.capacity || 10);
+            effectiveRate = sellingPrice / volumePerUnit; // e.g. ₹120 / 10ml = ₹12/ml
+        }
+
+        return effectiveRate;
+    };
+
     // Calculate totals
     const calculateTotals = () => {
         let totalRefund = 0;
@@ -105,7 +132,7 @@ const PharmacyReturns = () => {
                 const returnData = returnQuantities[idx] || { qty: 0, restockable: true };
                 const qty = Number(returnData.qty);
                 if (qty > 0 && item.purchased) {
-                    const unitPrice = item.price;
+                    const unitPrice = getItemUnitPrice(item);
                     const refundAmt = qty * unitPrice;
                     totalRefund += refundAmt;
                     returnedPayload.push({
@@ -149,6 +176,9 @@ const PharmacyReturns = () => {
             return alert("Please specify quantities to return.");
         }
 
+        let returnResponseData = null;
+        const orderSnapshot = { ...selectedOrder };
+
         try {
             const res = await pharmacyOrderAPI.processReturn({
                 originalOrderId: selectedOrder._id,
@@ -161,18 +191,30 @@ const PharmacyReturns = () => {
             });
 
             if (res.success) {
+                console.log("✅ [RETURN SUCCESS] Backend response:", res);
+                returnResponseData = res.data;
                 alert(`Success! ${res.message}`);
-                generatePDF(res.data, selectedOrder);
                 setSelectedOrder(null);
                 setSearchQuery('');
                 setOrders([]);
+            } else {
+                console.warn("⚠️ [RETURN] Backend returned 200 but success is falsy:", res);
+                alert(res.message || "Return processed but response was unexpected.");
             }
         } catch (error) {
+            console.error("❌ [RETURN ERROR TRACE]:", error);
+            console.error("❌ [RETURN ERROR] Response data:", error.response?.data);
             alert(error.response?.data?.message || "Failed to process return.");
+        }
+
+        // Generate PDF OUTSIDE the try-catch so it never masks a successful return
+        if (returnResponseData) {
+            generatePDF(returnResponseData, orderSnapshot);
         }
     };
 
     const generatePDF = (returnData, orderInfo) => {
+        try {
         const doc = new jsPDF();
         doc.setFontSize(20);
         doc.text("Pharmacy Return/Exchange Invoice", 14, 22);
@@ -251,6 +293,10 @@ const PharmacyReturns = () => {
         }
         
         window.open(doc.output('bloburl'), '_blank');
+        } catch (pdfError) {
+            console.error("❌ [PDF GENERATION FAILED]:", pdfError);
+            alert("Return processed successfully, but failed to generate the PDF receipt.");
+        }
     };
 
     return (
@@ -344,10 +390,11 @@ const PharmacyReturns = () => {
                             <tbody>
                                 {selectedOrder.items.filter(i => i.purchased).map((item, idx) => {
                                     const retData = returnQuantities[idx] || { qty: 0, restockable: true };
+                                    const unitPrice = getItemUnitPrice(item);
                                     return (
                                         <tr key={idx}>
                                             <td>{item.medicineName}</td>
-                                            <td>₹{item.price}</td>
+                                            <td>₹{unitPrice.toFixed(2)}</td>
                                             <td>
                                                 <input 
                                                     type="number" 
@@ -364,7 +411,7 @@ const PharmacyReturns = () => {
                                                     onChange={(e) => handleReturnQtyChange(idx, 'restockable', e.target.checked)}
                                                 />
                                             </td>
-                                            <td>₹{retData.qty * item.price}</td>
+                                            <td>₹{(retData.qty * unitPrice).toFixed(2)}</td>
                                         </tr>
                                     );
                                 })}

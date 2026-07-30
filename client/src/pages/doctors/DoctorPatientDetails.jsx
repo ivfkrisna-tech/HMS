@@ -412,19 +412,23 @@ const DoctorPatientDetails = () => {
                         saltName: m.saltName?.trim() || '',
                         frequency: m.dose?.trim() || '',
                         duration: m.days?.trim() || '',
+                        days: Number(m.days || m.duration || 1),
                         volumeMl: m.volumeMl?.trim() || '',
                         administrationTime: m.administrationTime?.trim() || '',
                         gapDays: m.gapDays ? parseInt(m.gapDays, 10) : 0,
                         startDate: m.startDate || null,
-                        totalDosageRequired: m.totalDosageRequired || 0,
-                        dosePerAdmin: m.dosePerAdmin || 0,
-                        numericFrequency: m.frequency || 0,
-                        durationDays: m.durationDays || 0,
-                        vialSize: m.vialSize || 0,
+                        totalDosageRequired: Number(m.totalDosageRequired) || 0,
+                        dosePerAdmin: Number(m.dosePerAdmin || m.doseAdmin || m.dose || 1),
+                        doseAdmin: Number(m.dosePerAdmin || m.doseAdmin || m.dose || 1),
+                        numericFrequency: Number(m.frequency) || 0,
+                        durationDays: Number(m.durationDays) || 0,
+                        vialSize: Number(m.vialSize) || 0,
                         scheduleText: scheduleText
                     };
                 })
             };
+
+            console.log("OUTGOING PRESCRIPTION PAYLOAD:", JSON.stringify(payload, null, 2));
             await doctorAPI.updateSession(appointmentId, payload);
 
             alert("✅ Session saved successfully!");
@@ -1415,8 +1419,9 @@ const DoctorPatientDetails = () => {
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                         <thead>
                                             <tr style={{ background: '#f1f5f9' }}>
-                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '35%' }}>Medicine Name</th>
-                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '27%' }}>Dose / Frequency</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '30%' }}>Medicine Name</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '12%' }}>Qty/Dose</th>
+                                                <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '20%' }}>Frequency</th>
                                                 <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '25%' }}>Food / Timing Instructions</th>
                                                 <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '10%' }}>Days</th>
                                                 <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: '700', color: '#374151', borderBottom: '1px solid #e2e8f0', width: '3%' }}></th>
@@ -1433,6 +1438,31 @@ const DoctorPatientDetails = () => {
                                                             value={med.medicineName}
                                                             onChange={val => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], medicineName: val }; return { ...prev, medicines: m }; })}
                                                             medicines={catalogMedicines}
+                                                        />
+                                                    </td>
+                                                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            step="any"
+                                                            placeholder="e.g. 1"
+                                                            value={med.dosePerAdmin || med.doseAdmin || ''}
+                                                            onChange={e => {
+                                                                const val = Number(e.target.value);
+                                                                setSessionData(prev => {
+                                                                    const m = [...prev.medicines];
+                                                                    const freq = parseFloat(m[idx].frequency) || 0;
+                                                                    const dur = parseFloat(m[idx].durationDays) || parseFloat(m[idx].days) || 0;
+                                                                    m[idx] = {
+                                                                        ...m[idx],
+                                                                        dosePerAdmin: val,
+                                                                        doseAdmin: val,
+                                                                        totalDosageRequired: val * freq * dur
+                                                                    };
+                                                                    return { ...prev, medicines: m };
+                                                                });
+                                                            }}
+                                                            style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
                                                         />
                                                     </td>
                                                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
@@ -1514,20 +1544,20 @@ const DoctorPatientDetails = () => {
                                                 </tr>
                                                 {isInjection && (
                                                     <tr style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                                                        <td colSpan={5} style={{ padding: '8px 12px 14px 12px' }}>
+                                                        <td colSpan={6} style={{ padding: '8px 12px 14px 12px' }}>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#eef2ff', padding: '10px', borderRadius: '6px', border: '1px dashed #c7d2fe' }}>
                                                                 
                                                                 {/* Multi-dose Calculation Row */}
                                                                 <div style={{ display: 'flex', gap: '10px' }}>
                                                                     <div style={{ flex: 1 }}>
                                                                         <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#4338ca', display: 'block', marginBottom: '4px' }}>Dose/Admin (ml)</label>
-                                                                        <input type="number" min="0" step="any" value={med.dosePerAdmin || ''} onChange={e => {
-                                                                            const val = parseFloat(e.target.value) || 0;
+                                                                        <input type="number" min="0" step="any" value={med.dosePerAdmin || med.doseAdmin || ''} onChange={e => {
+                                                                            const val = Number(e.target.value);
                                                                             setSessionData(prev => { 
                                                                                 const m = [...prev.medicines]; 
                                                                                 const freq = parseFloat(m[idx].frequency) || 0;
                                                                                 const dur = parseFloat(m[idx].durationDays) || 0;
-                                                                                m[idx] = { ...m[idx], dosePerAdmin: e.target.value, totalDosageRequired: val * freq * dur }; 
+                                                                                m[idx] = { ...m[idx], dosePerAdmin: val, doseAdmin: val, totalDosageRequired: val * freq * dur }; 
                                                                                 return { ...prev, medicines: m }; 
                                                                             });
                                                                         }} style={{ width: '100%', padding: '4px 8px', fontSize: '12px', border: '1px solid #c7d2fe', borderRadius: '4px', boxSizing: 'border-box' }} placeholder="e.g. 1.5" />
@@ -1595,7 +1625,7 @@ const DoctorPatientDetails = () => {
                                             )})}
                                             {sessionData.medicines.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={5} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                                                    <td colSpan={6} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
                                                         No medicines added yet. Use quick-add above or click "+ Add Row".
                                                     </td>
                                                 </tr>

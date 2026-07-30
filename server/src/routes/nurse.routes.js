@@ -350,14 +350,14 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
             const medStartDateStr = med.rawDate ? getISTDateStr(new Date(med.rawDate)) : todayStr;
             const freq = (med.frequency || '').toLowerCase();
             let times = ['09:00 AM'];
-            if (med.administrationTime) {
-                times = [med.administrationTime];
-            } else if (freq.includes('twice') || freq.includes('bid') || freq.includes('2')) {
-                times = ['08:00 AM', '08:00 PM'];
-            } else if (freq.includes('thrice') || freq.includes('tid') || freq.includes('3')) {
-                times = ['08:00 AM', '02:00 PM', '08:00 PM'];
-            } else if (freq.includes('four') || freq.includes('qid') || freq.includes('4')) {
+            if (freq.includes('four') || freq.includes('qid') || freq.includes('4')) {
                 times = ['06:00 AM', '12:00 PM', '06:00 PM', '10:00 PM'];
+            } else if (freq.includes('thrice') || freq.includes('tid') || freq.includes('tds') || freq.includes('3')) {
+                times = ['08:00 AM', '02:00 PM', '08:00 PM'];
+            } else if (freq.includes('twice') || freq.includes('bid') || freq.includes('bd') || freq.includes('2')) {
+                times = ['08:00 AM', '08:00 PM'];
+            } else if (med.administrationTime) {
+                times = [med.administrationTime];
             }
 
             const isInjection = med.type === 'Injection';
@@ -459,17 +459,46 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
             totalPending: pendingToday.length
         };
 
+        const patientOrders = await PharmacyOrder.find({ 
+            $or: [{ userId: realUserId }, { patientId: realUserId.toString() }],
+            ...hospitalFilter 
+        }).lean();
+
         const injectionTracking = [];
         for (const injMed of currentMedicines.filter(m => m.type === 'Injection' || m.name.toLowerCase().includes('inj'))) {
             const cleanName = injMed.name.replace(/^Inj\.\s*/i, '').trim();
-            const inv = await Inventory.findOne({ name: { $regex: cleanName, $options: 'i' }, ...hospitalFilter }).lean();
             const injLogs = medLogs.filter(l => l.medicineName === injMed.name && l.status === 'Given');
             const todayInjLogs = injLogs.filter(l => l.date === todayStr);
             const yesterdayInjLogs = injLogs.filter(l => l.date === yesterdayStr);
             const latestLog = injLogs[injLogs.length - 1];
 
-            const purchasedQty = inv ? `${inv.stock + injLogs.length} units` : `${injLogs.length || 0} units`;
-            const remainingQty = inv ? `${inv.stock} units` : '0 units';
+            let purchasedQtyUnits = 0;
+            patientOrders.forEach(order => {
+                (order.items || []).forEach(item => {
+                    const itemName = (item.medicineName || item.name || '').toLowerCase();
+                    if (itemName.includes(cleanName.toLowerCase())) {
+                        let qty = Number(item.quantity || 1);
+                        // Bypass liquid explosion bug where quantity is artificially huge
+                        if (item.volumeMl && qty > 5) {
+                            const fStr = String(item.frequency || '').toLowerCase();
+                            let f = 1;
+                            if (fStr.includes('bd') || fStr.includes('2')) f = 2;
+                            if (fStr.includes('tds') || fStr.includes('tid') || fStr.includes('3')) f = 3;
+                            if (fStr.includes('qid') || fStr.includes('4')) f = 4;
+                            const d = parseInt(item.duration) || 1;
+                            const totalMl = Number(item.doseAmount || 1) * f * d;
+                            qty = Math.ceil(totalMl / 10) || 1; // Assume 10ml generic vial
+                        }
+                        purchasedQtyUnits += qty;
+                    }
+                });
+            });
+
+            const usedQtyUnits = injLogs.length;
+            const remainingQtyUnits = Math.max(0, purchasedQtyUnits - usedQtyUnits);
+
+            const purchasedQty = `${purchasedQtyUnits} units`;
+            const remainingQty = `${remainingQtyUnits} units`;
 
             injectionTracking.push({
                 name: injMed.name,
