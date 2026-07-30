@@ -577,42 +577,21 @@ const HospitalAdminDashboard = () => {
                             </div>
                         ) : hospitalStats?.stats ? (
                             <div className="hospital-kpi-grid">
-                                <div className="kpi-card kpi-blue">
-                                    <div className="kpi-icon">👩‍⚕️</div>
-                                    <div className="kpi-value">{hospitalStats.stats.totalStaff}</div>
-                                    <div className="kpi-label">Total Staff</div>
-                                    <div className="kpi-sub">{hospitalStats.stats.doctorCount} doctors · {hospitalStats.stats.labCount} labs </div>
-                                </div>
-                                <div className="kpi-card kpi-green">
-                                    <div className="kpi-icon">🧑‍🤝‍🧑</div>
-                                    <div className="kpi-value">{hospitalStats.stats.totalPatients}</div>
-                                    <div className="kpi-label">Unique Patients</div>
-                                    <div className="kpi-sub">In selected period</div>
-                                </div>
-                                <div className="kpi-card kpi-purple">
-                                    <div className="kpi-icon">📅</div>
-                                    <div className="kpi-value">{hospitalStats.stats.totalAppointments}</div>
-                                    <div className="kpi-label">Total Appointments</div>
-                                    <div className="kpi-sub">In selected period</div>
-                                </div>
-                                <div className="kpi-card kpi-orange">
-                                    <div className="kpi-icon">💰</div>
-                                    <div className="kpi-value">{formatCurrency(hospitalStats.stats.totalRevenue)}</div>
-                                    <div className="kpi-label">Total Revenue</div>
-                                    <div className="kpi-sub">From paid appointments</div>
-                                </div>
-                                <div className="kpi-card kpi-teal">
-                                    <div className="kpi-icon">✅</div>
-                                    <div className="kpi-value">{hospitalStats.stats.completedAppointments}</div>
-                                    <div className="kpi-label">Completed</div>
-                                    <div className="kpi-sub">{hospitalStats.stats.pendingAppointments} pending/upcoming</div>
-                                </div>
-                                <div className="kpi-card kpi-pink">
-                                    <div className="kpi-icon">🧪</div>
-                                    <div className="kpi-value">{hospitalStats.stats.labReportCount}</div>
-                                    <div className="kpi-label">Lab Reports</div>
-                                    <div className="kpi-sub">{hospitalStats.stats.pendingLabReports} pending</div>
-                                </div>
+                                {[
+                                    { icon: '👩‍⚕️', value: hospitalStats.stats.totalStaff, label: 'Total Staff', sub: `${hospitalStats.stats.doctorCount} doctors · ${hospitalStats.stats.labCount} labs `, bg: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+                                    { icon: '🧑‍🤝‍🧑', value: hospitalStats.stats.totalPatients, label: 'Unique Patients', sub: 'In selected period', bg: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+                                    { icon: '📅', value: hospitalStats.stats.totalAppointments, label: 'Total Appointments', sub: 'In selected period', bg: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+                                    { icon: '💰', value: formatCurrency(hospitalStats.stats.totalRevenue), label: 'Total Revenue', sub: 'From paid appointments', bg: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+                                    { icon: '✅', value: hospitalStats.stats.completedAppointments, label: 'Completed', sub: `${hospitalStats.stats.pendingAppointments} pending/upcoming`, bg: 'linear-gradient(135deg, #00c6fb 0%, #005bea 100%)' },
+                                    { icon: '🧪', value: hospitalStats.stats.labReportCount, label: 'Lab Reports', sub: `${hospitalStats.stats.pendingLabReports} pending`, bg: 'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)' }
+                                ].map((stat, i) => (
+                                    <div key={i} className="kpi-card" style={{ background: stat.bg, color: '#ffffff' }}>
+                                        <div className="kpi-icon">{stat.icon}</div>
+                                        <div className="kpi-value" style={{ color: '#ffffff' }}>{stat.value}</div>
+                                        <div className="kpi-label" style={{ color: '#ffffff' }}>{stat.label}</div>
+                                        <div className="kpi-sub" style={{ color: '#ffffff', opacity: 0.9 }}>{stat.sub}</div>
+                                    </div>
+                                ))}
                             </div>
                         ) : null}
 

@@ -624,42 +624,21 @@ const CentralAdminDashboard = () => {
 
                             {/* ---- KPI STATS ROW ---- */}
                             <div className="hospital-kpi-grid">
-                                <div className="kpi-card kpi-blue">
-                                    <div className="kpi-icon">👩‍⚕️</div>
-                                    <div className="kpi-value">{s.totalStaff}</div>
-                                    <div className="kpi-label">Total Staff</div>
-                                    <div className="kpi-sub">{s.doctorCount} doctors · {s.labCount} labs · {s.pharmacyCount} pharmacy</div>
-                                </div>
-                                <div className="kpi-card kpi-green">
-                                    <div className="kpi-icon">🧑‍🤝‍🧑</div>
-                                    <div className="kpi-value">{s.totalPatients}</div>
-                                    <div className="kpi-label">Unique Patients</div>
-                                    <div className="kpi-sub">In selected period</div>
-                                </div>
-                                <div className="kpi-card kpi-purple">
-                                    <div className="kpi-icon">📅</div>
-                                    <div className="kpi-value">{s.totalAppointments}</div>
-                                    <div className="kpi-label">Total Appointments</div>
-                                    <div className="kpi-sub">In selected period</div>
-                                </div>
-                                <div className="kpi-card kpi-orange">
-                                    <div className="kpi-icon">💰</div>
-                                    <div className="kpi-value">{formatCurrency(s.totalRevenue)}</div>
-                                    <div className="kpi-label">Total Revenue</div>
-                                    <div className="kpi-sub">From paid appointments</div>
-                                </div>
-                                <div className="kpi-card kpi-teal">
-                                    <div className="kpi-icon">✅</div>
-                                    <div className="kpi-value">{s.completedAppointments}</div>
-                                    <div className="kpi-label">Completed</div>
-                                    <div className="kpi-sub">{s.pendingAppointments} pending/upcoming</div>
-                                </div>
-                                <div className="kpi-card kpi-pink">
-                                    <div className="kpi-icon">🧪</div>
-                                    <div className="kpi-value">{s.labReportCount}</div>
-                                    <div className="kpi-label">Lab Reports</div>
-                                    <div className="kpi-sub">{s.pendingLabReports} pending · {s.pharmacyOrderCount} pharmacy orders</div>
-                                </div>
+                                {[
+                                    { icon: '👩‍⚕️', value: s.totalStaff, label: 'Total Staff', sub: `${s.doctorCount} doctors · ${s.labCount} labs · ${s.pharmacyCount} pharmacy`, bg: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+                                    { icon: '🧑‍🤝‍🧑', value: s.totalPatients, label: 'Unique Patients', sub: 'In selected period', bg: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+                                    { icon: '📅', value: s.totalAppointments, label: 'Total Appointments', sub: 'In selected period', bg: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
+                                    { icon: '💰', value: formatCurrency(s.totalRevenue), label: 'Total Revenue', sub: 'From paid appointments', bg: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+                                    { icon: '✅', value: s.completedAppointments, label: 'Completed', sub: `${s.pendingAppointments} pending/upcoming`, bg: 'linear-gradient(135deg, #00c6fb 0%, #005bea 100%)' },
+                                    { icon: '🧪', value: s.labReportCount, label: 'Lab Reports', sub: `${s.pendingLabReports} pending · ${s.pharmacyOrderCount} pharmacy orders`, bg: 'linear-gradient(135deg, #ff0844 0%, #ffb199 100%)' }
+                                ].map((stat, i) => (
+                                    <div key={i} className="kpi-card" style={{ background: stat.bg, color: '#ffffff' }}>
+                                        <div className="kpi-icon">{stat.icon}</div>
+                                        <div className="kpi-value" style={{ color: '#ffffff' }}>{stat.value}</div>
+                                        <div className="kpi-label" style={{ color: '#ffffff' }}>{stat.label}</div>
+                                        <div className="kpi-sub" style={{ color: '#ffffff', opacity: 0.9 }}>{stat.sub}</div>
+                                    </div>
+                                ))}
                             </div>
 
                             {/* ---- FEATURE QUICK ACTIONS ---- */}
