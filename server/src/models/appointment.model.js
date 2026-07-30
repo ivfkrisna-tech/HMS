@@ -19,7 +19,9 @@ const pharmacyItemSchema = new mongoose.Schema({
     dose: { type: String, default: '' },
     dosage: { type: String, default: '' },
     qtyPerDose: { type: Number, default: 0 },
-    days: { type: Number, default: 1 }
+    days: { type: Number, default: 1 },
+    mixId: { type: String, default: null },
+    mixName: { type: String, default: null }
 }, { _id: false });
 
 const vitalsSchema = new mongoose.Schema({

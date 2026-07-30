@@ -1455,6 +1455,8 @@ const DoctorMode = () => {
                     medicineName: (m.name || m.medicineName || '').trim(),
                     frequency: (m.dose || m.dosage || '').trim(),
                     duration: (m.days || m.duration || '').trim(),
+                    mixId: m.mixId || null,
+                    mixName: m.mixName || null
                 })),
                 labTests: labArr,
             });

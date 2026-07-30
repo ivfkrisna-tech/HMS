@@ -136,11 +136,17 @@ const NursePatientProfile = () => {
     const handleToggleDose = async (item) => {
         const newStatus = item.isGiven ? 'Pending' : 'Given';
         try {
-            await nurseAPI.updateDoseStatus(id, {
+            const payload = {
                 medicineName: item.name,
                 time: item.time,
                 status: newStatus
-            });
+            };
+
+            if (item.isCompound && item.ingredients) {
+                payload.ingredients = item.ingredients;
+            }
+
+            await nurseAPI.updateDoseStatus(id, payload);
             fetchProfile();
         } catch (error) {
             console.error("Error updating dose status:", error);
@@ -248,7 +254,27 @@ const NursePatientProfile = () => {
                                     <h4>Yesterday <span className="np-date-label">({medicationJourney?.yesterday?.date})</span></h4>
                                 </div>
                                 <div className="np-pane-cards-list">
-                                    {(medicationJourney?.yesterday?.items || []).map(item => (
+                                    {(medicationJourney?.yesterday?.items || []).map(item => {
+                                        if (item.isCompound) {
+                                            return (
+                                                <div key={item.id} className="np-med-row-card item-given-border" style={{ background: '#faf5ff', borderLeft: '4px solid #8b5cf6' }}>
+                                                    <div className="np-med-main-info">
+                                                        <h5 style={{ color: '#6d28d9' }}>🔗 {item.name} (Compound)</h5>
+                                                        <div style={{ paddingLeft: '15px', marginTop: '8px', borderLeft: '2px solid #e9d5ff' }}>
+                                                            {item.ingredients.map((ing, i) => (
+                                                                <div key={i} style={{ fontSize: '12px', color: '#475569', marginBottom: '4px', fontWeight: '500' }}>
+                                                                    • {ing.name} {ing.volumeMl ? `(${ing.volumeMl})` : ''}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <span className="np-med-sub-text" style={{ marginTop: '8px', display: 'block' }}>
+                                                            {item.time} • IV Admixture
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return (
                                         <div key={item.id} className="np-med-row-card item-given-border">
                                             <div className="np-med-main-info">
                                                 <h5>✓ {item.name}</h5>
@@ -258,7 +284,8 @@ const NursePatientProfile = () => {
                                                 </span>
                                             </div>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -272,6 +299,48 @@ const NursePatientProfile = () => {
                                         const scheduledTime = parseScheduledTime(item.time);
                                         const isDueYet = new Date() >= scheduledTime;
                                         const isOverdue = !item.isGiven && isDueYet;
+
+                                        if (item.isCompound) {
+                                            return (
+                                                <div key={item.id} className={`np-med-row-card ${item.isGiven ? 'item-given-border' : (isOverdue ? 'item-due-border' : 'item-upcoming-border')}`} style={{ background: '#faf5ff', borderLeft: '4px solid #8b5cf6' }}>
+                                                    <div className="np-med-main-info">
+                                                        <h5 style={{ color: '#6d28d9' }}>🔗 {item.name} (Compound)</h5>
+                                                        <div style={{ paddingLeft: '15px', marginTop: '8px', borderLeft: '2px solid #e9d5ff' }}>
+                                                            {item.ingredients.map((ing, i) => (
+                                                                <div key={i} style={{ fontSize: '12px', color: '#475569', marginBottom: '4px', fontWeight: '500' }}>
+                                                                    • {ing.name} {ing.volumeMl ? `(${ing.volumeMl})` : ''}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <span className="np-med-sub-text" style={{ marginTop: '8px', display: 'block' }}>
+                                                            {item.time} • IV Admixture
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="np-med-action-footer">
+                                                        {item.isGiven ? (
+                                                            <span className="np-dose-badge badge-given">✅ Given</span>
+                                                        ) : isOverdue ? (
+                                                            isNurse ? null : <span className="np-dose-badge badge-overdue np-pulse">⚠️ Overdue</span>
+                                                        ) : (
+                                                            <span className="np-dose-badge badge-scheduled">⏱️ Scheduled</span>
+                                                        )}
+
+                                                        {isNurse && !item.isGiven && (
+                                                            isDueYet ? (
+                                                                <button className="np-action-pill-btn" onClick={() => handleToggleDose(item)} style={{ background: '#8b5cf6' }}>
+                                                                    Mark Compound Given
+                                                                </button>
+                                                            ) : (
+                                                                <button className="np-action-pill-btn btn-locked" disabled>
+                                                                    🔒 {getLockLabel(item.time)}
+                                                                </button>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
 
                                         return (
                                             <div
@@ -341,7 +410,27 @@ const NursePatientProfile = () => {
                                     <h4>Tomorrow <span className="np-date-label">({medicationJourney?.tomorrow?.date})</span></h4>
                                 </div>
                                 <div className="np-pane-cards-list">
-                                    {(medicationJourney?.tomorrow?.items || []).map(item => (
+                                    {(medicationJourney?.tomorrow?.items || []).map(item => {
+                                        if (item.isCompound) {
+                                            return (
+                                                <div key={item.id} className="np-med-row-card item-scheduled-border" style={{ background: '#faf5ff', borderLeft: '4px solid #8b5cf6' }}>
+                                                    <div className="np-med-main-info">
+                                                        <h5 style={{ color: '#6d28d9' }}>🔗 {item.name} (Compound)</h5>
+                                                        <div style={{ paddingLeft: '15px', marginTop: '8px', borderLeft: '2px solid #e9d5ff' }}>
+                                                            {item.ingredients.map((ing, i) => (
+                                                                <div key={i} style={{ fontSize: '12px', color: '#475569', marginBottom: '4px', fontWeight: '500' }}>
+                                                                    • {ing.name} {ing.volumeMl ? `(${ing.volumeMl})` : ''}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <span className="np-med-sub-text" style={{ marginTop: '8px', display: 'block' }}>
+                                                            {item.time} • IV Admixture
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return (
                                         <div key={item.id} className="np-med-row-card item-scheduled-border">
                                             <div className="np-med-main-info">
                                                 <h5>🔒 {item.name}</h5>
@@ -351,7 +440,8 @@ const NursePatientProfile = () => {
                                                 </span>
                                             </div>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

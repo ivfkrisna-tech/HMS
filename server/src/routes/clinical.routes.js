@@ -101,7 +101,9 @@ router.post('/diagnose/:visitId', verifyToken, async (req, res) => {
                         qtyPerDose: Number(p.qtyPerDose) || 0,
                         days: Number(p.days || p.duration || 1),
                         totalDosageRequired: Number(p.totalDosageRequired) || 0,
-                        quantity: Number(p.totalDosageRequired) || 0
+                        quantity: Number(p.totalDosageRequired) || 0,
+                        mixId: p.mixId || null,
+                        mixName: p.mixName || null
                     })),
                     orderStatus: 'Upcoming',
                     paymentStatus: 'Pending'

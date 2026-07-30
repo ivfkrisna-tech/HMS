@@ -406,7 +406,9 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                     dose: item.dose || '',
                     qtyPerDose: Number(item.qtyPerDose) || 0,
                     dosage: item.dosage || '',
-                    days: Number(item.days || item.duration || item.durationDays || 1)
+                    days: Number(item.days || item.duration || item.durationDays || 1),
+                    mixId: item.mixId || null,
+                    mixName: item.mixName || null
                 }));
             }
         }
@@ -533,7 +535,9 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                 dose:               p.dose               || '',
                 qtyPerDose:         p.qtyPerDose         || 0,
                 days:               p.days               || 1,
-                totalDosageRequired: p.totalDosageRequired || 0
+                totalDosageRequired: p.totalDosageRequired || 0,
+                mixId:              p.mixId              || null,
+                mixName:            p.mixName            || null
             }));
 
             await PharmacyOrder.findOneAndUpdate(

@@ -86,7 +86,9 @@ const getPatientPrescriptions = async (realUserId, hospitalFilter) => {
                         volumeMl: p.volumeMl || '',
                         administrationTime: p.administrationTime || '',
                         gapDays: Number(p.gapDays) || 0,
-                        startDate: p.startDate || null
+                        startDate: p.startDate || null,
+                        mixId: p.mixId || null,
+                        mixName: p.mixName || null
                     });
                 }
             });
@@ -116,7 +118,9 @@ const getPatientPrescriptions = async (realUserId, hospitalFilter) => {
                     volumeMl: item.volumeMl || '',
                     administrationTime: item.administrationTime || '',
                     gapDays: Number(item.gapDays) || 0,
-                    startDate: item.startDate || null
+                    startDate: item.startDate || null,
+                    mixId: item.mixId || null,
+                    mixName: item.mixName || null
                 });
             });
         }
@@ -393,7 +397,9 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
                             administrationTime: med.administrationTime,
                             status: yLogged ? 'Given' : 'Missed',
                             progress: yLogged ? 'Administered' : 'Not Logged',
-                            isGiven: yLogged
+                            isGiven: yLogged,
+                            mixId: med.mixId,
+                            mixName: med.mixName
                         });
                     }
                 }
@@ -409,7 +415,9 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
                         administrationTime: med.administrationTime,
                         status: tLogged ? 'Given' : 'Due Now',
                         progress: tLogged ? 'Administered today' : `${med.duration} course`,
-                        isGiven: tLogged
+                        isGiven: tLogged,
+                        mixId: med.mixId,
+                        mixName: med.mixName
                     });
                 }
 
@@ -423,24 +431,63 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
                         administrationTime: med.administrationTime,
                         status: 'Scheduled',
                         progress: 'Scheduled tomorrow',
-                        isGiven: false
+                        isGiven: false,
+                        mixId: med.mixId,
+                        mixName: med.mixName
                     });
                 }
             });
         });
 
+        const groupItems = (items) => {
+            const grouped = [];
+            const compoundMap = new Map();
+            
+            items.forEach(item => {
+                if (item.mixId) {
+                    const key = `${item.mixId}_${item.time}`;
+                    if (!compoundMap.has(key)) {
+                        const compound = {
+                            id: `comp_${item.mixId}_${item.time}`,
+                            isCompound: true,
+                            mixId: item.mixId,
+                            name: item.mixName || 'Compound Admixture',
+                            time: item.time,
+                            type: item.type,
+                            status: item.status,
+                            progress: item.progress,
+                            isGiven: item.isGiven,
+                            ingredients: []
+                        };
+                        compoundMap.set(key, compound);
+                        grouped.push(compound);
+                    }
+                    const comp = compoundMap.get(key);
+                    comp.ingredients.push(item);
+                    // Update status if any ingredient is not given
+                    if (!item.isGiven) {
+                        comp.isGiven = false;
+                        comp.status = item.status === 'Missed' ? 'Missed' : 'Due Now';
+                    }
+                } else {
+                    grouped.push(item);
+                }
+            });
+            return grouped;
+        };
+
         const medicationJourney = {
             yesterday: {
                 date: getISTDisplayDate(new Date(now.getTime() - 86400000)),
-                items: yesterdayItems
+                items: groupItems(yesterdayItems)
             },
             today: {
                 date: getISTDisplayDate(now),
-                items: todayItems
+                items: groupItems(todayItems)
             },
             tomorrow: {
                 date: getISTDisplayDate(new Date(now.getTime() + 86400000)),
-                items: tomorrowItems
+                items: groupItems(tomorrowItems)
             }
         };
 
@@ -563,7 +610,7 @@ router.post('/patient/:id/dose-status', verifyToken, resolveTenant, async (req, 
         // ──────────────────────────────────────────────────────────────────────
 
         const { id } = req.params;
-        const { medicineName, time, status } = req.body;
+        const { medicineName, time, status, ingredients } = req.body;
         const todayStr = getISTDateStr();
 
         const hospitalId = req.hospitalId || req.user.hospitalId;
@@ -573,20 +620,30 @@ router.post('/patient/:id/dose-status', verifyToken, resolveTenant, async (req, 
         if (!user) return res.status(404).json({ success: false, message: 'Patient not found' });
 
         let medLogs = user.medicationLogs || [];
+        
+        // Handle both single medicine or array of ingredients (for compounds)
+        const itemsToProcess = ingredients && Array.isArray(ingredients) 
+            ? ingredients.map(ing => ing.name) 
+            : [medicineName];
+
         if (status === 'Given') {
-            if (!medLogs.some(l => l.medicineName === medicineName && l.date === todayStr && l.time === time)) {
-                medLogs.push({
-                    medicineName,
-                    date: todayStr,
-                    time,
-                    status: 'Given',
-                    administeredBy: req.user.name || 'Nurse',
-                    timestamp: new Date()
-                });
-            }
+            itemsToProcess.forEach(mName => {
+                if (!medLogs.some(l => l.medicineName === mName && l.date === todayStr && l.time === time)) {
+                    medLogs.push({
+                        medicineName: mName,
+                        date: todayStr,
+                        time,
+                        status: 'Given',
+                        administeredBy: req.user.name || 'Nurse',
+                        timestamp: new Date()
+                    });
+                }
+            });
         } else {
             // Revert status
-            medLogs = medLogs.filter(l => !(l.medicineName === medicineName && l.date === todayStr && l.time === time));
+            itemsToProcess.forEach(mName => {
+                medLogs = medLogs.filter(l => !(l.medicineName === mName && l.date === todayStr && l.time === time));
+            });
         }
 
         user.medicationLogs = medLogs;

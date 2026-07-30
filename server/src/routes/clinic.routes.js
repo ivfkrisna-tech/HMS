@@ -562,6 +562,8 @@ router.put('/appointments/:id/complete', verifyClinicAdmin, async (req, res) => 
             saltName:     m.saltName || '',
             frequency:    m.frequency || m.dose || m.dosage || '',
             duration:     m.duration || m.days || '',
+            mixId:        m.mixId || null,
+            mixName:      m.mixName || null
         }));
         if (labTests   && Array.isArray(labTests))   appt.labTests  = labTests;
         if (paymentStatus) appt.paymentStatus = paymentStatus;

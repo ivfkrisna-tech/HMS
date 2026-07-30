@@ -227,6 +227,28 @@ const DoctorPatientDetails = () => {
         diagnosis: '', notes: '', medicines: [], labTests: ''
     });
 
+    const [selectedMedsForCompound, setSelectedMedsForCompound] = useState([]);
+
+    const handleGroupCompound = () => {
+        if (selectedMedsForCompound.length < 2) {
+            alert("Please select at least 2 medicines to create an admixture.");
+            return;
+        }
+        const mixName = prompt("Enter a name for this compound/admixture (e.g., IV Fluid Admixture):");
+        if (!mixName) return;
+        
+        const mixId = Date.now().toString(); 
+        
+        setSessionData(prev => {
+            const newMeds = [...prev.medicines];
+            selectedMedsForCompound.forEach(idx => {
+                newMeds[idx] = { ...newMeds[idx], mixId, mixName };
+            });
+            return { ...prev, medicines: newMeds };
+        });
+        setSelectedMedsForCompound([]);
+    };
+
     // Patient Intake Profile (Left Panel - Editable by Doctor)
     const [intakeData, setIntakeData] = useState({});
     const [patientLabReports, setPatientLabReports] = useState([]);
@@ -306,7 +328,9 @@ const DoctorPatientDetails = () => {
                             durationDays: p.durationDays ? String(p.durationDays) : '',
                             vialSize: p.vialSize || '',
                             totalDosageRequired: p.totalDosageRequired || 0,
-                            scheduleText: p.scheduleText || ''
+                            scheduleText: p.scheduleText || '',
+                            mixId: p.mixId || null,
+                            mixName: p.mixName || null
                         })),
                         labTests: (res.appointment.labTests || []).join(', ')
                     });
@@ -423,7 +447,9 @@ const DoctorPatientDetails = () => {
                         numericFrequency: Number(m.frequency) || 0,
                         durationDays: Number(m.durationDays) || 0,
                         vialSize: Number(m.vialSize) || 0,
-                        scheduleText: scheduleText
+                        scheduleText: scheduleText,
+                        mixId: m.mixId || null,
+                        mixName: m.mixName || null
                     };
                 })
             };
@@ -1339,6 +1365,17 @@ const DoctorPatientDetails = () => {
                                 <h4 style={{ margin: '0 0 12px', color: '#1e293b', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>💊 Medicines Prescribed</h4>
 
                                 {/* Inventory Medicine Search bar */}
+                                {sessionData.medicines.length > 1 && (
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <button 
+                                            type="button" 
+                                            onClick={handleGroupCompound}
+                                            style={{ padding: '6px 12px', background: '#8b5cf6', color: 'white', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                                        >
+                                            🔗 Group Selected as Compound
+                                        </button>
+                                    </div>
+                                )}
                                 <div ref={searchContainerRef} style={{ marginBottom: '16px', position: 'relative' }}>
                                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#64748b', marginBottom: '6px' }}>
                                         Search Medicine From Inventory
@@ -1534,7 +1571,22 @@ const DoctorPatientDetails = () => {
                                                             style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
                                                         />
                                                     </td>
-                                                    <td style={{ padding: '6px 8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
+                                                    <td style={{ padding: '6px 8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                        {med.mixId && (
+                                                            <span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #d8b4fe' }}>
+                                                                🔗 {med.mixName}
+                                                            </span>
+                                                        )}
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedMedsForCompound.includes(idx)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedMedsForCompound(prev => [...prev, idx]);
+                                                                else setSelectedMedsForCompound(prev => prev.filter(i => i !== idx));
+                                                            }}
+                                                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                            title="Select for Compound Admixture"
+                                                        />
                                                         <button
                                                             type="button"
                                                             onClick={() => setSessionData(prev => ({ ...prev, medicines: prev.medicines.filter((_, i) => i !== idx) }))}
