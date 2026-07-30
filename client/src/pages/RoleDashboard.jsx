@@ -52,6 +52,13 @@ const RoleDashboard = () => {
     const roleName = user.role || 'Staff';
     // Filter out buttons that should be hidden from the dashboard
     const HIDDEN_NAV_LABELS = ['book existing patient', 'system revenue analytics'];
+    
+    // Remove Lab and Pharmacy cards from Doctor Dashboard
+    const isDoctor = (roleName || '').toLowerCase().includes('doctor');
+    if (isDoctor) {
+        HIDDEN_NAV_LABELS.push('lab dashboard', 'pharmacy', 'pharmacy dashboard');
+    }
+
     const isReception = (roleName || '').toLowerCase().includes('recep');
     const navLinks = (user.navLinks || []).filter(link => {
         if (HIDDEN_NAV_LABELS.includes((link.label || '').toLowerCase().trim())) return false;
