@@ -286,7 +286,7 @@ export const labAPI = {
     getStats: async () => (await apiClient.get('/api/lab/stats')).data,
     getMyReports: async () => (await apiClient.get('/api/lab/my-reports')).data,
     getRequests: async (status) => (await apiClient.get(`/api/lab/requests?status=${status || ''}`)).data,
-    updatePayment: async (id, paymentData) => (await apiClient.patch(`/api/lab/update-payment/${id}`, paymentData)).data,
+    updatePayment: async (id, paymentData) => (await apiClient.post(`/api/lab/update-payment/${id}`, paymentData)).data,
     uploadReport: async (id, formData) => (await apiClient.post(`/api/lab/upload-report/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     })).data,

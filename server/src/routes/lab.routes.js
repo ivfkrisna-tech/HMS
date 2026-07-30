@@ -301,5 +301,29 @@ router.put('/shared-notes/:reportId', verifyToken, verifyLab, async (req, res) =
         res.status(500).json({ success: false, message: "Unable to save notes. Please try again." });
     }
 });
+// ─────────────────────────────────────────────
+// UPDATE LAB PAYMENT — POST /api/lab/update-payment/:id
+// ─────────────────────────────────────────────
+router.post('/update-payment/:id', verifyToken, verifyLab, async (req, res) => {
+    try {
+        const { paymentStatus, paymentMode, amount } = req.body;
+        
+        const report = await LabReport.findById(req.params.id);
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Lab report not found' });
+        }
+
+        if (paymentStatus) report.paymentStatus = paymentStatus;
+        if (paymentMode) report.paymentMode = paymentMode;
+        if (amount !== undefined) report.amount = amount;
+
+        await report.save();
+
+        res.json({ success: true, message: 'Payment updated successfully', report });
+    } catch (error) {
+        console.error("Update Payment Error:", error);
+        res.status(500).json({ success: false, message: 'Failed to update payment status' });
+    }
+});
 
 module.exports = router;
