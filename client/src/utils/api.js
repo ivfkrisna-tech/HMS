@@ -61,7 +61,7 @@ apiClient.interceptors.response.use(
         if (error.response?.status === 401) {
             const store = getStoreRef();
             window.dispatchEvent(new Event('auth-expired'));
-            
+
             if (store) {
                 store.dispatch(logout());
             } else {
