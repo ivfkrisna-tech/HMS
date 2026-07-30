@@ -47,6 +47,8 @@ const HospitalAdminPackages = () => {
     const [selectedServices, setSelectedServices] = useState([]);
 
     const [discountPercent, setDiscountPercent] = useState('');
+    const [sgst, setSgst] = useState('0');
+    const [cgst, setCgst] = useState('0');
     const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [totalDuration, setTotalDuration] = useState('30');
 
@@ -199,7 +201,11 @@ const HospitalAdminPackages = () => {
     const totalTreatmentAmount = selectedServices.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
     const discNum = Number(discountPercent) || 0;
     const discAmount = (totalTreatmentAmount * discNum) / 100;
-    const finalPackagePrice = Math.max(0, totalTreatmentAmount - discAmount);
+    const basePrice = Math.max(0, totalTreatmentAmount - discAmount);
+    const sgstNum = Number(sgst) || 0;
+    const cgstNum = Number(cgst) || 0;
+    const taxAmount = (basePrice * (sgstNum + cgstNum)) / 100;
+    const finalPackagePrice = basePrice + taxAmount;
 
     // Filter patients dropdown
     const filteredPatients = registeredPatients.filter(p => {
@@ -270,6 +276,8 @@ const HospitalAdminPackages = () => {
             selectedServices,
             originalAmount: totalTreatmentAmount,
             discountPercent: discNum,
+            sgst: Number(sgst) || 0,
+            cgst: Number(cgst) || 0,
             finalAmount: finalPackagePrice,
             startDate,
             totalDuration: Number(totalDuration) || 0,
@@ -311,6 +319,8 @@ const HospitalAdminPackages = () => {
         setPackageDescription(pkg.description || '');
         setSelectedServices(pkg.selectedServices || []);
         setDiscountPercent(pkg.discountPercent !== undefined ? String(pkg.discountPercent) : '');
+        setSgst(pkg.sgst !== undefined ? String(pkg.sgst) : '0');
+        setCgst(pkg.cgst !== undefined ? String(pkg.cgst) : '0');
         setStartDate(pkg.startDate ? pkg.startDate.split('T')[0] : new Date().toISOString().split('T')[0]);
         setTotalDuration(pkg.totalDuration !== undefined ? String(pkg.totalDuration) : '30');
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -335,6 +345,8 @@ const HospitalAdminPackages = () => {
         setPackageDescription('');
         setSelectedServices([]);
         setDiscountPercent('');
+        setSgst('0');
+        setCgst('0');
         setStartDate(new Date().toISOString().split('T')[0]);
         setTotalDuration('30');
         setPackageError('');
@@ -638,6 +650,28 @@ const HospitalAdminPackages = () => {
                             </div>
 
                             <div className="pkg-field-col third">
+                                <label>SGST (%)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={sgst}
+                                    onChange={(e) => setSgst(e.target.value)}
+                                />
+                            </div>
+                            
+                            <div className="pkg-field-col third">
+                                <label>CGST (%)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={cgst}
+                                    onChange={(e) => setCgst(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="pkg-field-col third">
                                 <label>Final Package Price (₹)</label>
                                 <input
                                     type="text"
@@ -858,6 +892,8 @@ const HospitalAdminPackages = () => {
                             <div className="view-pricing-box">
                                 <div className="p-row"><span>Original Treatment Amount:</span> <strong>₹{Number(viewingPackage.originalAmount || 0).toLocaleString('en-IN')}</strong></div>
                                 <div className="p-row"><span>Discount Applied:</span> <strong>{viewingPackage.discountPercent || 0}%</strong></div>
+                                <div className="p-row"><span>SGST:</span> <strong>{viewingPackage.sgst || 0}%</strong></div>
+                                <div className="p-row"><span>CGST:</span> <strong>{viewingPackage.cgst || 0}%</strong></div>
                                 <div className="p-row total"><span>Final Package Price:</span> <strong className="final-txt">₹{Number(viewingPackage.finalAmount || 0).toLocaleString('en-IN')}</strong></div>
                             </div>
                         </div>

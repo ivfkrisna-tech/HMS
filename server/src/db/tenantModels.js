@@ -187,9 +187,13 @@ const treatmentPackageSchema = new mongoose.Schema({
     originalAmount: { type: Number, required: true, default: 0 },
     discountPercent: { type: Number, default: 0 },
     finalAmount: { type: Number, required: true, default: 0 },
+    sgst: { type: Number, default: 0 },
+    cgst: { type: Number, default: 0 },
     startDate: { type: String, default: '' },
     totalDuration: { type: Number, default: 0 },
     status: { type: String, enum: ['Active', 'Completed', 'Cancelled'], default: 'Active' },
+    paymentStatus: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
+    paymentMode: { type: String, default: 'Cash' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // Future ready extensible structure
     medicines: [{ type: mongoose.Schema.Types.Mixed }],

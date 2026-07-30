@@ -17,7 +17,7 @@ const upload = multer({
 const verifyLab = async (req, res, next) => {
     const roleName = req.user._roleData ? req.user._roleData.name.toLowerCase() : String(req.user.role).toLowerCase();
 
-    if (!roleName.includes('lab') && !roleName.includes('admin') && !roleName.includes('doctor')) {
+    if (!roleName.includes('lab') && !roleName.includes('admin') && !roleName.includes('doctor') && !roleName.includes('reception')) {
         return res.status(403).json({ message: 'Access denied. Lab personnel only.' });
     }
     next();

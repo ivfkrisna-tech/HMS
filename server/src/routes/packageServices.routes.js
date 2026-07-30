@@ -348,7 +348,9 @@ router.post('/packages', verifyToken, resolveTenant, verifyHospitalAdmin, async 
             finalAmount,
             startDate,
             totalDuration,
-            status
+            status,
+            sgst,
+            cgst
         } = req.body;
 
         const { TreatmentPackage } = getModels(req);
@@ -368,6 +370,8 @@ router.post('/packages', verifyToken, resolveTenant, verifyHospitalAdmin, async 
             originalAmount: Number(originalAmount) || 0,
             discountPercent: Number(discountPercent) || 0,
             finalAmount: Number(finalAmount) || 0,
+            sgst: Number(sgst) || 0,
+            cgst: Number(cgst) || 0,
             startDate: startDate || '',
             totalDuration: Number(totalDuration) || 0,
             status: status || 'Active',
@@ -395,7 +399,9 @@ router.put('/packages/:id', verifyToken, resolveTenant, verifyHospitalAdmin, asy
             finalAmount,
             startDate,
             totalDuration,
-            status
+            status,
+            sgst,
+            cgst
         } = req.body;
 
         const { TreatmentPackage } = getModels(req);
@@ -409,6 +415,8 @@ router.put('/packages/:id', verifyToken, resolveTenant, verifyHospitalAdmin, asy
         if (originalAmount !== undefined) pkg.originalAmount = Number(originalAmount) || 0;
         if (discountPercent !== undefined) pkg.discountPercent = Number(discountPercent) || 0;
         if (finalAmount !== undefined) pkg.finalAmount = Number(finalAmount) || 0;
+        if (sgst !== undefined) pkg.sgst = Number(sgst) || 0;
+        if (cgst !== undefined) pkg.cgst = Number(cgst) || 0;
         if (startDate !== undefined) pkg.startDate = startDate;
         if (totalDuration !== undefined) pkg.totalDuration = Number(totalDuration) || 0;
         if (status) pkg.status = status;

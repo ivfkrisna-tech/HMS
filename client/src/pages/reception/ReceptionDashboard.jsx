@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import LabDashboard from '../lab/LabDashboard';
 import { receptionAPI, publicAPI, hospitalAPI, uploadAPI, admissionAPI, patientAPI, sourceAPI } from '../../utils/api';
 import { useAuth } from '../../store/hooks';
 import { getSubdomain } from '../../utils/subdomain';
@@ -2375,18 +2376,28 @@ const ReceptionDashboard = () => {
         );
     }
 
+
+
     return (
         <>
             <div className="reception-dashboard">
                 <div className="dashboard-header">
                     <h1>Reception Desk</h1>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button className="btn-cancel" onClick={() => { fetchTransactions(); setSearchParams({ mode: 'transactions' }); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>💰 Transactions</button>
-                        <button className="btn-cancel" onClick={() => navigate('/billing/patient')} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>🧾 Patient Billing</button>
+                        <button className="btn-cancel" onClick={() => navigate('/billing/patient')} style={{ padding: '10px 20px', fontSize: '1rem', background: '#f0fdf4', color: '#15803d', border: '1px solid #86efac' }}>📝 Patient Billing</button>
+                        <button className="btn-cancel" onClick={(e) => { e.preventDefault(); setSearchParams({ mode: 'lab' }); }} style={{ padding: '10px 20px', fontSize: '1rem', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', cursor: 'pointer', zIndex: 10 }}>🧪 Lab Tests</button>
                         <button className="btn-save" onClick={handleNewWalkIn} style={{ padding: '10px 20px', fontSize: '1rem' }}>+ New Registration</button>
                     </div>
                 </div>
 
+                {viewMode === 'lab' && (
+                    <div style={{ marginTop: '20px' }}>
+                        <LabDashboard isEmbedded={true} onBack={() => setSearchParams({})} />
+                    </div>
+                )}
+                
+                <div style={{ display: viewMode === 'lab' ? 'none' : 'block' }}>
                 <div className="search-section card" style={{ padding: '20px', marginBottom: '20px', position: 'relative' }}>
                     <div style={{ display: 'flex', gap: '10px' }}>
                         <input
@@ -2551,6 +2562,7 @@ const ReceptionDashboard = () => {
                             </tbody>
                         </table>
                     </div>
+                </div>
                 </div>
             </div>
 

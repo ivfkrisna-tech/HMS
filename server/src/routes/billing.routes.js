@@ -11,6 +11,7 @@ const MasterLabReport = require('../models/labReport.model');
 const MasterPharmacyOrder = require('../models/pharmacyOrder.model');
 const MasterFacilityCharge = require('../models/facilityCharge.model');
 const MasterAdmission = require('../models/admission.model');
+const MasterTreatmentPackage = require('../models/treatmentPackage.model');
 
 // Billing access middleware — receptionist also gets billing view
 const verifyBillingAccess = async (req, res, next) => {
@@ -45,6 +46,7 @@ const getModels = (req) => {
         PharmacyOrder: MasterPharmacyOrder,
         FacilityCharge: MasterFacilityCharge,
         Admission: MasterAdmission,
+        TreatmentPackage: MasterTreatmentPackage,
     };
 };
 
@@ -89,12 +91,7 @@ router.get('/search-patients', verifyBillingAccess, async (req, res) => {
 router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
     try {
         const { identifier } = req.params;
-        const { User } = getModels(req);
-        const Appointment = MasterAppointment;
-        const LabReport = MasterLabReport;
-        const PharmacyOrder = MasterPharmacyOrder;
-        const FacilityCharge = MasterFacilityCharge;
-        const Admission = MasterAdmission;
+        const { User, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission, TreatmentPackage } = getModels(req);
 
         const mongoose = require('mongoose');
         const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
@@ -123,30 +120,77 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             patient = await TenantUser.findOne(searchQuery);
         }
 
-        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });        const baseQuery = { 
+            $or: [
+                { patientId: patient._id }, 
+                { userId: patient._id },
+                { patient: patient._id },
+                ...(patient.mrn ? [{ mrn: patient.mrn }] : []),
+                ...(patient.uhid ? [{ uhid: patient.uhid }] : [])
+            ]
+        };
 
-        // Return ALL records for every category — frontend splits paid vs pending by paymentStatus field
-        const tFilter = (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(roleIdStr) && !['centraladmin', 'superadmin'].includes(roleName)) 
-            ? { hospitalId: req.user.hospitalId } : {};
+        const patientSearchQuery = (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(roleIdStr) && !['centraladmin', 'superadmin'].includes(roleName))
+            ? { $and: [baseQuery, { $or: [{ hospitalId: req.user.hospitalId }, { hospitalId: { $exists: false } }, { hospitalId: null }] }] }
+            : baseQuery;
 
-        const [appointments, labReports, pharmacyOrders, facilityCharges, admissions] = await Promise.all([
-            Appointment.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], ...tFilter })
+        console.log(`Unified Patient Search Query:`, JSON.stringify(patientSearchQuery, null, 2));
+
+        // 1. Fetch from Tenant Database
+        const [tenantAppointments, tenantLabReports, tenantPharmacyOrders, tenantFacilityCharges, tenantAdmissions, tenantPackages] = req.tenantDb ? await Promise.all([
+            Appointment.find(patientSearchQuery)
                 .select('appointmentDate appointmentTime amount paymentStatus paymentMode serviceName doctorName status createdAt')
                 .sort({ appointmentDate: -1 }).lean(),
-            LabReport.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], ...tFilter })
+            LabReport.find(patientSearchQuery)
                 .select('testNames testName amount price paymentStatus paymentMode testStatus createdAt')
                 .sort({ createdAt: -1 }).lean(),
-            PharmacyOrder.find({ $or: [{ userId: patient._id }, { patientId: patient._id }], ...tFilter })
+            PharmacyOrder.find(patientSearchQuery)
                 .select('items totalAmount paymentStatus orderStatus createdAt')
                 .sort({ createdAt: -1 }).lean(),
-            FacilityCharge.find({ patientId: patient._id, ...tFilter })
+            FacilityCharge.find(patientSearchQuery)
                 .select('facilityName pricePerDay days totalAmount paymentStatus createdAt')
                 .sort({ createdAt: -1 }).lean(),
-            Admission.find({ patientId: patient._id, ...tFilter })
+            Admission.find(patientSearchQuery)
                 .sort({ admissionDate: -1 }).lean(),
+            TreatmentPackage.find(patientSearchQuery).sort({ createdAt: -1 }).lean()
+        ]) : [[], [], [], [], [], []];
+
+        // 2. Fetch from Master Database (for legacy records)
+        const [masterAppointments, masterLabReports, masterPharmacyOrders, masterFacilityCharges, masterAdmissions, masterPackages] = await Promise.all([
+            MasterAppointment.find(patientSearchQuery)
+                .select('appointmentDate appointmentTime amount paymentStatus paymentMode serviceName doctorName status createdAt')
+                .sort({ appointmentDate: -1 }).lean(),
+            MasterLabReport.find(patientSearchQuery)
+                .select('testNames testName amount price paymentStatus paymentMode testStatus createdAt')
+                .sort({ createdAt: -1 }).lean(),
+            MasterPharmacyOrder.find(patientSearchQuery)
+                .select('items totalAmount paymentStatus orderStatus createdAt')
+                .sort({ createdAt: -1 }).lean(),
+            MasterFacilityCharge.find(patientSearchQuery)
+                .select('facilityName pricePerDay days totalAmount paymentStatus createdAt')
+                .sort({ createdAt: -1 }).lean(),
+            MasterAdmission.find(patientSearchQuery)
+                .sort({ admissionDate: -1 }).lean(),
+            MasterTreatmentPackage.find(patientSearchQuery).sort({ createdAt: -1 }).lean()
         ]);
 
-        res.json({
+        // Merge helper to prevent duplicates
+        const mergeDocs = (arr1, arr2) => {
+            const map = new Map();
+            [...(arr1 || []), ...(arr2 || [])].forEach(doc => map.set(String(doc._id), doc));
+            return Array.from(map.values());
+        };
+
+        const appointments = mergeDocs(tenantAppointments, masterAppointments).sort((a, b) => new Date(b.createdAt || b.appointmentDate) - new Date(a.createdAt || a.appointmentDate));
+        const labReports = mergeDocs(tenantLabReports, masterLabReports).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const pharmacyOrders = mergeDocs(tenantPharmacyOrders, masterPharmacyOrders).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const facilityCharges = mergeDocs(tenantFacilityCharges, masterFacilityCharges).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const admissions = mergeDocs(tenantAdmissions, masterAdmissions).sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate));
+        const packages = mergeDocs(tenantPackages, masterPackages).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        console.log(`Raw Admissions Results (${admissions.length} found):`, JSON.stringify(admissions, null, 2));
+        
+        const payload = {
             success: true,
             patient: {
                 _id: patient._id,
@@ -158,8 +202,12 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 dob: patient.dob,
                 avatar: patient.avatar || null,
             },
-            billing: { appointments, labReports, pharmacyOrders, facilityCharges, admissions }
-        });
+            billing: { appointments, labReports, pharmacyOrders, facilityCharges, admissions, packages }
+        };
+        console.log(`Final Response Keys:`, Object.keys(payload));
+        console.log(`Billing Payload Keys:`, Object.keys(payload.billing));
+        
+        res.json(payload);
 
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -202,26 +250,30 @@ router.put('/pay', verifyBillingAccess, async (req, res) => {
             pharmacyOrderIds = [],
             facilityChargeIds = [],
             admissionIds = [],
+            packageIds = [],
             paymentMode = 'Cash'
         } = req.body;
 
-        const Appointment = MasterAppointment;
-        const LabReport = MasterLabReport;
-        const PharmacyOrder = MasterPharmacyOrder;
-        const FacilityCharge = MasterFacilityCharge;
-        const Admission = MasterAdmission;
+        const { Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission, TreatmentPackage } = getModels(req);
 
         await Promise.all([
-            appointmentIds.length > 0 && Appointment.updateMany(
-                { _id: { $in: appointmentIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            labReportIds.length > 0 && LabReport.updateMany(
-                { _id: { $in: labReportIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            pharmacyOrderIds.length > 0 && PharmacyOrder.updateMany(
-                { _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid' } }),
-            facilityChargeIds.length > 0 && FacilityCharge.updateMany(
-                { _id: { $in: facilityChargeIds } }, { $set: { paymentStatus: 'Paid' } }),
-            admissionIds.length > 0 && Admission.updateMany(
-                { _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid' } }),
+            appointmentIds.length > 0 && Appointment.updateMany({ _id: { $in: appointmentIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            appointmentIds.length > 0 && MasterAppointment.updateMany({ _id: { $in: appointmentIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            
+            labReportIds.length > 0 && LabReport.updateMany({ _id: { $in: labReportIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            labReportIds.length > 0 && MasterLabReport.updateMany({ _id: { $in: labReportIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            
+            pharmacyOrderIds.length > 0 && PharmacyOrder.updateMany({ _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            pharmacyOrderIds.length > 0 && MasterPharmacyOrder.updateMany({ _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            
+            facilityChargeIds.length > 0 && FacilityCharge.updateMany({ _id: { $in: facilityChargeIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            facilityChargeIds.length > 0 && MasterFacilityCharge.updateMany({ _id: { $in: facilityChargeIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            
+            admissionIds.length > 0 && Admission.updateMany({ _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            admissionIds.length > 0 && MasterAdmission.updateMany({ _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            
+            packageIds.length > 0 && TreatmentPackage.updateMany({ _id: { $in: packageIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
+            packageIds.length > 0 && MasterTreatmentPackage.updateMany({ _id: { $in: packageIds } }, { $set: { paymentStatus: 'Paid', paymentMode } })
         ].filter(Boolean));
 
         res.json({ success: true, message: 'Billing settled successfully' });
