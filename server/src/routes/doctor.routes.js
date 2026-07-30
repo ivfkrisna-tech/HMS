@@ -490,107 +490,99 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                     status: 'Pending'
                 }).catch(err => console.log("LabReport creation note:", err.message));
             }
+
+            // --- Dispatch Lab Notification ---
+            await Notification.create({
+                senderId: req.user.id,
+                recipientRole: 'lab',
+                message: `New lab tests prescribed for ${pName} (${pId || 'N/A'})`,
+                referenceType: 'LabReport',
+                referenceId: reportId, // Make sure reportId is declared/defined if used
+                patientId: pId || 'N/A'
+            });
+
+            const io = req.app.get('io');
+            if (io) {
+                io.to('lab').emit('newNotification', { message: `New lab tests prescribed for ${pName}` });
+            }
+        } else {
+            // Remove pending reports if no tests prescribed anymore
+            await LabReport.deleteOne({ appointmentId: appointment._id, testStatus: 'PENDING' });
         }
+
+        // --- Create or Update Pharmacy Order (upsert so re-saves propagate to Nurse panel) ---
+        if (appointment.pharmacy && appointment.pharmacy.length > 0) {
+            const orderItems = appointment.pharmacy.map(p => ({
+                medicineName: p.medicineName,
+                frequency: p.frequency,
+                duration: p.duration,
+                volumeMl: p.volumeMl || '',
+                administrationTime: p.administrationTime || '',
+                gapDays: p.gapDays || 0,
+                startDate: p.startDate || null,
+                quantity: p.totalDosageRequired || 0,
+                scheduleText: p.scheduleText || '',
+                dosePerAdmin: p.dosePerAdmin || 1,
+                doseAdmin: p.doseAdmin || 1,
+                dose: p.dose || '',
+                qtyPerDose: p.qtyPerDose || 0,
+                days: p.days || 1,
+                totalDosageRequired: p.totalDosageRequired || 0,
+                mixId: p.mixId || null,
+                mixName: p.mixName || null
+            }));
+
+            await PharmacyOrder.findOneAndUpdate(
+                { appointmentId: appointment._id },
+                {
+                    $set: {
+                        items: orderItems,
+                        patientId: appointment.patientId || 'N/A',
+                        userId: appointment.userId,
+                        doctorId: req.user.id,
+                        hospitalId: req.user.hospitalId || appointment.hospitalId,
+                        orderStatus: 'Upcoming',
+                        paymentStatus: 'Pending'
+                    }
+                },
+                { upsert: true, new: true }
+            );
+        }
+
+        // ── CLINICAL SAFETY GUARDRAIL: FORCE APPOINTMENT & PATIENT STATUS ──
+        try {
+            const mongoose = require('mongoose');
+            const User = require('../models/user.model');
+
+            // 1. Force appointment status to 'confirmed' so it appears on the Receptionist Dashboard
+            // (The Appointment schema enum only allows: 'pending', 'confirmed', 'completed', 'cancelled')
+            appointment.status = 'confirmed';
+            await appointment.save();
+            console.log(`[HMS Guardrail] Appointment ${appointment._id} status forced to confirmed`);
+
+            // 2. Strictly target the real Patient ID (ignoring doctor's userId)
+            const realPatientId = appointment.patientId || appointment.patient?._id || appointment.patient;
+
+            if (realPatientId && mongoose.Types.ObjectId.isValid(realPatientId)) {
+                const existingUser = await User.findById(realPatientId);
+                // Do not downgrade if already admitted
+                if (existingUser && existingUser.status !== 'admitted') {
+                    await User.findByIdAndUpdate(realPatientId, {
+                        $set: { status: 'recommended_ipd' }
+                    }, { strict: false });
+                    console.log(`[HMS Guardrail] Patient ${realPatientId} status set to recommended_ipd`);
+                }
+            }
+        } catch (err) {
+            console.error("[HMS Guardrail Critical Error]:", err.message);
+        }
+        // ───────────────────────────────────────────────────────────────────
 
         res.json({ success: true, message: 'Prescription saved successfully', appointment });
     } catch (error) {
         console.error("❌ [PRESCRIPTION ROUTE CRASH]:", error);
         res.status(500).json({ success: false, message: error.message });
     }
-});
-// --- Dispatch Lab Notification ---
-await Notification.create({
-    senderId: req.user.id,
-    recipientRole: 'lab',
-    message: `New lab tests prescribed for ${pName} (${pId || 'N/A'})`,
-    referenceType: 'LabReport',
-    referenceId: reportId,
-    patientId: pId || 'N/A'
-});
-
-const io = req.app.get('io');
-if (io) {
-    io.to('lab').emit('newNotification', { message: `New lab tests prescribed for ${pName}` });
-}
-
-        } else {
-    // Remove pending reports if no tests prescribed anymore
-    await LabReport.deleteOne({ appointmentId: appointment._id, testStatus: 'PENDING' });
-}
-
-// --- Create or Update Pharmacy Order (upsert so re-saves propagate to Nurse panel) ---
-if (appointment.pharmacy && appointment.pharmacy.length > 0) {
-    const orderItems = appointment.pharmacy.map(p => ({
-        medicineName: p.medicineName,
-        frequency: p.frequency,
-        duration: p.duration,
-        volumeMl: p.volumeMl || '',
-        administrationTime: p.administrationTime || '',
-        gapDays: p.gapDays || 0,
-        startDate: p.startDate || null,
-        quantity: p.totalDosageRequired || 0,
-        scheduleText: p.scheduleText || '',
-        dosePerAdmin: p.dosePerAdmin || 1,
-        doseAdmin: p.doseAdmin || 1,
-        dose: p.dose || '',
-        qtyPerDose: p.qtyPerDose || 0,
-        days: p.days || 1,
-        totalDosageRequired: p.totalDosageRequired || 0,
-        mixId: p.mixId || null,
-        mixName: p.mixName || null
-    }));
-
-    await PharmacyOrder.findOneAndUpdate(
-        { appointmentId: appointment._id },
-        {
-            $set: {
-                items: orderItems,
-                patientId: appointment.patientId || 'N/A',
-                userId: appointment.userId,
-                doctorId: req.user.id,
-                hospitalId: req.user.hospitalId || appointment.hospitalId,
-                orderStatus: 'Upcoming',
-                paymentStatus: 'Pending'
-            }
-        },
-        { upsert: true, new: true }
-    );
-}
-
-
-// ── CLINICAL SAFETY GUARDRAIL: FORCE APPOINTMENT & PATIENT STATUS ──
-try {
-    const mongoose = require('mongoose');
-    const User = require('../models/user.model');
-
-    // 1. Force appointment status to 'confirmed' so it appears on the Receptionist Dashboard
-    // (The Appointment schema enum only allows: 'pending', 'confirmed', 'completed', 'cancelled')
-    appointment.status = 'confirmed';
-    await appointment.save();
-    console.log(`[HMS Guardrail] Appointment ${appointment._id} status forced to confirmed`);
-
-    // 2. Strictly target the real Patient ID (ignoring doctor's userId)
-    const realPatientId = appointment.patientId || appointment.patient?._id || appointment.patient;
-
-    if (realPatientId && mongoose.Types.ObjectId.isValid(realPatientId)) {
-        const existingUser = await User.findById(realPatientId);
-        // Do not downgrade if already admitted
-        if (existingUser && existingUser.status !== 'admitted') {
-            await User.findByIdAndUpdate(realPatientId, {
-                $set: { status: 'recommended_ipd' }
-            }, { strict: false });
-            console.log(`[HMS Guardrail] Patient ${realPatientId} status set to recommended_ipd`);
-        }
-    }
-} catch (err) {
-    console.error("[HMS Guardrail Critical Error]:", err.message);
-}
-// ───────────────────────────────────────────────────────────────────
-
-res.json({ success: true, message: 'Saved', appointment });
-    } catch (error) {
-    res.status(500).json({ success: false, message: 'Update failed', error: error.message });
-}
 });
 
 // 7. GET Patient History
