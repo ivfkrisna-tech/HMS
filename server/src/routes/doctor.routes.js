@@ -140,8 +140,8 @@ router.get('/patients/:patientId/full-profile', verifyToken, async (req, res) =>
                 coupleId: patient.coupleId,
                 _id: { $ne: patient._id }
             })
-            .select('name firstName lastName mrn patientId gender phone mobile linkedAppointmentId coupleId')
-            .lean();
+                .select('name firstName lastName mrn patientId gender phone mobile linkedAppointmentId coupleId')
+                .lean();
             if (partner) {
                 patient.partnerPatientId = partner;
             }
@@ -273,7 +273,7 @@ router.get('/appointments/:id', verifyToken, async (req, res) => {
             .lean();
 
         if (!appointment) return res.status(404).json({ success: false, message: 'Not found or unauthorized' });
-        
+
         // Fetch doctor's specific departments, fallback to hospital departments
         const doctorUser = await User.findById(req.user.id || req.user.userId).populate('hospitalId');
         let departments = [];
@@ -362,8 +362,10 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
         const { status, diagnosis, labTests, selectedPackages, dietPlan, pharmacy, notes, labId } = req.body;
         const findQuery = { _id: req.params.id };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
+
+        const Appointment = require('../models/appointment.model'); // Safety require
         const appointment = await Appointment.findOne(findQuery);
-        if (!appointment) return res.status(404).json({ message: 'Not found' });
+        if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
 
         if (labId) appointment.labId = labId;
         if (status) appointment.status = status;
@@ -382,13 +384,15 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
             }
         }
 
-        if (dietPlan) appointment.dietPlan = typeof dietPlan === 'string' ? JSON.parse(dietPlan) : dietPlan;
+        if (dietPlan) {
+            appointment.dietPlan = typeof dietPlan === 'string' ? JSON.parse(dietPlan) : dietPlan;
+        }
 
         if (pharmacy) {
             const p = typeof pharmacy === 'string' ? JSON.parse(pharmacy) : pharmacy;
             if (Array.isArray(p)) {
                 appointment.pharmacy = p.map(item => ({
-                    medicineName: item.medicineName || item.name,
+                    medicineName: item.medicineName || item.name || '',
                     saltName: item.saltName || '',
                     frequency: item.frequency || '',
                     duration: item.duration || '',
@@ -416,37 +420,36 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
         await appointment.save();
 
         if (appointment.labTests && appointment.labTests.length > 0) {
+            // 👇 Yahan LabReport require karna zaroori tha!
+            const LabReport = require('../models/labReport.model');
+            const User = require('../models/user.model');
+            const LabTest = require('../models/labTest.model');
+            const TestPackage = require('../models/testPackage.model');
+
             const existingReport = await LabReport.findOne({ appointmentId: appointment._id });
 
             let pId = appointment.patientId;
             let pName = 'Patient';
-            if (!pId || !appointment.userId?.name) {
-                const pUser = await User.findById(appointment.userId);
+            if (!pId || !appointment.userId) {
+                const pUser = await User.findById(appointment.userId).catch(() => null);
                 if (pUser) {
                     pId = pUser.patientId;
                     pName = pUser.name;
                 }
-            } else {
-                pName = appointment.userId.name || pName;
+            } else if (appointment.userId && appointment.userId.name) {
+                pName = appointment.userId.name;
             }
 
-            let reportId;
-            
-            // Dynamically calculate total amount for these lab tests
-            const LabTest = require('../models/labTest.model');
-            const TestPackage = require('../models/testPackage.model');
-            
             const allTests = await LabTest.find();
             const parsedPackages = selectedPackages
                 ? (typeof selectedPackages === 'string' ? JSON.parse(selectedPackages) : selectedPackages)
                 : [];
             const selectedPkgs = await TestPackage.find({ _id: { $in: parsedPackages } }).populate('tests');
-            
+
             let totalAmount = 0;
             const hidStr = (req.user.hospitalId || appointment.hospitalId || '').toString();
             let packageTestNames = [];
-            
-            // Add package prices and collect tests
+
             selectedPkgs.forEach(pkg => {
                 totalAmount += (pkg.discountedPrice || pkg.price || 0);
                 if (pkg.tests) {
@@ -460,8 +463,8 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
 
             (appointment.labTests || []).forEach(testName => {
                 const normalizedName = testName.trim().toLowerCase();
-                if (normalizedName.startsWith('[package]')) return; // Already charged
-                if (packageTestNames.includes(normalizedName)) return; // Included in a package
+                if (normalizedName.startsWith('[package]')) return;
+                if (packageTestNames.includes(normalizedName)) return;
 
                 const testObj = allTests.find(t => t.name.trim().toLowerCase() === normalizedName);
                 if (testObj) {
@@ -475,122 +478,119 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                 }
             });
 
+            // Agar report nahi hai toh naye tarike se create kar do
             if (!existingReport) {
-                const newReport = await LabReport.create({
+                await LabReport.create({
                     appointmentId: appointment._id,
-                    patientId: pId || 'N/A',
-                    userId: appointment.userId,
-                    doctorId: req.user.id,
-                    hospitalId: req.user.hospitalId || appointment.hospitalId,
-                    labId: labId || null,
-                    testNames: appointment.labTests,
-                    testStatus: 'PENDING',
-                    reportStatus: 'PENDING',
-                    paymentStatus: 'PENDING',
-                    amount: totalAmount
-                });
-                reportId = newReport._id;
-            } else {
-                existingReport.testNames = appointment.labTests;
-                existingReport.labId = labId || existingReport.labId;
-                existingReport.amount = totalAmount; // Update price in case tests were added/removed
-                await existingReport.save();
-                reportId = existingReport._id;
+                    patientId: pId,
+                    patientName: pName,
+                    hospitalId: appointment.hospitalId,
+                    tests: appointment.labTests,
+                    totalAmount: totalAmount,
+                    status: 'Pending'
+                }).catch(err => console.log("LabReport creation note:", err.message));
             }
+        }
 
-            // --- Dispatch Lab Notification ---
-            await Notification.create({
-                senderId: req.user.id,
-                recipientRole: 'lab',
-                message: `New lab tests prescribed for ${pName} (${pId || 'N/A'})`,
-                referenceType: 'LabReport',
-                referenceId: reportId,
-                patientId: pId || 'N/A'
-            });
+        res.json({ success: true, message: 'Prescription saved successfully', appointment });
+    } catch (error) {
+        console.error("❌ [PRESCRIPTION ROUTE CRASH]:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+// --- Dispatch Lab Notification ---
+await Notification.create({
+    senderId: req.user.id,
+    recipientRole: 'lab',
+    message: `New lab tests prescribed for ${pName} (${pId || 'N/A'})`,
+    referenceType: 'LabReport',
+    referenceId: reportId,
+    patientId: pId || 'N/A'
+});
 
-            const io = req.app.get('io');
-            if (io) {
-                io.to('lab').emit('newNotification', { message: `New lab tests prescribed for ${pName}` });
-            }
+const io = req.app.get('io');
+if (io) {
+    io.to('lab').emit('newNotification', { message: `New lab tests prescribed for ${pName}` });
+}
 
         } else {
-            // Remove pending reports if no tests prescribed anymore
-            await LabReport.deleteOne({ appointmentId: appointment._id, testStatus: 'PENDING' });
-        }
+    // Remove pending reports if no tests prescribed anymore
+    await LabReport.deleteOne({ appointmentId: appointment._id, testStatus: 'PENDING' });
+}
 
-        // --- Create or Update Pharmacy Order (upsert so re-saves propagate to Nurse panel) ---
-        if (appointment.pharmacy && appointment.pharmacy.length > 0) {
-            const orderItems = appointment.pharmacy.map(p => ({
-                medicineName: p.medicineName,
-                frequency:    p.frequency,
-                duration:     p.duration,
-                volumeMl:           p.volumeMl           || '',
-                administrationTime: p.administrationTime || '',
-                gapDays:            p.gapDays            || 0,
-                startDate:          p.startDate          || null,
-                quantity:           p.totalDosageRequired || 0,
-                scheduleText:       p.scheduleText       || '',
-                dosePerAdmin:       p.dosePerAdmin       || 1,
-                doseAdmin:          p.doseAdmin          || 1,
-                dose:               p.dose               || '',
-                qtyPerDose:         p.qtyPerDose         || 0,
-                days:               p.days               || 1,
-                totalDosageRequired: p.totalDosageRequired || 0,
-                mixId:              p.mixId              || null,
-                mixName:            p.mixName            || null
-            }));
+// --- Create or Update Pharmacy Order (upsert so re-saves propagate to Nurse panel) ---
+if (appointment.pharmacy && appointment.pharmacy.length > 0) {
+    const orderItems = appointment.pharmacy.map(p => ({
+        medicineName: p.medicineName,
+        frequency: p.frequency,
+        duration: p.duration,
+        volumeMl: p.volumeMl || '',
+        administrationTime: p.administrationTime || '',
+        gapDays: p.gapDays || 0,
+        startDate: p.startDate || null,
+        quantity: p.totalDosageRequired || 0,
+        scheduleText: p.scheduleText || '',
+        dosePerAdmin: p.dosePerAdmin || 1,
+        doseAdmin: p.doseAdmin || 1,
+        dose: p.dose || '',
+        qtyPerDose: p.qtyPerDose || 0,
+        days: p.days || 1,
+        totalDosageRequired: p.totalDosageRequired || 0,
+        mixId: p.mixId || null,
+        mixName: p.mixName || null
+    }));
 
-            await PharmacyOrder.findOneAndUpdate(
-                { appointmentId: appointment._id },
-                {
-                    $set: {
-                        items:         orderItems,
-                        patientId:     appointment.patientId || 'N/A',
-                        userId:        appointment.userId,
-                        doctorId:      req.user.id,
-                        hospitalId:    req.user.hospitalId || appointment.hospitalId,
-                        orderStatus:   'Upcoming',
-                        paymentStatus: 'Pending'
-                    }
-                },
-                { upsert: true, new: true }
-            );
-        }
-
-
-        // ── CLINICAL SAFETY GUARDRAIL: FORCE APPOINTMENT & PATIENT STATUS ──
-        try {
-            const mongoose = require('mongoose');
-            const User = require('../models/user.model');
-
-            // 1. Force appointment status to 'confirmed' so it appears on the Receptionist Dashboard
-            // (The Appointment schema enum only allows: 'pending', 'confirmed', 'completed', 'cancelled')
-            appointment.status = 'confirmed';
-            await appointment.save();
-            console.log(`[HMS Guardrail] Appointment ${appointment._id} status forced to confirmed`);
-
-            // 2. Strictly target the real Patient ID (ignoring doctor's userId)
-            const realPatientId = appointment.patientId || appointment.patient?._id || appointment.patient;
-
-            if (realPatientId && mongoose.Types.ObjectId.isValid(realPatientId)) {
-                const existingUser = await User.findById(realPatientId);
-                // Do not downgrade if already admitted
-                if (existingUser && existingUser.status !== 'admitted') {
-                    await User.findByIdAndUpdate(realPatientId, { 
-                        $set: { status: 'recommended_ipd' } 
-                    }, { strict: false });
-                    console.log(`[HMS Guardrail] Patient ${realPatientId} status set to recommended_ipd`);
-                }
+    await PharmacyOrder.findOneAndUpdate(
+        { appointmentId: appointment._id },
+        {
+            $set: {
+                items: orderItems,
+                patientId: appointment.patientId || 'N/A',
+                userId: appointment.userId,
+                doctorId: req.user.id,
+                hospitalId: req.user.hospitalId || appointment.hospitalId,
+                orderStatus: 'Upcoming',
+                paymentStatus: 'Pending'
             }
-        } catch (err) {
-            console.error("[HMS Guardrail Critical Error]:", err.message);
-        }
-        // ───────────────────────────────────────────────────────────────────
+        },
+        { upsert: true, new: true }
+    );
+}
 
-        res.json({ success: true, message: 'Saved', appointment });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Update failed', error: error.message });
+
+// ── CLINICAL SAFETY GUARDRAIL: FORCE APPOINTMENT & PATIENT STATUS ──
+try {
+    const mongoose = require('mongoose');
+    const User = require('../models/user.model');
+
+    // 1. Force appointment status to 'confirmed' so it appears on the Receptionist Dashboard
+    // (The Appointment schema enum only allows: 'pending', 'confirmed', 'completed', 'cancelled')
+    appointment.status = 'confirmed';
+    await appointment.save();
+    console.log(`[HMS Guardrail] Appointment ${appointment._id} status forced to confirmed`);
+
+    // 2. Strictly target the real Patient ID (ignoring doctor's userId)
+    const realPatientId = appointment.patientId || appointment.patient?._id || appointment.patient;
+
+    if (realPatientId && mongoose.Types.ObjectId.isValid(realPatientId)) {
+        const existingUser = await User.findById(realPatientId);
+        // Do not downgrade if already admitted
+        if (existingUser && existingUser.status !== 'admitted') {
+            await User.findByIdAndUpdate(realPatientId, {
+                $set: { status: 'recommended_ipd' }
+            }, { strict: false });
+            console.log(`[HMS Guardrail] Patient ${realPatientId} status set to recommended_ipd`);
+        }
     }
+} catch (err) {
+    console.error("[HMS Guardrail Critical Error]:", err.message);
+}
+// ───────────────────────────────────────────────────────────────────
+
+res.json({ success: true, message: 'Saved', appointment });
+    } catch (error) {
+    res.status(500).json({ success: false, message: 'Update failed', error: error.message });
+}
 });
 
 // 7. GET Patient History
