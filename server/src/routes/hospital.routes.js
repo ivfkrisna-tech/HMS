@@ -427,7 +427,7 @@ router.post('/admin/login', async (req, res) => {
 });
 
 // Get my hospital info (for hospital admins)
-router.get('/my-hospital', verifyHospitalAdmin, async (req, res) => {
+router.get('/my-hospital', verifyToken, async (req, res) => {
     try {
         if (req.user.role === 'centraladmin' || req.user.role === 'superadmin') {
             return res.json({ success: true, hospital: null, message: 'Central admin manages all hospitals' });

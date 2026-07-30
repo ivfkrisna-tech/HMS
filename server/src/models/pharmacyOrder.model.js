@@ -31,7 +31,10 @@ const pharmacyOrderSchema = new mongoose.Schema({
         gapDays: { type: Number, default: 0 },
         startDate: { type: Date, default: null },
         price: { type: Number, default: 0 },
-        purchased: { type: Boolean, default: false }
+        purchased: { type: Boolean, default: false },
+        quantity: { type: Number, default: 0 },
+        returnedQty: { type: Number, default: 0 },
+        scheduleText: { type: String, default: '' }
     }],
     paymentStatus: {
         type: String,
@@ -39,6 +42,18 @@ const pharmacyOrderSchema = new mongoose.Schema({
         default: 'Pending'
     },
     totalAmount: {
+        type: Number,
+        default: 0
+    },
+    taxableAmount: {
+        type: Number,
+        default: 0
+    },
+    cgstAmount: {
+        type: Number,
+        default: 0
+    },
+    sgstAmount: {
         type: Number,
         default: 0
     },
@@ -50,6 +65,11 @@ const pharmacyOrderSchema = new mongoose.Schema({
         type: String,
         enum: ['Upcoming', 'Completed', 'Cancelled'],
         default: 'Upcoming'
+    },
+    returnStatus: {
+        type: String,
+        enum: ['NONE', 'PARTIALLY_RETURNED', 'FULLY_RETURNED'],
+        default: 'NONE'
     }
 }, { timestamps: true });
 

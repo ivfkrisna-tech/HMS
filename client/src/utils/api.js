@@ -298,11 +298,24 @@ export const pharmacyAPI = {
     getInventory: async () => (await apiClient.get('/api/pharmacy/inventory')).data,
     addMedicine: async (data) => (await apiClient.post('/api/pharmacy/inventory', data)).data,
     updateMedicine: async (id, data) => (await apiClient.put(`/api/pharmacy/inventory/${id}`, data)).data,
-    deleteMedicine: async (id) => (await apiClient.delete(`/api/pharmacy/inventory/${id}`)).data
+    deleteMedicine: async (id) => (await apiClient.delete(`/api/pharmacy/inventory/${id}`)).data,
+    getVendors: async () => (await apiClient.get('/api/pharmacy/vendors')).data,
+    addVendor: async (data) => (await apiClient.post('/api/pharmacy/vendors', data)).data,
+    updateVendor: async (id, data) => (await apiClient.put(`/api/pharmacy/vendors/${id}`, data)).data,
+    getCollectionsAnalytics: async (startDate, endDate) => {
+        let url = `/api/pharmacy/analytics/collections`;
+        const params = new URLSearchParams();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        const qs = params.toString();
+        if (qs) url += `?${qs}`;
+        return (await apiClient.get(url)).data;
+    }
 };
 
 export const pharmacyOrderAPI = {
     getOrders: async () => (await apiClient.get('/api/pharmacy/orders')).data,
+    createOrder: async (data) => (await apiClient.post('/api/pharmacy/orders', data)).data,
     completeOrder: async (id, purchasedIndices = null) => (await apiClient.patch(`/api/pharmacy/orders/${id}/complete`, { purchasedIndices })).data,
     searchBills: async (query) => (await apiClient.get(`/api/pharmacy/orders/search-bill?query=${query}`)).data,
     processReturn: async (data) => (await apiClient.post('/api/pharmacy/orders/process-return', data)).data

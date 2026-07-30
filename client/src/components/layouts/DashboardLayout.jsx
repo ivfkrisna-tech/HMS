@@ -6,7 +6,7 @@ import { useBranding } from '../../context/BrandingContext';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
-    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers, FiRefreshCcw
+    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers, FiRefreshCcw, FiShoppingCart
 } from 'react-icons/fi';
 import './DashboardLayout.css';
 
@@ -94,15 +94,27 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         }
         if (user?.navLinks && user.navLinks.length > 0) {
             const links = user.navLinks.map(link => {
+                let icon = <FiFileText />;
+                if (link.path === '/pharmacy/orders') icon = <FiClipboard />;
+                if (link.path === '/pharmacy/inventory') icon = <FiPackage />;
                 return {
                     label: link.label,
-                    // If the backend link says 'Reception Dashboard' but actually points to /reception/dashboard, we will leave it
-                    // But we'll add a Home link below to ensure they can get to /my-dashboard.
                     path: link.path,
-                    icon: <FiFileText /> // Fallback icon for dynamic links
+                    icon
                 };
             });
-            // Add a Home link at the very top to guarantee they can get back to my-dashboard
+            
+            // Unconditionally add Returns & Billing if ANY pharmacy permission exists
+            const hasPharmacyAccess = links.some(l => l.path.includes('/pharmacy'));
+            if (hasPharmacyAccess) {
+                if (!links.some(l => l.path === '/pharmacy/orders')) {
+                    links.push({ label: 'Pharmacy Orders', path: '/pharmacy/orders', icon: <FiClipboard /> });
+                }
+                if (!links.some(l => l.path === '/pharmacy/returns')) {
+                    links.push({ label: 'Pharmacy Returns', path: '/pharmacy/returns', icon: <FiRefreshCcw /> });
+                }
+            }
+            
             return [
                 { label: 'Home Dashboard', path: '/my-dashboard', icon: <FiHome /> },
                 ...links

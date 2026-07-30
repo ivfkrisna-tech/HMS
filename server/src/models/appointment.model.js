@@ -8,7 +8,13 @@ const pharmacyItemSchema = new mongoose.Schema({
     volumeMl: { type: String, default: '', trim: true },
     administrationTime: { type: String, default: '', trim: true },
     gapDays: { type: Number, default: 0 },
-    startDate: { type: Date, default: null }
+    startDate: { type: Date, default: null },
+    totalDosageRequired: { type: Number, default: 0 },
+    dosePerAdmin: { type: Number, default: 0 },
+    numericFrequency: { type: Number, default: 0 },
+    durationDays: { type: Number, default: 0 },
+    vialSize: { type: Number, default: 0 },
+    scheduleText: { type: String, default: '' }
 }, { _id: false });
 
 const vitalsSchema = new mongoose.Schema({

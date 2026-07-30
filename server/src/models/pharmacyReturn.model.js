@@ -34,7 +34,11 @@ const pharmacyReturnSchema = new mongoose.Schema({
         // Negative = Refund given to patient
         // Positive = Extra collected from patient
     },
-    status: { type: String, default: 'Completed' }
+    returnReason: { type: String, default: '' },
+    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    refundAmount: { type: Number, default: 0 },
+    status: { type: String, default: 'Completed' },
+    paymentMode: { type: String, enum: ['CASH', 'ONLINE', 'WALLET'], default: 'CASH' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('PharmacyReturn', pharmacyReturnSchema);

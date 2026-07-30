@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { pharmacyOrderAPI, pharmacyAPI } from '../../utils/api';
 import './PharmacyReturns.css';
 
@@ -12,8 +14,10 @@ const PharmacyReturns = () => {
     const [returnType, setReturnType] = useState('Refund');
     
     // Items selected to return
-    // format: { index: quantity_to_return }
+    // format: { index: { qty: quantity_to_return, restockable: true } }
     const [returnQuantities, setReturnQuantities] = useState({});
+    const [returnReason, setReturnReason] = useState('');
+    const [paymentMode, setPaymentMode] = useState('CASH');
     
     // Exchange inventory
     const [inventory, setInventory] = useState([]);
@@ -50,21 +54,23 @@ const PharmacyReturns = () => {
 
     const handleSelectOrder = (order) => {
         setSelectedOrder(order);
-        setReturnQuantities({});
+        const initialReturnQs = {};
+        order.items.forEach((item, idx) => {
+            initialReturnQs[idx] = { qty: 0, restockable: true };
+        });
+        setReturnQuantities(initialReturnQs);
         setExchangedItems([]);
         setReturnType('Refund');
+        setReturnReason('');
     };
 
-    const handleReturnQtyChange = (idx, value, maxAllowed) => {
-        let val = Number(value);
-        if (val < 0) val = 0;
-        // Without exact qty saved, we assume 1 if not calculated. We'll limit by what's reasonable or just let pharmacist decide based on price.
-        // If maxAllowed is passed, limit it. 
-        if (maxAllowed && val > maxAllowed) val = maxAllowed;
-        
+    const handleReturnQtyChange = (idx, field, value) => {
         setReturnQuantities(prev => ({
             ...prev,
-            [idx]: val
+            [idx]: {
+                ...prev[idx],
+                [field]: value
+            }
         }));
     };
 
@@ -96,22 +102,18 @@ const PharmacyReturns = () => {
 
         if (selectedOrder) {
             selectedOrder.items.forEach((item, idx) => {
-                const qty = returnQuantities[idx] || 0;
+                const returnData = returnQuantities[idx] || { qty: 0, restockable: true };
+                const qty = Number(returnData.qty);
                 if (qty > 0 && item.purchased) {
-                    // Estimate unit price if qty was missing: 
-                    // Actually, since we don't have exact unit price on order item, we just use item.price if qty=1, or prompt for it.
-                    // Let's assume pharmacist enters how much refund to give per unit, or we derive it if we can. 
-                    // Here we'll derive a rough unit price from total price if we assume original qty was 1. 
-                    // To be safe, we just let them refund up to the item.price total.
-                    const unitPrice = item.price; // This is a limitation, but we use the total price as unit price if they enter qty 1.
-                    
+                    const unitPrice = item.price;
                     const refundAmt = qty * unitPrice;
                     totalRefund += refundAmt;
                     returnedPayload.push({
                         medicineName: item.medicineName,
                         quantity: qty,
                         pricePerUnit: unitPrice,
-                        refundAmount: refundAmt
+                        refundAmount: refundAmt,
+                        restockable: returnData.restockable
                     });
                 }
             });
@@ -153,11 +155,14 @@ const PharmacyReturns = () => {
                 returnType,
                 returnedItems: returnedPayload,
                 exchangedItems: exchangePayload,
-                netAmount
+                netAmount,
+                returnReason,
+                refundAmount: netAmount < 0 ? Math.abs(netAmount) : 0
             });
 
             if (res.success) {
                 alert(`Success! ${res.message}`);
+                generatePDF(res.data, selectedOrder);
                 setSelectedOrder(null);
                 setSearchQuery('');
                 setOrders([]);
@@ -165,6 +170,87 @@ const PharmacyReturns = () => {
         } catch (error) {
             alert(error.response?.data?.message || "Failed to process return.");
         }
+    };
+
+    const generatePDF = (returnData, orderInfo) => {
+        const doc = new jsPDF();
+        doc.setFontSize(20);
+        doc.text("Pharmacy Return/Exchange Invoice", 14, 22);
+        
+        doc.setFontSize(11);
+        doc.text(`Return ID: ${returnData._id}`, 14, 32);
+        doc.text(`Original Order: ${returnData.originalOrderId}`, 14, 38);
+        doc.text(`Date: ${new Date(returnData.createdAt).toLocaleString()}`, 14, 44);
+        doc.text(`Type: ${returnData.returnType}`, 14, 50);
+
+        let yPos = 60;
+        if (returnData.returnedItems && returnData.returnedItems.length > 0) {
+            doc.setFontSize(14);
+            doc.text("Returned Items", 14, yPos);
+            yPos += 5;
+            const returnDataRows = returnData.returnedItems.map(item => [
+                item.medicineName,
+                item.quantity.toString(),
+                `Rs. ${item.pricePerUnit}`,
+                `Rs. ${item.refundAmount}`
+            ]);
+            doc.autoTable({
+                startY: yPos,
+                head: [['Medicine', 'Qty', 'Unit Price', 'Refund']],
+                body: returnDataRows,
+            });
+            yPos = doc.lastAutoTable.finalY + 10;
+        }
+
+        if (returnData.exchangedItems && returnData.exchangedItems.length > 0) {
+            doc.setFontSize(14);
+            doc.text("Exchanged Items", 14, yPos);
+            yPos += 5;
+            const exchangeRows = returnData.exchangedItems.map(item => [
+                item.medicineName,
+                item.quantity.toString(),
+                `Rs. ${item.pricePerUnit}`,
+                `Rs. ${item.totalCost}`
+            ]);
+            doc.autoTable({
+                startY: yPos,
+                head: [['Medicine', 'Qty', 'Unit Price', 'Cost']],
+                body: exchangeRows,
+            });
+            yPos = doc.lastAutoTable.finalY + 10;
+        }
+
+        doc.setFontSize(12);
+        doc.text(`Net Amount: Rs. ${returnData.netAmount}`, 14, yPos);
+        yPos += 10;
+        if (returnData.netAmount < 0) {
+            doc.text(`Refunded to Patient: Rs. ${Math.abs(returnData.netAmount)}`, 14, yPos);
+            
+            // Add GST Reversal info if refund exists
+            if (orderInfo && orderInfo.totalAmount > 0) {
+                const refundAmount = Math.abs(returnData.netAmount);
+                const cgstRatio = (orderInfo.cgstAmount || 0) / orderInfo.totalAmount;
+                const sgstRatio = (orderInfo.sgstAmount || 0) / orderInfo.totalAmount;
+                
+                const cgstReversed = refundAmount * cgstRatio;
+                const sgstReversed = refundAmount * sgstRatio;
+                const taxableReversed = refundAmount - cgstReversed - sgstReversed;
+                
+                yPos += 10;
+                doc.setFontSize(10);
+                doc.text(`--- Tax Reversal Breakdown (Proportional) ---`, 14, yPos);
+                yPos += 5;
+                doc.text(`Taxable Value Reversed: Rs. ${taxableReversed.toFixed(2)}`, 14, yPos);
+                yPos += 5;
+                doc.text(`CGST Reversed: Rs. ${cgstReversed.toFixed(2)}`, 14, yPos);
+                yPos += 5;
+                doc.text(`SGST Reversed: Rs. ${sgstReversed.toFixed(2)}`, 14, yPos);
+            }
+        } else {
+            doc.text(`Collected from Patient: Rs. ${returnData.netAmount}`, 14, yPos);
+        }
+        
+        window.open(doc.output('bloburl'), '_blank');
     };
 
     return (
@@ -251,12 +337,13 @@ const PharmacyReturns = () => {
                                     <th>Medicine</th>
                                     <th>Purchased Price</th>
                                     <th>Return Qty</th>
+                                    <th>Restock?</th>
                                     <th>Refund Value</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {selectedOrder.items.filter(i => i.purchased).map((item, idx) => {
-                                    const qty = returnQuantities[idx] || 0;
+                                    const retData = returnQuantities[idx] || { qty: 0, restockable: true };
                                     return (
                                         <tr key={idx}>
                                             <td>{item.medicineName}</td>
@@ -265,12 +352,19 @@ const PharmacyReturns = () => {
                                                 <input 
                                                     type="number" 
                                                     min="0"
-                                                    value={qty}
-                                                    onChange={(e) => handleReturnQtyChange(idx, e.target.value)}
+                                                    value={retData.qty}
+                                                    onChange={(e) => handleReturnQtyChange(idx, 'qty', e.target.value)}
                                                     className="qty-input"
                                                 />
                                             </td>
-                                            <td>₹{qty * item.price}</td>
+                                            <td>
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={retData.restockable}
+                                                    onChange={(e) => handleReturnQtyChange(idx, 'restockable', e.target.checked)}
+                                                />
+                                            </td>
+                                            <td>₹{retData.qty * item.price}</td>
                                         </tr>
                                     );
                                 })}
@@ -345,9 +439,19 @@ const PharmacyReturns = () => {
                             </span>
                         </div>
 
+                        <div className="summary-row final" style={{ marginTop: '10px' }}>
+                            <input 
+                                type="text"
+                                placeholder="Reason for return/exchange (optional)"
+                                value={returnReason}
+                                onChange={(e) => setReturnReason(e.target.value)}
+                                style={{ width: '100%', padding: '10px', marginTop: '10px', border: '1px solid #ccc', borderRadius: '4px' }}
+                            />
+                        </div>
+
                         <div className="process-actions">
                             <button className="btn-submit" onClick={handleSubmit}>
-                                Confirm & Process
+                                Confirm & Print Receipt
                             </button>
                         </div>
                     </div>

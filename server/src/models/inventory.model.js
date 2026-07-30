@@ -20,6 +20,8 @@ const inventorySchema = new mongoose.Schema({
     sellingPrice: { type: Number, default: 0 },
     sgst: { type: Number, default: 0 },
     cgst: { type: Number, default: 0 },
+    cgstPercent: { type: Number, default: 0 },
+    sgstPercent: { type: Number, default: 0 },
     vendor: { type: String, default: '' },
     batchNumber: { type: String, default: '' },
     expiryDate: { type: Date, default: null },
@@ -28,14 +30,35 @@ const inventorySchema = new mongoose.Schema({
         type: String,
         enum: ['In Stock', 'Low Stock', 'Out of Stock'],
         default: 'In Stock'
-    }
+    },
+    minStockAlertLevel: { type: Number, default: 50 },
+    rackLocation: { type: String, default: '' },
+    vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', default: null },
+    isMultiDose: { type: Boolean, default: false },
+    packVolume: { type: Number, default: 1 },
+    volumeUnit: { type: String, default: 'ml' },
+    openUnitVolume: { type: Number, default: 0 },
+    billingType: { type: String, enum: ['PROPORTIONAL', 'FULL_UNIT'], default: 'FULL_UNIT' },
+
 }, { timestamps: true });
+
+
+// Virtual for total available volume (if multi-dose)
+inventorySchema.virtual('totalAvailableVolume').get(function() {
+    if (this.isMultiDose) {
+        return (this.stock * this.packVolume) + this.openUnitVolume;
+    }
+    return this.stock;
+});
+inventorySchema.set('toJSON', { virtuals: true });
+inventorySchema.set('toObject', { virtuals: true });
 
 // UPDATED HOOK: Use async function without 'next' to avoid the error
 inventorySchema.pre('save', async function () {
+    const alertLevel = this.minStockAlertLevel !== undefined ? this.minStockAlertLevel : 50;
     if (this.stock <= 0) {
         this.status = 'Out of Stock';
-    } else if (this.stock < 50) {
+    } else if (this.stock <= alertLevel) {
         this.status = 'Low Stock';
     } else {
         this.status = 'In Stock';

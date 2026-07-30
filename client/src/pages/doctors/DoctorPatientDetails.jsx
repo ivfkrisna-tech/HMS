@@ -20,6 +20,16 @@ const doseOptions = [
     "SOS – As Needed"
 ];
 
+const parseDoseFreq = (doseStr) => {
+    if (!doseStr) return 0;
+    const s = doseStr.toLowerCase();
+    if (s.includes('qid') || s.includes('four times')) return 4;
+    if (s.includes('tds') || s.includes('three times')) return 3;
+    if (s.includes('bd') || s.includes('twice')) return 2;
+    if (s.includes('od') || s.includes('once') || s.includes('om') || s.includes('on') || s.includes('sos') || s.includes('qod') || s.includes('ow')) return 1;
+    return 0;
+};
+
 const timingOptions = [
     "Before Breakfast (BBF)",
     "After Breakfast (ABF)",
@@ -290,7 +300,13 @@ const DoctorPatientDetails = () => {
                             volumeMl: p.volumeMl || '',
                             administrationTime: p.administrationTime || '',
                             gapDays: p.gapDays || 0,
-                            startDate: p.startDate ? p.startDate.split('T')[0] : ''
+                            startDate: p.startDate ? p.startDate.split('T')[0] : '',
+                            dosePerAdmin: p.dosePerAdmin || '',
+                            frequency: p.numericFrequency ? String(p.numericFrequency) : '',
+                            durationDays: p.durationDays ? String(p.durationDays) : '',
+                            vialSize: p.vialSize || '',
+                            totalDosageRequired: p.totalDosageRequired || 0,
+                            scheduleText: p.scheduleText || ''
                         })),
                         labTests: (res.appointment.labTests || []).join(', ')
                     });
@@ -385,16 +401,29 @@ const DoctorPatientDetails = () => {
                 notes: sessionData.notes,
                 labTests: sessionData.labTests.split(',').map(s => s.trim()).filter(Boolean),
                 selectedPackages: selectedPackages,
-                pharmacy: (sessionData.medicines || []).filter(m => m.medicineName?.trim()).map(m => ({
-                    medicineName: m.medicineName?.trim() || '',
-                    saltName: m.saltName?.trim() || '',
-                    frequency: m.dose?.trim() || '',
-                    duration: m.days?.trim() || '',
-                    volumeMl: m.volumeMl?.trim() || '',
-                    administrationTime: m.administrationTime?.trim() || '',
-                    gapDays: m.gapDays ? parseInt(m.gapDays, 10) : 0,
-                    startDate: m.startDate || null
-                }))
+                pharmacy: (sessionData.medicines || []).filter(m => m.medicineName?.trim()).map(m => {
+                    const isInjection = (m.medicineName || '').toLowerCase().includes('inj') || (m.medicineName || '').toLowerCase().includes('drip') || m.totalDosageRequired > 0;
+                    const scheduleText = isInjection 
+                        ? `${m.dosePerAdmin} ml/IU x ${m.frequency}/day for ${m.durationDays} days` 
+                        : '';
+                    
+                    return {
+                        medicineName: m.medicineName?.trim() || '',
+                        saltName: m.saltName?.trim() || '',
+                        frequency: m.dose?.trim() || '',
+                        duration: m.days?.trim() || '',
+                        volumeMl: m.volumeMl?.trim() || '',
+                        administrationTime: m.administrationTime?.trim() || '',
+                        gapDays: m.gapDays ? parseInt(m.gapDays, 10) : 0,
+                        startDate: m.startDate || null,
+                        totalDosageRequired: m.totalDosageRequired || 0,
+                        dosePerAdmin: m.dosePerAdmin || 0,
+                        numericFrequency: m.frequency || 0,
+                        durationDays: m.durationDays || 0,
+                        vialSize: m.vialSize || 0,
+                        scheduleText: scheduleText
+                    };
+                })
             };
             await doctorAPI.updateSession(appointmentId, payload);
 
@@ -1351,7 +1380,7 @@ const DoctorPatientDetails = () => {
                                                         e.preventDefault();
                                                         setSessionData(prev => ({
                                                             ...prev,
-                                                            medicines: [...prev.medicines, { medicineName: med.name, saltName: '', dose: '', days: '', volumeMl: '', administrationTime: '', gapDays: 0, startDate: '', dosePerAdmin: '', frequency: '', durationDays: '', vialSize: '', totalDosageRequired: 0 }]
+                                                            medicines: [...prev.medicines, { medicineName: med.name, saltName: '', dose: '', days: '', volumeMl: '', administrationTime: '', gapDays: 0, startDate: '', dosePerAdmin: '', frequency: '', durationDays: '', vialSize: med.packVolume || '', totalDosageRequired: 0 }]
                                                         }));
                                                         setInventorySearchQuery('');
                                                         setInventorySearchOpen(false);
@@ -1409,7 +1438,23 @@ const DoctorPatientDetails = () => {
                                                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
                                                         <select
                                                             value={med.dose}
-                                                            onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], dose: e.target.value }; return { ...prev, medicines: m }; })}
+                                                            onChange={e => {
+                                                                const newDose = e.target.value;
+                                                                const numFreq = parseDoseFreq(newDose);
+                                                                setSessionData(prev => {
+                                                                    const m = [...prev.medicines];
+                                                                    const updatedFreq = numFreq > 0 ? numFreq : (parseFloat(m[idx].frequency) || 0);
+                                                                    const dosePerAdmin = parseFloat(m[idx].dosePerAdmin) || 0;
+                                                                    const durDays = parseFloat(m[idx].durationDays) || parseFloat(m[idx].days) || 0;
+                                                                    m[idx] = {
+                                                                        ...m[idx],
+                                                                        dose: newDose,
+                                                                        frequency: String(updatedFreq),
+                                                                        totalDosageRequired: dosePerAdmin * updatedFreq * durDays
+                                                                    };
+                                                                    return { ...prev, medicines: m };
+                                                                });
+                                                            }}
                                                             style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
                                                         >
                                                             <option value="">-- Select Dose --</option>
@@ -1439,7 +1484,22 @@ const DoctorPatientDetails = () => {
                                                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
                                                         <input
                                                             value={med.days}
-                                                            onChange={e => setSessionData(prev => { const m = [...prev.medicines]; m[idx] = { ...m[idx], days: e.target.value }; return { ...prev, medicines: m }; })}
+                                                            onChange={e => {
+                                                                const newDays = e.target.value;
+                                                                const numDays = parseFloat(newDays) || 0;
+                                                                setSessionData(prev => {
+                                                                    const m = [...prev.medicines];
+                                                                    const dosePerAdmin = parseFloat(m[idx].dosePerAdmin) || 0;
+                                                                    const freq = parseFloat(m[idx].frequency) || 0;
+                                                                    m[idx] = {
+                                                                        ...m[idx],
+                                                                        days: newDays,
+                                                                        durationDays: String(numDays),
+                                                                        totalDosageRequired: dosePerAdmin * freq * numDays
+                                                                    };
+                                                                    return { ...prev, medicines: m };
+                                                                });
+                                                            }}
                                                             placeholder="e.g. 7"
                                                             style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '5px 7px', fontSize: '12px', boxSizing: 'border-box' }}
                                                         />

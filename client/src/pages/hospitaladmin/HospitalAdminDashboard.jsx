@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../../store/hooks';
 import { updateUser as updateUserAction } from '../../store/slices/authSlice';
-import { adminAPI, uploadAPI, hospitalAPI } from '../../utils/api';
+import { adminAPI, uploadAPI, hospitalAPI, pharmacyAPI } from '../../utils/api';
 import '../administration/SuperAdmin.css';
 import './HospitalAdminDashboard.css';
 
@@ -54,9 +54,18 @@ const HospitalAdminDashboard = () => {
     const [editingInventoryId, setEditingInventoryId] = useState(null);
     const [inventoryForm, setInventoryForm] = useState({
         name: '', salt: '', category: 'General', stock: '', unit: 'Tablets',
-        buyingPrice: '', sellingPrice: '', vendor: '', batchNumber: '', expiryDate: ''
+        minStockAlertLevel: 50, rackLocation: '', vendorId: '',
+        buyingPrice: '', sellingPrice: '', vendor: '', batchNumber: '', expiryDate: '',
+        cgstPercent: '', sgstPercent: ''
     });
     const [savingInventory, setSavingInventory] = useState(false);
+    
+    // --- Vendor State ---
+    const [vendors, setVendors] = useState([]);
+    const [showVendorModal, setShowVendorModal] = useState(false);
+    const [vendorForm, setVendorForm] = useState({ vendorName: '', contactPerson: '', phone: '', gstin: '' });
+    const [vendorErrors, setVendorErrors] = useState({});
+    const [savingVendor, setSavingVendor] = useState(false);
 
     // --- Lab Test Pricing State ---
     const [labTests, setLabTests] = useState([]);
@@ -89,10 +98,51 @@ const HospitalAdminDashboard = () => {
 
     // Fetch data when switching to inventory or lab pricing tabs
     useEffect(() => {
-        if (activeTab === 'inventory' && inventory.length === 0) fetchInventory();
+        if (activeTab === 'inventory' && inventory.length === 0) {
+            fetchInventory();
+            fetchVendors();
+        }
         if (activeTab === 'labpricing' && labTests.length === 0) fetchLabTests();
         if (activeTab === 'collections' && staffCollections.length === 0) fetchStaffCollections();
     }, [activeTab]);
+
+    const fetchVendors = async () => {
+        try {
+            const res = await pharmacyAPI.getVendors();
+            if (res.success) setVendors(res.data);
+        } catch (error) { console.error("Error fetching vendors", error); }
+    };
+
+    const validateVendor = () => {
+        let errs = {};
+        if (!vendorForm.vendorName || !vendorForm.vendorName.trim()) errs.vendorName = 'Vendor name is required';
+        if (vendorForm.phone && !/^\d{10}$/.test(vendorForm.phone)) errs.phone = 'Phone number must be exactly 10 digits';
+        if (vendorForm.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(vendorForm.gstin.trim())) {
+            errs.gstin = 'Invalid GSTIN format';
+        }
+        setVendorErrors(errs);
+        return Object.keys(errs).length === 0;
+    };
+
+    const handleSaveVendor = async (e) => {
+        e.preventDefault();
+        if (!validateVendor()) return;
+        setSavingVendor(true);
+        try {
+            const res = await pharmacyAPI.addVendor(vendorForm);
+            if (res.success) {
+                fetchVendors();
+                setShowVendorModal(false);
+                setVendorForm({ vendorName: '', contactPerson: '', phone: '', gstin: '' });
+                setVendorErrors({});
+                setSuccess("Vendor added successfully");
+            }
+        } catch (error) {
+            setError(error.response?.data?.message || "Failed to add vendor");
+        } finally {
+            setSavingVendor(false);
+        }
+    };
 
     const fetchStaffCollections = async (start = collectionsStartDate, end = collectionsEndDate) => {
         try {
@@ -307,7 +357,7 @@ const HospitalAdminDashboard = () => {
     };
 
     const resetInventoryForm = () => {
-        setInventoryForm({ name: '', salt: '', category: 'General', stock: '', unit: 'Tablets', buyingPrice: '', sellingPrice: '', vendor: '', batchNumber: '', expiryDate: '' });
+        setInventoryForm({ name: '', salt: '', category: 'General', stock: '', unit: 'Tablets', minStockAlertLevel: 50, rackLocation: '', vendorId: '', buyingPrice: '', sellingPrice: '', vendor: '', batchNumber: '', expiryDate: '', cgstPercent: '', sgstPercent: '' });
         setEditingInventoryId(null);
         setShowInventoryForm(false);
     };
@@ -316,7 +366,16 @@ const HospitalAdminDashboard = () => {
         e.preventDefault();
         setSavingInventory(true); setError(''); setSuccess('');
         try {
-            const data = { ...inventoryForm, stock: Number(inventoryForm.stock), buyingPrice: Number(inventoryForm.buyingPrice), sellingPrice: Number(inventoryForm.sellingPrice) };
+            const data = { 
+                ...inventoryForm, 
+                stock: Number(inventoryForm.stock), 
+                minStockAlertLevel: Number(inventoryForm.minStockAlertLevel) || 50,
+                vendorId: inventoryForm.vendorId || null,
+                buyingPrice: Number(inventoryForm.buyingPrice), 
+                sellingPrice: Number(inventoryForm.sellingPrice),
+                cgstPercent: Number(inventoryForm.cgstPercent) || 0,
+                sgstPercent: Number(inventoryForm.sgstPercent) || 0
+            };
             if (editingInventoryId) {
                 await hospitalAPI.updateInventory(editingInventoryId, data);
                 setSuccess('Item updated!');
@@ -333,9 +392,11 @@ const HospitalAdminDashboard = () => {
     const handleEditInventory = (item) => {
         setInventoryForm({
             name: item.name, salt: item.salt || '', category: item.category, stock: item.stock,
+            minStockAlertLevel: item.minStockAlertLevel || 50, rackLocation: item.rackLocation || '',
             unit: item.unit, buyingPrice: item.buyingPrice, sellingPrice: item.sellingPrice,
-            vendor: item.vendor || '', batchNumber: item.batchNumber || '',
-            expiryDate: item.expiryDate ? item.expiryDate.split('T')[0] : ''
+            vendor: item.vendor || '', vendorId: item.vendorId || '', batchNumber: item.batchNumber || '',
+            expiryDate: item.expiryDate ? item.expiryDate.split('T')[0] : '',
+            cgstPercent: item.cgstPercent || '', sgstPercent: item.sgstPercent || ''
         });
         setEditingInventoryId(item._id);
         setShowInventoryForm(true);
@@ -349,6 +410,7 @@ const HospitalAdminDashboard = () => {
             fetchInventory();
         } catch (err) { setError('Error deleting item.'); }
     };
+
 
     // --- Lab Test Pricing Functions ---
     const fetchLabTests = async () => {
@@ -920,13 +982,22 @@ const HospitalAdminDashboard = () => {
                                     <h2>💊 Medicine Inventory</h2>
                                     <p style={{ color: '#888', fontSize: '14px', margin: '4px 0 0' }}>Manage your hospital's medicine stock, pricing, and expiry tracking</p>
                                 </div>
-                                <button
-                                    onClick={() => { if (showInventoryForm && !editingInventoryId) { resetInventoryForm(); } else { resetInventoryForm(); setShowInventoryForm(true); } }}
-                                    className={showInventoryForm ? 'btn-cancel' : 'btn-save'}
-                                    style={{ padding: '8px 20px' }}
-                                >
-                                    {showInventoryForm ? 'Cancel' : '+ Add Medicine'}
-                                </button>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        onClick={() => setShowVendorModal(true)}
+                                        className="btn-add"
+                                        style={{ padding: '8px 20px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' }}
+                                    >
+                                        👥 Manage Vendors
+                                    </button>
+                                    <button
+                                        onClick={() => { if (showInventoryForm && !editingInventoryId) { resetInventoryForm(); } else { resetInventoryForm(); setShowInventoryForm(true); } }}
+                                        className={showInventoryForm ? 'btn-cancel' : 'btn-save'}
+                                        style={{ padding: '8px 20px' }}
+                                    >
+                                        {showInventoryForm ? 'Cancel' : '+ Add Medicine'}
+                                    </button>
+                                </div>
                             </div>
 
                             {showInventoryForm && (
@@ -981,12 +1052,44 @@ const HospitalAdminDashboard = () => {
                                     </div>
                                     <div className="form-row">
                                         <div className="form-group">
+                                            <label className="staff-label">CGST (%)</label>
+                                            <input type="number" className="staff-input" placeholder="e.g. 5" min="0" step="any" value={inventoryForm.cgstPercent} onChange={e => setInventoryForm({ ...inventoryForm, cgstPercent: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="staff-label">SGST (%)</label>
+                                            <input type="number" className="staff-input" placeholder="e.g. 5" min="0" step="any" value={inventoryForm.sgstPercent} onChange={e => setInventoryForm({ ...inventoryForm, sgstPercent: e.target.value })} />
+                                        </div>
+                                    </div>
+                                    <div className="form-row">
+                                        <div className="form-group">
                                             <label className="staff-label">Expiry Date *</label>
                                             <input type="date" className="staff-input" value={inventoryForm.expiryDate} onChange={e => setInventoryForm({ ...inventoryForm, expiryDate: e.target.value })} required />
                                         </div>
-                                        <div className="form-group">
+                                        <div className="form-group" style={{ display: 'flex', flexDirection: 'column' }}>
                                             <label className="staff-label">Vendor / Supplier</label>
-                                            <input type="text" className="staff-input" placeholder="e.g. MedSupply Co." value={inventoryForm.vendor} onChange={e => setInventoryForm({ ...inventoryForm, vendor: e.target.value })} />
+                                            <div style={{ display: 'flex', gap: '5px' }}>
+                                                <select className="staff-input" value={inventoryForm.vendorId || ''} onChange={(e) => {
+                                                    const selId = e.target.value;
+                                                    const v = vendors.find(v => v._id === selId);
+                                                    setInventoryForm({ ...inventoryForm, vendorId: selId, vendor: v ? v.vendorName : '' });
+                                                }} style={{ flex: 1 }}>
+                                                    <option value="">-- Select Vendor --</option>
+                                                    {vendors.map(v => (
+                                                        <option key={v._id} value={v._id}>{v.vendorName}</option>
+                                                    ))}
+                                                </select>
+                                                <button type="button" onClick={() => setShowVendorModal(true)} style={{ padding: '8px', background: '#e0e7ff', border: '1px solid #c7d2fe', borderRadius: '4px', cursor: 'pointer' }}>+</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label className="staff-label">Rack Location</label>
+                                            <input type="text" className="staff-input" placeholder="e.g. Rack A-3" value={inventoryForm.rackLocation} onChange={e => setInventoryForm({ ...inventoryForm, rackLocation: e.target.value })} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="staff-label">Min Stock Alert Level</label>
+                                            <input type="number" className="staff-input" placeholder="50" value={inventoryForm.minStockAlertLevel} onChange={e => setInventoryForm({ ...inventoryForm, minStockAlertLevel: e.target.value })} />
                                         </div>
                                     </div>
                                     <button type="submit" disabled={savingInventory} className="submit-button" style={{ marginTop: '16px', maxWidth: '220px' }}>
@@ -998,6 +1101,7 @@ const HospitalAdminDashboard = () => {
 
                         {/* Inventory Table */}
                         <div className="admin-card">
+                            {/* Table goes here, we'll render it below */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                                 <h2>Current Stock ({inventory.length} items)</h2>
                                 {!inventory.length && !loadingInventory && (
@@ -1018,6 +1122,7 @@ const HospitalAdminDashboard = () => {
                                                 <th>Cost (₹)</th>
                                                 <th>Sell (₹)</th>
                                                 <th>Margin</th>
+                                                <th>Vendor</th>
                                                 <th>Batch</th>
                                                 <th>Expiry</th>
                                                 <th>Status</th>
@@ -1043,6 +1148,7 @@ const HospitalAdminDashboard = () => {
                                                         <td style={{ fontWeight: 600, color: margin >= 0 ? '#059669' : '#dc2626' }}>
                                                             ₹{margin.toFixed(2)} <span style={{ fontSize: '11px', fontWeight: 400 }}>({marginPct}%)</span>
                                                         </td>
+                                                        <td style={{ fontSize: '12px' }}>{item.vendor || 'N/A'}</td>
                                                         <td style={{ fontSize: '12px', color: '#64748b' }}>{item.batchNumber || '-'}</td>
                                                         <td>
                                                             <span style={{
