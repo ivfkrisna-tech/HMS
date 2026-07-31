@@ -1466,7 +1466,11 @@ const DoctorPatientDetails = () => {
                                         </thead>
                                         <tbody>
                                             {sessionData.medicines.map((med, idx) => {
-                                                const isInjection = (med.medicineName || '').toLowerCase().includes('inj') || (med.medicineName || '').toLowerCase().includes('drip') || (med.category === 'Injection');
+                                                const catalogMed = catalogMedicines.find(c => c.name === med.medicineName) || {};
+                                                const medCategory = med.category || catalogMed.category || '';
+                                                const isInjection = (med.medicineName || '').toLowerCase().includes('inj') || 
+                                                                    (med.medicineName || '').toLowerCase().includes('drip') || 
+                                                                    medCategory.toLowerCase() === 'injection';
                                                 return (
                                                 <React.Fragment key={idx}>
                                                 <tr style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
