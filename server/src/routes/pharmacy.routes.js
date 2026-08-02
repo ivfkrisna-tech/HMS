@@ -358,6 +358,135 @@ router.get('/analytics/collections', verifyToken, async (req, res) => {
     }
 });
 
+// --- PURCHASE INVOICE MODULE ---
+
+// POST Upload Purchase Invoice
+router.post('/purchase-invoice/upload', verifyToken, uploadInvoice.single('invoice'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'No file uploaded or invalid file format.' });
+        }
+
+        const originalName = req.file.originalname;
+        const generatedName = req.file.filename || `${Date.now()}-${originalName}`;
+        const size = req.file.size;
+
+        const uploadDate = new Date();
+        const uploadTime = uploadDate.toTimeString().split(' ')[0];
+
+        // 1. Parse PDF immediately
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const parsedData = await parseInvoice(fileBuffer);
+        const { vendorName, invoiceNumber, invoiceDate, grandTotal, taxableAmount, discount, cgst, sgst, igst } = parsedData.invoice;
+        const totalMedicines = parsedData.invoice.totalMedicines || parsedData.medicines.length;
+        const purchaseQty = parsedData.invoice.purchaseQty;
+        const freeQty = parsedData.invoice.freeQty;
+
+        // 2. Prevent Duplicate Invoice
+        if (vendorName && invoiceNumber) {
+            const existingInvoice = await PurchaseInvoice.findOne({ vendorName, invoiceNumber });
+            if (existingInvoice) {
+                // Remove the uploaded file since it's a duplicate
+                try {
+                    fs.unlinkSync(req.file.path);
+                } catch (unlinkErr) {
+                    console.error("Failed to delete file:", unlinkErr);
+                }
+                return res.status(400).json({ success: false, message: 'Invoice Already Exists.' });
+            }
+        }
+
+        // 3. Create Database Record
+        const newInvoice = new PurchaseInvoice({
+            vendorName,
+            invoiceNumber,
+            invoiceDate: invoiceDate ? new Date(invoiceDate) : null,
+            grandTotal,
+            taxableAmount,
+            discount,
+            cgst,
+            sgst,
+            igst,
+            totalMedicines,
+            purchaseQty,
+            freeQty,
+            uploadedBy: {
+                name: req.user.name || 'Unknown',
+                email: req.user.email || 'Unknown',
+                userId: req.user.id
+            },
+            uploadedPDF: {
+                originalName,
+                generatedName,
+                size
+            },
+            uploadDate,
+            uploadTime,
+            status: 'Pending',
+            importedMedicines: 0,
+            remainingMedicines: totalMedicines
+        });
+
+        await newInvoice.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Invoice uploaded successfully',
+            invoice: newInvoice,
+            medicines: parsedData.medicines
+        });
+    } catch (error) {
+        // If parsing fails or any other error, remove the uploaded file
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch (unlinkErr) {
+                console.error("Failed to delete file:", unlinkErr);
+            }
+        }
+        console.error("Upload Invoice Error:", error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to upload invoice.' });
+    }
+});
+
+// GET all purchase invoices
+router.get('/purchase-invoice', verifyToken, async (req, res) => {
+    try {
+        const invoices = await PurchaseInvoice.find().sort({ createdAt: -1 });
+        res.json({ success: true, data: invoices });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET single purchase invoice by ID
+router.get('/purchase-invoice/:id', verifyToken, async (req, res) => {
+    try {
+        const invoice = await PurchaseInvoice.findById(req.params.id);
+        if (!invoice) {
+            return res.status(404).json({ success: false, message: 'Invoice not found' });
+        }
+        res.json({ success: true, data: invoice });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE purchase invoice (Admin only)
+router.delete('/purchase-invoice/:id', verifyAdmin, async (req, res) => {
+    try {
+        // Admin validation logic (assuming user role exists or can be verified, here just verifyToken is applied)
+        // If there's an isAdmin middleware or we check req.user.role, we can add it here.
+        const invoice = await PurchaseInvoice.findByIdAndDelete(req.params.id);
+        if (!invoice) {
+            return res.status(404).json({ success: false, message: 'Invoice not found' });
+        }
+        res.json({ success: true, message: 'Invoice deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // VENDOR RETURNS (RTV)
 router.post('/vendor-returns', verifyToken, async (req, res) => {
     try {
