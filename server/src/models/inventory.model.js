@@ -39,6 +39,16 @@ const inventorySchema = new mongoose.Schema({
     volumeUnit: { type: String, default: 'ml' },
     openUnitVolume: { type: Number, default: 0 },
     billingType: { type: String, enum: ['PROPORTIONAL', 'FULL_UNIT'], default: 'FULL_UNIT' },
+    purchaseInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseInvoice', default: null },
+    
+    // New fields for Invoice extraction
+    purchaseQty: { type: Number, default: 0 },
+    freeQty: { type: Number, default: 0 },
+    discountType: { type: String, enum: ['Percentage', 'Flat Amount'], default: 'Percentage' },
+    discountValue: { type: Number, default: 0 },
+    purchaseAmount: { type: Number, default: 0 },
+    finalAmount: { type: Number, default: 0 },
+    totalStock: { type: Number, default: 0 },
 
 }, { timestamps: true });
 

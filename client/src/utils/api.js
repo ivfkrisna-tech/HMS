@@ -311,7 +311,11 @@ export const pharmacyAPI = {
         const qs = params.toString();
         if (qs) url += `?${qs}`;
         return (await apiClient.get(url)).data;
-    }
+    },
+    uploadPurchaseInvoice: async (formData) => (await apiClient.post('/api/pharmacy/purchase-invoice/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data,
+    getPurchaseInvoices: async () => (await apiClient.get('/api/pharmacy/purchase-invoice')).data,
+    getPurchaseInvoiceById: async (id) => (await apiClient.get(`/api/pharmacy/purchase-invoice/${id}`)).data,
+    deletePurchaseInvoice: async (id) => (await apiClient.delete(`/api/pharmacy/purchase-invoice/${id}`)).data
 };
 
 export const pharmacyOrderAPI = {

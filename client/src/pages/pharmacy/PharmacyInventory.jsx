@@ -1,12 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { pharmacyAPI } from '../../utils/api';
+import PurchaseInvoiceHistory from './PurchaseInvoiceHistory';
 import './PharmacyInventory.css';
 
 const PharmacyInventory = () => {
+    const [activeTab, setActiveTab] = useState('inventory');
     const [medicines, setMedicines] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    
+
+    const [extractedMedicines, setExtractedMedicines] = useState([]);
+    const [pendingInvoice, setPendingInvoice] = useState(null);
+    const [invoiceStats, setInvoiceStats] = useState({ total: 0, imported: 0, remaining: 0 });
+    const [showInvoiceConfirm, setShowInvoiceConfirm] = useState(false);
+    const [pendingPdfFile, setPendingPdfFile] = useState(null);
+    const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
+    const [importLoadingState, setImportLoadingState] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
+    const [uploadingPdf, setUploadingPdf] = useState(false);
+    const [pdfError, setPdfError] = useState('');
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -36,7 +48,130 @@ const PharmacyInventory = () => {
     useEffect(() => { 
         fetchInventory(); 
         fetchVendors();
+        checkPendingInvoice();
     }, []);
+
+    const checkPendingInvoice = async () => {
+        try {
+            const res = await pharmacyAPI.getPurchaseInvoices();
+            if (res.success && res.data) {
+                const pending = res.data.find(inv => inv.status === 'Pending');
+                if (pending) {
+                    setPendingInvoice(pending);
+                    const savedMeds = localStorage.getItem('pendingInvoiceMedicines_' + pending._id);
+                    if (savedMeds) {
+                        const parsed = JSON.parse(savedMeds);
+                        setExtractedMedicines(parsed);
+                        setInvoiceStats({
+                            total: pending.totalMedicines || parsed.length,
+                            imported: pending.importedMedicines || 0,
+                            remaining: parsed.length
+                        });
+                    }
+                }
+            }
+        } catch (err) { console.error('Error checking pending invoice', err); }
+    };
+
+    const handleClearInvoice = () => {
+        if (pendingInvoice) localStorage.removeItem('pendingInvoiceMedicines_' + pendingInvoice._id);
+        setPendingInvoice(null);
+        setExtractedMedicines([]);
+        setInvoiceStats({ total: 0, imported: 0, remaining: 0 });
+    };
+
+    const handlePdfUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.type !== 'application/pdf') {
+            setPdfError('Please upload a PDF file.');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            setPdfError('File size must be less than 10MB.');
+            return;
+        }
+
+        if (pendingInvoice) {
+            setPendingPdfFile(file);
+            setShowInvoiceConfirm(true);
+            e.target.value = null;
+            return;
+        }
+
+        await processPdfUpload(file);
+        e.target.value = null;
+    };
+
+    const processPdfUpload = async (file) => {
+        setPdfError('');
+        setImportLoadingState('Uploading PDF...');
+        setUploadingPdf(true);
+        try {
+            const formData = new FormData();
+            formData.append('invoice', file);
+            
+            // Upload, Save to DB and Parse all in one step
+            const uploadRes = await pharmacyAPI.uploadPurchaseInvoice(formData);
+            
+            if (uploadRes.success && uploadRes.invoice && uploadRes.medicines?.length > 0) {
+                setImportLoadingState('Preparing Medicines...');
+                const meds = uploadRes.medicines;
+                const newInvoiceId = uploadRes.invoice._id;
+                
+                setExtractedMedicines(meds);
+                
+                // Store in local storage to persist
+                localStorage.setItem('pendingInvoiceMedicines_' + newInvoiceId, JSON.stringify(meds));
+                
+                setPendingInvoice(uploadRes.invoice);
+                setInvoiceStats({
+                    total: uploadRes.invoice.totalMedicines || meds.length,
+                    imported: 0,
+                    remaining: meds.length
+                });
+                
+                showSuccessMsg('Invoice Uploaded Successfully');
+            } else {
+                setPdfError('No medicines found.');
+            }
+        } catch (error) {
+            setPdfError(error.response?.data?.message || error.message || 'Unable to read this invoice.');
+        } finally {
+            setUploadingPdf(false);
+            setImportLoadingState('');
+        }
+    };
+
+    const showSuccessMsg = (msg) => {
+        setSuccessMessage(msg);
+        setTimeout(() => setSuccessMessage(''), 4000);
+    };
+
+    const handleSelectExtracted = (medName, list = extractedMedicines) => {
+        const med = list.find(m => m.medicineName === medName);
+        if (!med) {
+             setNewMedicine(prev => ({ ...prev, name: medName }));
+             return;
+        }
+        setNewMedicine(prev => ({
+            ...prev,
+            name: med.medicineName,
+            batchNumber: med.batch || '',
+            stock: med.purchaseQty || '',
+            unit: med.unit || 'Tablets',
+            buyingPrice: med.purchaseRate || '',
+            sellingPrice: med.mrp || '',
+            cgstPercent: med.gst ? (parseFloat(med.gst) / 2) : '',
+            sgstPercent: med.gst ? (parseFloat(med.gst) / 2) : '',
+            cgst: med.gst ? (parseFloat(med.gst) / 2) : '',
+            sgst: med.gst ? (parseFloat(med.gst) / 2) : '',
+            expiryDate: med.expiry ? new Date(med.expiry).toISOString().split('T')[0] : prev.expiryDate,
+            purchaseDate: new Date().toISOString().split('T')[0]
+        }));
+    };
+
 
     const fetchVendors = async () => {
         try {
@@ -121,6 +256,25 @@ const PharmacyInventory = () => {
                 setIsEditing(false);
                 setEditId(null);
                 fetchInventory();
+                
+                // If it was extracted from invoice, remove it
+                if (pendingInvoice && extractedMedicines.some(m => m.medicineName === newMedicine.name)) {
+                    showSuccessMsg('Medicine Imported Successfully');
+                    const updatedMeds = extractedMedicines.filter(m => m.medicineName !== newMedicine.name);
+                    setExtractedMedicines(updatedMeds);
+                    localStorage.setItem('pendingInvoiceMedicines_' + pendingInvoice._id, JSON.stringify(updatedMeds));
+                    
+                    const newImported = invoiceStats.imported + 1;
+                    const newRemaining = updatedMeds.length;
+                    
+                    setInvoiceStats({ ...invoiceStats, imported: newImported, remaining: newRemaining });
+                    
+                    if (newRemaining === 0) {
+                        showSuccessMsg('Invoice Completed Successfully');
+                        // Optional: we can call an API to mark it completed here if we had one
+                    }
+                }
+                
                 setNewMedicine(initialFormState);
             }
         } catch (error) {
@@ -180,6 +334,25 @@ const PharmacyInventory = () => {
 
     return (
         <div className="pharmacy-management-container">
+            
+            {pendingInvoice && invoiceStats.remaining > 0 && (
+                <div style={{ position: 'fixed', bottom: '30px', right: '30px', background: 'white', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 1000, display: 'flex', gap: '20px', alignItems: 'center' }}>
+                    <div>
+                        <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Invoice Medicines</div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>{invoiceStats.total}</div>
+                    </div>
+                    <div style={{ width: '1px', height: '30px', background: '#e2e8f0' }}></div>
+                    <div>
+                        <div style={{ fontSize: '12px', color: '#16a34a', textTransform: 'uppercase', fontWeight: 'bold' }}>Imported</div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#16a34a' }}>{invoiceStats.imported}</div>
+                    </div>
+                    <div style={{ width: '1px', height: '30px', background: '#e2e8f0' }}></div>
+                    <div>
+                        <div style={{ fontSize: '12px', color: '#ea580c', textTransform: 'uppercase', fontWeight: 'bold' }}>Remaining</div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ea580c' }}>{invoiceStats.remaining}</div>
+                    </div>
+                </div>
+            )}
             <div className="admin-card" style={{ marginBottom: '20px', background: 'var(--glass-bg)', padding: '24px', borderRadius: '24px', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <div>
@@ -197,13 +370,67 @@ const PharmacyInventory = () => {
                     </div>
                 </div>
 
+                <div style={{ display: 'flex', gap: '20px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px' }}>
+                    <button onClick={() => setActiveTab('inventory')} style={{ padding: '10px 4px', background: 'none', border: 'none', borderBottom: activeTab === 'inventory' ? '2px solid #3b82f6' : 'none', color: activeTab === 'inventory' ? '#3b82f6' : '#64748b', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', marginBottom: '-2px' }}>Inventory</button>
+                    <button onClick={() => setActiveTab('purchase-history')} style={{ padding: '10px 4px', background: 'none', border: 'none', borderBottom: activeTab === 'purchase-history' ? '2px solid #3b82f6' : 'none', color: activeTab === 'purchase-history' ? '#3b82f6' : '#64748b', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', marginBottom: '-2px' }}>Purchase History</button>
+                </div>
+
+                {activeTab === 'inventory' ? (
+                <>
+                <div style={{ background: '#f0f9ff', padding: '20px', borderRadius: '10px', marginTop: '20px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: '16px', color: '#0369a1' }}>📄 Upload Purchase Invoice</h3>
+                            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#0284c7' }}>Upload a PDF invoice to automatically extract and import medicines (Max 10MB)</p>
+                        </div>
+                        {pendingInvoice && invoiceStats.remaining === 0 && (
+                            <button type="button" onClick={handleClearInvoice} style={{ padding: '8px 16px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                                Upload New Invoice
+                            </button>
+                        )}
+                    </div>
+                    
+                    {successMessage && <div style={{ padding: '10px', background: '#dcfce7', color: '#166534', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}>✔ {successMessage}</div>}
+
+                    {(!pendingInvoice || invoiceStats.remaining === 0) ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={uploadingPdf} style={{ padding: '10px', background: 'white', borderRadius: '6px', border: '1px solid #7dd3fc', width: '300px' }} />
+                            {uploadingPdf && <span style={{ color: '#0284c7', fontSize: '14px', fontWeight: 'bold' }}>{importLoadingState}</span>}
+                            {pdfError && <span style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }}>{pdfError}</span>}
+                        </div>
+                    ) : (
+                        <div style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e0f2fe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h4 style={{ margin: '0 0 5px', color: '#0c4a6e', fontSize: '15px' }}>✔ Invoice Uploaded Successfully</h4>
+                                <div style={{ display: 'flex', gap: '20px', fontSize: '14px', color: '#0369a1' }}>
+                                    <span><strong>Medicines Found:</strong> {invoiceStats.total}</span>
+                                    <span><strong>Remaining:</strong> {invoiceStats.remaining}</span>
+                                    <span><strong>Imported:</strong> {invoiceStats.imported}</span>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setShowInvoiceDetails(true)} style={{ padding: '8px 16px', background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                View Invoice Details
+                            </button>
+                        </div>
+                    )}
+                </div>
+
                 <form onSubmit={handleAddMedicine} className="pharma-form" style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', marginTop: '20px', border: '1px solid #e2e8f0' }}>
                         <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#334155' }}>{isEditing ? 'Edit Medicine' : 'Add New Medicine'}</h3>
                         
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
                             <div className="form-group">
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>MEDICINE NAME *</label>
-                                <input required type="text" value={newMedicine.name} onChange={(e) => setNewMedicine({ ...newMedicine, name: e.target.value })} placeholder="e.g. Gonal-F 900 IU Pen / Menopur 75 IU" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                {pendingInvoice ? (
+                                    <select required disabled={invoiceStats.remaining === 0} value={newMedicine.name} onChange={(e) => handleSelectExtracted(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: invoiceStats.remaining === 0 ? '#f1f5f9' : 'white' }}>
+                                        <option value="">-- Select Medicine from Invoice --</option>
+                                        {extractedMedicines.map((m, idx) => (
+                                            <option key={idx} value={m.medicineName}>{m.medicineName}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <input required type="text" value={newMedicine.name} onChange={(e) => setNewMedicine({ ...newMedicine, name: e.target.value })} placeholder="e.g. Gonal-F 900 IU Pen / Menopur 75 IU" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                )}
                             </div>
                             <div className="form-group">
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SALT / COMPOSITION</label>
@@ -344,9 +571,8 @@ const PharmacyInventory = () => {
                             )}
                         </div>
                     </form>
-            </div>
 
-            <div className="inventory-controls" style={{ marginBottom: '20px' }}>
+            <div className="inventory-controls" style={{ marginBottom: '20px', marginTop: '20px' }}>
                 <div className="search-bar" style={{ maxWidth: '400px' }}>
                     <span className="search-icon">🔍</span>
                     <input type="text" placeholder="Search medicines..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -425,7 +651,11 @@ const PharmacyInventory = () => {
                     </table>
                 )}
             </div>
-
+            </>
+            ) : (
+                <PurchaseInvoiceHistory />
+            )}
+            </div>
             {showAddModal && (
                 <div className="modal-overlay">
                     <div className="modal-content inventory-modal">
@@ -706,6 +936,91 @@ const PharmacyInventory = () => {
                                     <button type="submit" disabled={savingVendor} className="btn-save">{savingVendor ? 'Saving...' : 'Save Vendor'}</button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Invoice Details Modal */}
+            {showInvoiceDetails && pendingInvoice && (
+                <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-content" style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '95%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '15px', marginBottom: '20px' }}>
+                            <h2 style={{ margin: 0, color: '#0f172a' }}>📄 Invoice Breakdown</h2>
+                            <span style={{ padding: '6px 12px', background: pendingInvoice.status === 'Completed' ? '#dcfce7' : '#fef9c3', color: pendingInvoice.status === 'Completed' ? '#166534' : '#854d0e', borderRadius: '20px', fontWeight: 'bold', fontSize: '13px' }}>
+                                {pendingInvoice.status}
+                            </span>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+                            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
+                                <h4 style={{ margin: '0 0 10px', color: '#475569' }}>Vendor Details</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                                    <div><strong>Name:</strong> {pendingInvoice.vendorName || 'Unknown'}</div>
+                                    <div><strong>GSTIN:</strong> {pendingInvoice.vendorGSTIN || 'N/A'}</div>
+                                    <div><strong>Invoice No:</strong> {pendingInvoice.invoiceNumber || 'N/A'}</div>
+                                    <div><strong>Date:</strong> {pendingInvoice.invoiceDate ? new Date(pendingInvoice.invoiceDate).toLocaleDateString() : 'N/A'}</div>
+                                </div>
+                            </div>
+                            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
+                                <h4 style={{ margin: '0 0 10px', color: '#475569' }}>Medicine Stats</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                                    <div><strong>Total Medicines:</strong> {invoiceStats.total}</div>
+                                    <div><strong>Imported Medicines:</strong> {invoiceStats.imported}</div>
+                                    <div><strong>Remaining Medicines:</strong> {invoiceStats.remaining}</div>
+                                    <div><strong>Purchase Qty:</strong> {pendingInvoice.purchaseQty || 0}</div>
+                                    <div><strong>Free Qty:</strong> {pendingInvoice.freeQty || 0}</div>
+                                </div>
+                            </div>
+                            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
+                                <h4 style={{ margin: '0 0 10px', color: '#475569' }}>Financials</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                                    <div><strong>Taxable Amount:</strong> ₹{pendingInvoice.taxableAmount || 0}</div>
+                                    <div><strong>Discount:</strong> ₹{pendingInvoice.discountAmount || 0}</div>
+                                    <div><strong>CGST:</strong> ₹{pendingInvoice.cgst || 0}</div>
+                                    <div><strong>SGST:</strong> ₹{pendingInvoice.sgst || 0}</div>
+                                    <div style={{ fontSize: '16px', color: '#0f172a', borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginTop: '4px' }}><strong>Grand Total:</strong> ₹{pendingInvoice.grandTotal || 0}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                            <a href={`/uploads/invoices/${pendingInvoice.uploadedPDF?.generatedName}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                                <button type="button" style={{ padding: '10px 20px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    Download Original PDF
+                                </button>
+                            </a>
+                            <button type="button" onClick={() => setShowInvoiceDetails(false)} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Pending Invoice Confirm Modal */}
+            {showInvoiceConfirm && (
+                <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-content" style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '500px' }}>
+                        <h3 style={{ marginTop: 0, color: '#dc2626' }}>Pending Invoice Detected</h3>
+                        <p style={{ color: '#475569', lineHeight: '1.5' }}>
+                            There is already a Pending Invoice.<br/><br/>
+                            <strong>Vendor:</strong> {pendingInvoice?.vendorName || 'N/A'}<br/>
+                            <strong>Invoice Number:</strong> {pendingInvoice?.invoiceNumber || 'N/A'}<br/>
+                            <strong>Remaining Medicines:</strong> {invoiceStats.remaining}
+                        </p>
+                        <p style={{ fontWeight: 'bold', color: '#0f172a', marginTop: '20px' }}>What do you want to do?</p>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
+                            <button type="button" onClick={() => { setShowInvoiceConfirm(false); setPendingPdfFile(null); }} style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                Continue Existing Invoice
+                            </button>
+                            <button type="button" onClick={() => { handleClearInvoice(); setShowInvoiceConfirm(false); processPdfUpload(pendingPdfFile); }} style={{ padding: '10px', background: '#f1f5f9', color: '#dc2626', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                Upload New Invoice
+                            </button>
+                            <button type="button" onClick={() => { setShowInvoiceConfirm(false); setPendingPdfFile(null); }} style={{ padding: '10px', background: 'transparent', color: '#64748b', border: 'none', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>
+                                Cancel
+                            </button>
                         </div>
                     </div>
                 </div>

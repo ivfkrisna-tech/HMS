@@ -76,6 +76,7 @@ import PharmacyInventory from '../pages/pharmacy/PharmacyInventory';
 import PharmacyOrders from '../pages/pharmacy/PharmacyOrders';
 import PharmacyReturns from '../pages/pharmacy/PharmacyReturns';
 import PharmacyCollections from '../pages/pharmacy/PharmacyCollections';
+import PurchaseInvoiceHistory from '../pages/pharmacy/PurchaseInvoiceHistory';
 
 // Reception Pages
 import ReceptionDashboard from '../pages/reception/ReceptionDashboard';
@@ -197,6 +198,7 @@ const MainRoutes = () => {
                             <Route path="pharmacy/orders" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyOrders /></ProtectedRoute>} />
                             <Route path="pharmacy/returns" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyReturns /></ProtectedRoute>} />
                             <Route path="pharmacy/collections" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyCollections /></ProtectedRoute>} />
+                            <Route path="pharmacy/purchase-invoices" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PurchaseInvoiceHistory /></ProtectedRoute>} />
 
                             {/* Reception Pages */}
                             <Route path="reception/dashboard" element={<ProtectedRoute requiredPermissions={['appointment_manage', 'patient_create']}><ReceptionDashboard /></ProtectedRoute>} />
