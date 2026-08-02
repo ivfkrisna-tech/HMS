@@ -58,6 +58,19 @@ const labReportSchema = new mongoose.Schema({
   },
   amount: {
     type: Number,
+    required: true,
+    default: 0
+  },
+  sgst: {
+    type: Number,
+    default: 0
+  },
+  cgst: {
+    type: Number,
+    default: 0
+  },
+  discount: {
+    type: Number,
     default: 0
   },
   reportFile: {

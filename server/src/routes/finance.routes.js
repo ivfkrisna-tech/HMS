@@ -72,35 +72,57 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
             hospitalFilter = { hospitalId: targetHospitalId };
         }
 
-        const Appointment = require('../models/appointment.model');
-        const LabReport = require('../models/labReport.model');
-        const PharmacyOrder = require('../models/pharmacyOrder.model');
+        const MasterAppointment = require('../models/appointment.model');
+        const MasterLabReport = require('../models/labReport.model');
+        const MasterPharmacyOrder = require('../models/pharmacyOrder.model');
         const Inventory = require('../models/inventory.model');
-        const FacilityCharge = require('../models/facilityCharge.model');
-        const Admission = require('../models/admission.model');
+        const MasterFacilityCharge = require('../models/facilityCharge.model');
+        const MasterAdmission = require('../models/admission.model');
 
-        // 1. Consultations Revenue
-        const consultations = await Appointment.find({
+        let TAppointment, TLabReport, TPharmacyOrder, TFacilityCharge, TAdmission;
+        if (req.tenantDb) {
+            const tenantModels = getTenantModels(req.tenantDb);
+            TAppointment = tenantModels.Appointment;
+            TLabReport = tenantModels.LabReport;
+            TPharmacyOrder = tenantModels.PharmacyOrder;
+            TFacilityCharge = tenantModels.FacilityCharge;
+            TAdmission = tenantModels.Admission;
+        }
+
+        const queryObj = {
             paymentStatus: { $in: ['paid', 'Paid', 'PAID'] },
             ...dateFilter,
             ...hospitalFilter
-        });
+        };
+
+        // 1. Consultations Revenue
+        const [masterConsultations, tenantConsultations] = await Promise.all([
+            MasterAppointment.find(queryObj).lean(),
+            TAppointment ? TAppointment.find(queryObj).lean() : Promise.resolve([])
+        ]);
+        const consultations = [...masterConsultations, ...tenantConsultations];
         const totalConsultationRevenue = consultations.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
         // 2. Lab Tests Revenue
-        const labReports = await LabReport.find({
-            paymentStatus: { $in: ['PAID', 'paid', 'Paid'] },
-            ...dateFilter,
-            ...hospitalFilter
-        });
-        const totalLabRevenue = labReports.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+        const [masterLabReports, tenantLabReports] = await Promise.all([
+            MasterLabReport.find(queryObj).lean(),
+            TLabReport ? TLabReport.find(queryObj).lean() : Promise.resolve([])
+        ]);
+        const labReports = [...masterLabReports, ...tenantLabReports];
+        const totalLabRevenue = labReports.reduce((acc, curr) => {
+            const baseAmount = Number(curr.amount) || 0;
+            const sgstAmt = Number(curr.sgst) || 0;
+            const cgstAmt = Number(curr.cgst) || 0;
+            const discount = Number(curr.discount) || 0;
+            return acc + (baseAmount + sgstAmt + cgstAmt - discount);
+        }, 0);
 
         // 3. Medicines Revenue & Cost
-        const pharmacyOrders = await PharmacyOrder.find({
-            paymentStatus: { $in: ['Paid', 'paid', 'PAID'] },
-            ...dateFilter,
-            ...hospitalFilter
-        });
+        const [masterPharmacyOrders, tenantPharmacyOrders] = await Promise.all([
+            MasterPharmacyOrder.find(queryObj).lean(),
+            TPharmacyOrder ? TPharmacyOrder.find(queryObj).lean() : Promise.resolve([])
+        ]);
+        const pharmacyOrders = [...masterPharmacyOrders, ...tenantPharmacyOrders];
 
         let totalMedicineRevenue = 0;
         let totalMedicineCost = 0;
@@ -127,19 +149,19 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
         const totalMedicineProfit = totalMedicineRevenue - totalMedicineCost;
 
         // 4. Facility Charges Revenue
-        const facilityCharges = await FacilityCharge.find({
-            paymentStatus: { $in: ['Paid', 'paid', 'PAID'] },
-            ...dateFilter,
-            ...hospitalFilter
-        });
+        const [masterFacilityCharges, tenantFacilityCharges] = await Promise.all([
+            MasterFacilityCharge.find(queryObj).lean(),
+            TFacilityCharge ? TFacilityCharge.find(queryObj).lean() : Promise.resolve([])
+        ]);
+        const facilityCharges = [...masterFacilityCharges, ...tenantFacilityCharges];
         const totalFacilityRevenue = facilityCharges.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0);
 
         // 5. Admissions Revenue
-        const admissions = await Admission.find({
-            paymentStatus: { $in: ['Paid', 'paid', 'PAID'] },
-            ...dateFilter,
-            ...hospitalFilter
-        });
+        const [masterAdmissions, tenantAdmissions] = await Promise.all([
+            MasterAdmission.find(queryObj).lean(),
+            TAdmission ? TAdmission.find(queryObj).lean() : Promise.resolve([])
+        ]);
+        const admissions = [...masterAdmissions, ...tenantAdmissions];
         const totalAdmissionRevenue = admissions.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0);
 
         // Overall Totals

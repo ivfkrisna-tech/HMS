@@ -99,6 +99,11 @@ const ReceptionDashboard = () => {
     const [modalProof, setModalProof] = useState({ url: null, fileName: null, uploading: false });
     const [uploadingProof, setUploadingProof] = useState(false);
 
+    // Follow-up Reminders
+    const [reminders, setReminders] = useState([]);
+    const [reminderModal, setReminderModal] = useState({ open: false, patient: null });
+    const [reminderForm, setReminderForm] = useState({ date: '', note: '' });
+
     const handlePaymentProofChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -255,6 +260,7 @@ const ReceptionDashboard = () => {
         fetchHospital();
         fetchAppointments();
         fetchDoctors();
+        fetchReminders();
     }, []);
 
     useEffect(() => {
@@ -372,6 +378,13 @@ const ReceptionDashboard = () => {
             const response = await receptionAPI.getAllAppointments();
             if (response.success) setAppointments(response.appointments);
         } catch (err) { console.error(err); } finally { setLoading(false); }
+    };
+
+    const fetchReminders = async () => {
+        try {
+            const response = await receptionAPI.getTodayReminders();
+            if (response.success) setReminders(response.reminders);
+        } catch (err) { console.error('Reminders err:', err); }
     };
 
     const fetchTransactions = async () => {
@@ -520,8 +533,8 @@ const ReceptionDashboard = () => {
             lastName: getVal(patient.name).split(' ').slice(1).join(' '),
             mobile: getVal(patient.phone),
             email: getVal(patient.email),
-            aadhaar: p.aadhaar || patient.aadhaarNumber || '',
-            isAadhaarVerified: p.aadhaar || patient.isAadhaarVerified ? true : false,
+            aadhaar: patient.aadhaar || p.aadhaar || patient.aadhaarNumber || '',
+            isAadhaarVerified: patient.aadhaar || p.aadhaar || patient.isAadhaarVerified ? true : false,
             avatar: patient.avatar || '',
             houseNumber: patient.houseNumber || '',
             street: patient.street || '',
@@ -530,6 +543,7 @@ const ReceptionDashboard = () => {
             pincode: patient.pincode || '',
             dob: p.dob || patient.dob || '',
             marriageDate: patient.marriageDate || p.marriageDate || '',
+            marriageYears: calculateAge(patient.marriageDate || p.marriageDate || ''),
             gender: p.gender || patient.gender || 'Female',
             bloodGroup: p.bloodGroup || patient.bloodGroup || '',
             sourceInformation: patient.sourceInformation || { sourceType: '', sourceName: '' },
@@ -1229,6 +1243,35 @@ const ReceptionDashboard = () => {
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleCompleteReminder = async (id) => {
+        try {
+            const res = await receptionAPI.completeReminder(id);
+            if (res.success) {
+                fetchReminders();
+            }
+        } catch (e) { alert(e.message); }
+    };
+
+    const handleSaveReminder = async () => {
+        if (!reminderForm.date) return alert("Select a target date.");
+        setSaving(true);
+        try {
+            const res = await receptionAPI.createReminder({
+                patientId: reminderModal.patient?._id || reminderModal.patient?.patientId,
+                patientName: reminderModal.patient?.name || 'Unknown',
+                phone: reminderModal.patient?.phone || '',
+                reminderDate: reminderForm.date,
+                note: reminderForm.note
+            });
+            if (res.success) {
+                setReminderModal({ open: false, patient: null });
+                setReminderForm({ date: '', note: '' });
+                fetchReminders();
+            }
+        } catch (e) { alert(e.message); }
+        setSaving(false);
     };
 
     const renderIntake = () => {
@@ -2466,6 +2509,31 @@ const ReceptionDashboard = () => {
                     )}
                 </div>
 
+                {reminders.length > 0 && (
+                    <div style={{ marginBottom: '20px', padding: '16px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px' }}>
+                        <h3 style={{ margin: '0 0 12px 0', color: '#b45309', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>📞</span> Today's Follow-up Calls ({reminders.length})
+                        </h3>
+                        <div style={{ display: 'grid', gap: '10px' }}>
+                            {reminders.map(rem => (
+                                <div key={rem._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                                    <div>
+                                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>{rem.patientName}</div>
+                                        <div style={{ fontSize: '0.85rem', color: '#64748b' }}>📱 {rem.phone || 'N/A'}</div>
+                                        {rem.note && <div style={{ fontSize: '0.85rem', color: '#92400e', marginTop: '4px', background: '#fef3c7', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>{rem.note}</div>}
+                                    </div>
+                                    <button
+                                        onClick={() => handleCompleteReminder(rem._id)}
+                                        style={{ padding: '6px 12px', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
+                                    >
+                                        ✅ Call Done
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div className="appointments-list">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
                         <h3 style={{ margin: 0 }}>Active Queue</h3>
@@ -2553,6 +2621,12 @@ const ReceptionDashboard = () => {
                                                         style={{ padding: '4px 10px', fontSize: '12px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '5px', cursor: 'pointer', fontWeight: '600' }}
                                                     >
                                                         Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setReminderModal({ open: true, patient: apt.userId })}
+                                                        style={{ padding: '4px 10px', fontSize: '12px', background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: '5px', cursor: 'pointer', fontWeight: '600' }}
+                                                    >
+                                                        📞 No-Show / Follow-up
                                                     </button>
                                                 </>
                                             )}
@@ -2763,6 +2837,72 @@ const ReceptionDashboard = () => {
                     </div>
                 </div>
             )}
+            
+            {reminderModal.open && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#fff', borderRadius: '14px', padding: '28px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#92400e' }}>📞 Set Follow-up Call</h2>
+                            <button onClick={() => setReminderModal({ open: false, patient: null })} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+                        </div>
+                        <p style={{ margin: '0 0 16px', color: '#475569', fontSize: '0.95rem' }}>
+                            Patient: <strong>{reminderModal.patient?.name}</strong> <br/>
+                            Phone: {reminderModal.patient?.phone}
+                        </p>
+                        
+                        <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>Target Date</label>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                                {[5, 6, 7].map(days => (
+                                    <button
+                                        key={days}
+                                        type="button"
+                                        onClick={() => {
+                                            const d = new Date();
+                                            d.setDate(d.getDate() + days);
+                                            setReminderForm(p => ({ ...p, date: d.toISOString().split('T')[0] }));
+                                        }}
+                                        style={{ padding: '6px 12px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, flex: 1 }}
+                                    >
+                                        +{days} Days
+                                    </button>
+                                ))}
+                            </div>
+                            <input
+                                type="date"
+                                value={reminderForm.date}
+                                onChange={e => setReminderForm(p => ({ ...p, date: e.target.value }))}
+                                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>Note (Optional)</label>
+                            <textarea
+                                placeholder="E.g., Missed appointment, requested reschedule..."
+                                value={reminderForm.note}
+                                onChange={e => setReminderForm(p => ({ ...p, note: e.target.value }))}
+                                rows={3}
+                                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '0.95rem', resize: 'vertical', boxSizing: 'border-box' }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setReminderModal({ open: false, patient: null })} style={{ padding: '10px 20px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, color: '#475569' }}>
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveReminder}
+                                disabled={saving}
+                                style={{ padding: '10px 24px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', opacity: saving ? 0.6 : 1 }}
+                            >
+                                {saving ? 'Saving...' : 'Save Reminder'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {viewMode === 'intake' && renderIntake()}
             {viewMode === 'transactions' && renderTransactions()}
         </>

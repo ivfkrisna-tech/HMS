@@ -451,6 +451,8 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
             const selectedPkgs = await TestPackage.find({ _id: { $in: parsedPackages } }).populate('tests');
 
             let totalAmount = 0;
+            let totalSgst = 0;
+            let totalCgst = 0;
             const hidStr = (req.user.hospitalId || appointment.hospitalId || '').toString();
             let packageTestNames = [];
 
@@ -472,12 +474,21 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
 
                 const testObj = allTests.find(t => t.name.trim().toLowerCase() === normalizedName);
                 if (testObj) {
+                    let basePrice = 0;
                     if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices.has === 'function' && testObj.hospitalPrices.has(hidStr)) {
-                        totalAmount += testObj.hospitalPrices.get(hidStr) || 0;
+                        basePrice = testObj.hospitalPrices.get(hidStr) || 0;
                     } else if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hidStr]) {
-                        totalAmount += testObj.hospitalPrices[hidStr];
+                        basePrice = testObj.hospitalPrices[hidStr];
                     } else {
-                        totalAmount += testObj.price || 0;
+                        basePrice = testObj.price || 0;
+                    }
+                    totalAmount += basePrice;
+                    
+                    if (testObj.sgst) {
+                        totalSgst += (basePrice * testObj.sgst) / 100;
+                    }
+                    if (testObj.cgst) {
+                        totalCgst += (basePrice * testObj.cgst) / 100;
                     }
                 }
             });
@@ -486,11 +497,17 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
                 const newReport = await LabReport.create({
                     appointmentId: appointment._id,
                     patientId: pId,
+                    userId: appointment.userId || pId, // Required by schema
+                    doctorId: req.user.id,             // Required by schema
                     patientName: pName,
-                    hospitalId: appointment.hospitalId,
-                    tests: appointment.labTests,
-                    totalAmount: totalAmount,
-                    status: 'Pending'
+                    hospitalId: appointment.hospitalId || req.user.hospitalId,
+                    testNames: appointment.labTests,   // Schema uses testNames
+                    amount: totalAmount,               // Schema uses amount
+                    sgst: totalSgst,
+                    cgst: totalCgst,
+                    testStatus: 'PENDING',
+                    reportStatus: 'PENDING',
+                    paymentStatus: 'PENDING'
                 }).catch(err => console.log("LabReport creation note:", err.message));
 
                 if (newReport) reportId = newReport._id;

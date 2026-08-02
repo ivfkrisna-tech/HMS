@@ -4,19 +4,26 @@ const pharmacyOrderSchema = new mongoose.Schema({
     appointmentId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Appointment',
-        required: true
+        required: function() { return !this.isOutsidePatient; }
     },
-    patientId: { type: String, required: true },
+    patientId: { 
+        type: String, 
+        required: function() { return !this.isOutsidePatient; } 
+    },
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: function() { return !this.isOutsidePatient; }
     },
     doctorId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: function() { return !this.isOutsidePatient; }
     },
+    isOutsidePatient: { type: Boolean, default: false },
+    patientName: { type: String, default: '' },
+    patientPhone: { type: String, default: '' },
+    doctorName: { type: String, default: '' },
     hospitalId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Hospital',
@@ -54,6 +61,10 @@ const pharmacyOrderSchema = new mongoose.Schema({
     authorizedDoctorName: { type: String },
     authorizationNote: { type: String },
     totalAmount: {
+        type: Number,
+        default: 0
+    },
+    discountAmount: {
         type: Number,
         default: 0
     },

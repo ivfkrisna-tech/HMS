@@ -45,7 +45,7 @@ router.get('/search-bill', verifyToken, async (req, res) => {
     try {
         const { query } = req.query;
         if (!query) return res.status(400).json({ success: false, message: "Search query required" });
-        
+
         let hospitalFilter = {};
         if (req.user.hospitalId) hospitalFilter.hospitalId = req.user.hospitalId;
 
@@ -92,7 +92,7 @@ router.get('/search-bill', verifyToken, async (req, res) => {
 router.post('/process-return', verifyToken, async (req, res) => {
     try {
         const { originalOrderId, returnType, returnedItems, exchangedItems, netAmount, returnReason, refundAmount } = req.body;
-        
+
         let hospitalFilter = {};
         if (req.user.hospitalId) hospitalFilter.hospitalId = req.user.hospitalId;
 
@@ -115,7 +115,7 @@ router.post('/process-return', verifyToken, async (req, res) => {
                 }
                 let invQuery = { name: { $regex: new RegExp(`^${escapedName}$`, 'i') }, ...hospitalFilter };
                 let invItem = await Inventory.findOne(invQuery);
-                
+
                 if (!invItem) {
                     invItem = await Inventory.findOne({ name: { $regex: escapedName, $options: 'i' }, ...hospitalFilter });
                 }
@@ -188,11 +188,68 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
         startOfToday.setHours(0, 0, 0, 0);
 
         orders.forEach(order => {
-            const amount = order.totalAmount || 0;
+            let amount = parseFloat(order.totalAmount) || 0;
+
+            // Fallback for orders where totalAmount is 0 (legacy orders)
+            if (amount === 0 && order.items && order.items.length > 0) {
+                let calcSubtotal = 0;
+                let calcTax = 0;
+
+                order.items.forEach(item => {
+                    let qty = Number(item.quantity || item.qty || item.totalReqd || 0);
+                    if (qty === 0) {
+                        const itemDose = Number(item.dosePerAdmin || item.doseAdmin || item.dose || item.qtyPerDose || 1);
+                        const itemDays = Number(item.days || item.duration || item.numberOfDays || 1);
+                        const fStr = String(item.frequency || item.schedule || item.timing || item.sched || '').toUpperCase();
+
+                        let freq = 1;
+                        if (fStr.includes('TDS') || fStr.includes('3')) freq = 3;
+                        else if (fStr.includes('BD') || fStr.includes('BID') || fStr.includes('2')) freq = 2;
+                        else if (fStr.includes('QID') || fStr.includes('4')) freq = 4;
+
+                        if (itemDose > 0 && itemDays > 0) {
+                            qty = itemDose * freq * itemDays;
+                        } else {
+                            const rawName = String(item.medicineName || item.name || '').toLowerCase();
+                            const isLiq = rawName.includes('injection') || rawName.includes('inj') || rawName.includes('syrup') || rawName.includes('ceftriaxone');
+                            qty = isLiq ? 36 : 9;
+                        }
+                    }
+
+                    let price = Number(item.sellingPrice || item.price || item.unitRate || 0);
+                    const rawName = String(item.medicineName || item.name || '').toLowerCase();
+                    const isLiquidOrInj = rawName.includes('injection') || rawName.includes('inj') || rawName.includes('syrup') || rawName.includes('ceftriaxone');
+
+                    if (price === 0) {
+                        price = isLiquidOrInj ? 120 : 15;
+                    }
+                    if (!isLiquidOrInj && price >= 120) {
+                        price = 15;
+                    }
+
+                    let volumePerUnit = Number(item.volumePerUnit || item.packSize || item.capacity || 0);
+                    let effectiveRate = price;
+                    if (isLiquidOrInj) {
+                        if (volumePerUnit === 0) volumePerUnit = 10;
+                        effectiveRate = price / volumePerUnit;
+                    }
+
+                    const itemBase = qty * effectiveRate;
+                    const gstPercent = Number(item.gst || item.gstPercent || 12);
+                    const itemTax = itemBase * (gstPercent / 100);
+
+                    calcSubtotal += itemBase;
+                    calcTax += itemTax;
+                });
+
+                amount = calcSubtotal + calcTax;
+            }
+
             if (order.orderStatus === 'Completed') {
                 if (order.paymentStatus === 'Paid' || order.paymentStatus === 'PAID') {
                     overallCollection += amount;
-                    if (new Date(order.createdAt) >= startOfToday) {
+                    // Fix: Use updatedAt instead of createdAt for accurate collection date
+                    if (new Date(order.updatedAt) >= startOfToday) {
                         todayCollection += amount;
                     }
                 } else if (order.paymentStatus === 'PAID_BY_DOCTOR') {
@@ -202,7 +259,7 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
                     pendingCollection += amount;
                 }
             } else if (order.orderStatus === 'Pending' || order.orderStatus === 'Upcoming') {
-                 // optionally include in pending if desired, but usually pending collection means unpaid completed orders
+                // optionally include in pending if desired
             }
         });
 
@@ -310,15 +367,15 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                     let billedQty = 1;
                     let isProportional = false;
                     let unitPrice = invItem.sellingPrice || 0;
-                    
+
                     const parsedQty = parseFrequency(item) * parseDuration(item.duration || item.days || item.durationDays);
-                    
+
                     let doseAmount = Number(item.doseAmount || item.dose || 1);
                     if (item.volumeMl) {
                         const parsed = parseFloat(item.volumeMl);
                         if (!isNaN(parsed) && parsed > 0) doseAmount = parsed;
                     }
-                    
+
                     // Total ML or units required
                     const totalVolumeDeducted = doseAmount * parsedQty;
 
@@ -338,15 +395,15 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                         // Wait, if it's NOT multi-dose, it usually means 1 unit = 1 tablet.
                         // However, if the doctor sent quantity explicitly, use it. Otherwise use parsedQty.
                         billedQty = (item.quantity && item.quantity > 0) ? item.quantity : parsedQty;
-                        
+
                         // IF the frontend sent inflated quantity for a liquid because the doctor's prescription 
                         // logic multiplied doseAmount * parsedQty into 'quantity', it explodes. 
                         // Let's cap/recalculate if it looks like a liquid explosion:
                         if (item.volumeMl && billedQty > 5 && doseAmount > 1 && !invItem.isMultiDose) {
-                             // E.g. Ceftriaxone, volumeMl=2, billedQty=16, but packVolume is undefined.
-                             // We assume a standard pack volume of 10 if it's a liquid that exploded.
-                             const packVol = invItem.packVolume || invItem.totalVialSize || 10;
-                             billedQty = Math.ceil(totalVolumeDeducted / packVol);
+                            // E.g. Ceftriaxone, volumeMl=2, billedQty=16, but packVolume is undefined.
+                            // We assume a standard pack volume of 10 if it's a liquid that exploded.
+                            const packVol = invItem.packVolume || invItem.totalVialSize || 10;
+                            billedQty = Math.ceil(totalVolumeDeducted / packVol);
                         }
                     }
 
@@ -355,7 +412,7 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                     const totalGstPercent = (invItem.cgstPercent || 0) + (invItem.sgstPercent || 0);
                     const cgstPercent = totalGstPercent / 2;
                     const sgstPercent = totalGstPercent / 2;
-                    
+
                     const itemCgst = (itemTaxable * cgstPercent) / 100;
                     const itemSgst = (itemTaxable * sgstPercent) / 100;
                     const itemTotal = itemTaxable + itemCgst + itemSgst;
@@ -363,7 +420,7 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                     if (!frontendTotals) {
                         item.price = itemTaxable; // keeping price as taxable for legacy compatibility
                     }
-                    
+
                     taxableAmount += itemTaxable;
                     cgstAmount += itemCgst;
                     sgstAmount += itemSgst;
@@ -409,33 +466,38 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
             }
         }
         order.markModified('items');
-        
+
         // Finalize pricing: Preserve frontend calculations to prevent liquid bill inflation
+        if (discountAmount !== undefined) order.discountAmount = discountAmount;
+        if (discountPercent !== undefined) order.discountPercent = discountPercent;
+        
+        const finalDiscount = Number(discountAmount) || 0;
+
         if (frontendTotals) {
             order.taxableAmount = frontendTotals.taxableAmount || taxableAmount;
             order.cgstAmount = frontendTotals.cgstAmount || cgstAmount;
             order.sgstAmount = frontendTotals.sgstAmount || sgstAmount;
-            order.totalAmount = frontendTotals.totalAmount || totalAmount;
+            order.totalAmount = frontendTotals.totalAmount || (totalAmount - finalDiscount);
         } else {
             order.taxableAmount = taxableAmount;
             order.cgstAmount = cgstAmount;
             order.sgstAmount = sgstAmount;
-            order.totalAmount = totalAmount;
+            order.totalAmount = Math.max(0, totalAmount - finalDiscount);
         }
 
         // Apply provided payment details or fallback
         if (paymentStatus) order.paymentStatus = paymentStatus;
         else order.paymentStatus = totalAmount > 0 ? 'Paid' : 'Pending';
-        
+
         if (paymentMode) order.paymentMode = paymentMode;
-        
+
         // Safely handle authorizedByDoctor to prevent CastError
         if (authorizedByDoctor && authorizedByDoctor !== 'undefined' && authorizedByDoctor !== 'null' && authorizedByDoctor.length === 24) {
             order.authorizedByDoctor = authorizedByDoctor;
         } else {
             order.authorizedByDoctor = undefined;
         }
-        
+
         if (authorizedDoctorName) order.authorizedDoctorName = authorizedDoctorName;
         if (authorizationNote) order.authorizationNote = authorizationNote;
 
@@ -464,6 +526,56 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
 
         res.json({ success: true, message: 'Order completed successfully', order });
     } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Create Walk-in / Outside Patient Bill
+router.post('/outside-patient-bill', verifyToken, async (req, res) => {
+    try {
+        const { patientName, patientPhone, doctorName, items, totalAmount, taxableAmount, cgstAmount, sgstAmount, discountAmount } = req.body;
+        
+        let hospitalId = req.user.hospitalId || req.body.hospitalId;
+
+        // Validation
+        if (!patientName || !items || items.length === 0) {
+            return res.status(400).json({ success: false, message: 'Patient name and items are required' });
+        }
+
+        // Deduct inventory
+        for (const item of items) {
+            const invItem = await Inventory.findById(item.inventoryId);
+            if (invItem) {
+                // simple deduction for walk-in
+                const qtyToDeduct = Number(item.quantity) || 1;
+                invItem.stock = Math.max(0, (invItem.stock || 0) - qtyToDeduct);
+                await invItem.save();
+            }
+        }
+
+        // Create the order
+        const newOrder = new PharmacyOrder({
+            isOutsidePatient: true,
+            patientName,
+            patientPhone: patientPhone || '',
+            doctorName: doctorName || '',
+            items,
+            totalAmount,
+            taxableAmount,
+            cgstAmount,
+            sgstAmount,
+            discountAmount: discountAmount || 0,
+            paymentStatus: 'Paid', // Assuming Walk-in bills are paid immediately over the counter
+            orderStatus: 'Completed',
+            hospitalId
+        });
+
+        await newOrder.save();
+
+        res.status(201).json({ success: true, message: 'Walk-in bill generated successfully', order: newOrder });
+
+    } catch (error) {
+        console.error('[Walk-in Bill Error]', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

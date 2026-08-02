@@ -1024,4 +1024,55 @@ router.get('/transactions', verifyToken, verifyReception, async (req, res) => {
     } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// 9. REMINDERS (Follow-ups)
+router.post('/reminders', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const { patientId, patientName, phone, reminderDate, note } = req.body;
+        if (!patientId || !reminderDate) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+        
+        const Reminder = require('../models/reminder.model');
+        const reminder = new Reminder({
+            hospitalId: req.user.hospitalId,
+            patientId,
+            patientName,
+            phone,
+            reminderDate: new Date(reminderDate),
+            note
+        });
+        await reminder.save();
+        res.json({ success: true, reminder });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.get('/reminders/today', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const Reminder = require('../models/reminder.model');
+        
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+
+        const reminders = await Reminder.find({
+            hospitalId: req.user.hospitalId,
+            status: 'pending',
+            reminderDate: { $lte: endOfToday }
+        }).sort({ reminderDate: 1 }).lean();
+        
+        res.json({ success: true, reminders });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+router.put('/reminders/:id/complete', verifyToken, verifyReception, async (req, res) => {
+    try {
+        const Reminder = require('../models/reminder.model');
+        const reminder = await Reminder.findOneAndUpdate(
+            { _id: req.params.id, hospitalId: req.user.hospitalId },
+            { status: 'completed' },
+            { new: true }
+        );
+        res.json({ success: true, reminder });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 module.exports = router;

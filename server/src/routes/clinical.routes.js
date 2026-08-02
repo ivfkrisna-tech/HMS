@@ -129,6 +129,31 @@ router.post('/diagnose/:visitId', verifyToken, async (req, res) => {
         // B. CREATE LAB REQUEST — wrapped so it never blocks consultation completion
         if (labTests && labTests.length > 0) {
             try {
+                const LabTest = require('../models/labTest.model');
+                const allTests = await LabTest.find({});
+                let totalAmount = 0;
+                let totalSgst = 0;
+                let totalCgst = 0;
+                const hidStr = (req.user.hospitalId || '').toString();
+
+                labTests.forEach(testName => {
+                    const normalizedName = testName.trim().toLowerCase();
+                    const testObj = allTests.find(t => t.name.trim().toLowerCase() === normalizedName);
+                    if (testObj) {
+                        let basePrice = 0;
+                        if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices.has === 'function' && testObj.hospitalPrices.has(hidStr)) {
+                            basePrice = testObj.hospitalPrices.get(hidStr) || 0;
+                        } else if (hidStr && testObj.hospitalPrices && typeof testObj.hospitalPrices === 'object' && testObj.hospitalPrices[hidStr]) {
+                            basePrice = testObj.hospitalPrices[hidStr];
+                        } else {
+                            basePrice = testObj.price || 0;
+                        }
+                        totalAmount += basePrice;
+                        if (testObj.sgst) totalSgst += (basePrice * testObj.sgst) / 100;
+                        if (testObj.cgst) totalCgst += (basePrice * testObj.cgst) / 100;
+                    }
+                });
+
                 const labReport = new LabReport({
                     appointmentId: visit.appointmentId || visit._id,
                     patientId: visit.patientId.toString(),
@@ -136,6 +161,9 @@ router.post('/diagnose/:visitId', verifyToken, async (req, res) => {
                     doctorId: req.user.id,
                     hospitalId: req.user.hospitalId,    // RLS: set hospitalId
                     testNames: labTests,
+                    amount: totalAmount,
+                    sgst: totalSgst,
+                    cgst: totalCgst,
                     testStatus: 'PENDING',
                     reportStatus: 'PENDING',
                     paymentStatus: 'PENDING'

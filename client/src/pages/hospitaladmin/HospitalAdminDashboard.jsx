@@ -74,7 +74,7 @@ const HospitalAdminDashboard = () => {
     const [labPriceInputs, setLabPriceInputs] = useState({});
     const [showLabTestForm, setShowLabTestForm] = useState(false);
     const [savingLabTest, setSavingLabTest] = useState(false);
-    const [labTestForm, setLabTestForm] = useState({ name: '', code: '', description: '', price: '', category: 'General' });
+    const [labTestForm, setLabTestForm] = useState({ name: '', code: '', description: '', price: '', category: 'General', sgst: '', cgst: '', discount: '' });
 
     // --- Collections State ---
     const [staffCollections, setStaffCollections] = useState([]);
@@ -444,12 +444,15 @@ const HospitalAdminDashboard = () => {
         try {
             const res = await hospitalAPI.createLabTest({
                 ...labTestForm,
-                price: Number(labTestForm.price) || 0
+                price: Number(labTestForm.price) || 0,
+                sgst: Number(labTestForm.sgst) || 0,
+                cgst: Number(labTestForm.cgst) || 0,
+                discount: Number(labTestForm.discount) || 0
             });
             if (res.success) {
                 setSuccess('Lab test added successfully!');
                 setShowLabTestForm(false);
-                setLabTestForm({ name: '', code: '', description: '', price: '', category: 'General' });
+                setLabTestForm({ name: '', code: '', description: '', price: '', category: 'General', sgst: '', cgst: '', discount: '' });
                 fetchLabTests();
             }
         } catch (err) {
@@ -1209,6 +1212,23 @@ const HospitalAdminDashboard = () => {
                                             <label className="staff-label">Price (₹)</label>
                                             <input type="number" className="staff-input" placeholder="e.g. 800" min="0"
                                                 value={labTestForm.price} onChange={e => setLabTestForm(p => ({ ...p, price: e.target.value }))} />
+                                        </div>
+                                    </div>
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label className="staff-label">SGST (%)</label>
+                                            <input type="number" className="staff-input" placeholder="e.g. 9" min="0" step="0.01"
+                                                value={labTestForm.sgst} onChange={e => setLabTestForm(p => ({ ...p, sgst: e.target.value }))} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="staff-label">CGST (%)</label>
+                                            <input type="number" className="staff-input" placeholder="e.g. 9" min="0" step="0.01"
+                                                value={labTestForm.cgst} onChange={e => setLabTestForm(p => ({ ...p, cgst: e.target.value }))} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="staff-label">Discount (%)</label>
+                                            <input type="number" className="staff-input" placeholder="e.g. 10" min="0" step="0.01"
+                                                value={labTestForm.discount} onChange={e => setLabTestForm(p => ({ ...p, discount: e.target.value }))} />
                                         </div>
                                     </div>
                                     <div className="form-group">

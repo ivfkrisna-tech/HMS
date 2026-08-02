@@ -75,8 +75,13 @@ import CompletedReports from '../pages/lab/CompletedReports';
 import PharmacyInventory from '../pages/pharmacy/PharmacyInventory';
 import PharmacyOrders from '../pages/pharmacy/PharmacyOrders';
 import PharmacyReturns from '../pages/pharmacy/PharmacyReturns';
+import VendorReturns from '../pages/pharmacy/VendorReturns';
 import PharmacyCollections from '../pages/pharmacy/PharmacyCollections';
+<<<<<<< HEAD
 import PurchaseInvoiceHistory from '../pages/pharmacy/PurchaseInvoiceHistory';
+=======
+import PharmacyDepartments from '../pages/pharmacy/PharmacyDepartments';
+>>>>>>> 4d4c4bcccfc97a3271159dc91f5fbcd1cbb41d59
 
 // Reception Pages
 import ReceptionDashboard from '../pages/reception/ReceptionDashboard';
@@ -197,8 +202,13 @@ const MainRoutes = () => {
                             <Route path="pharmacy/inventory" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyInventory /></ProtectedRoute>} />
                             <Route path="pharmacy/orders" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyOrders /></ProtectedRoute>} />
                             <Route path="pharmacy/returns" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyReturns /></ProtectedRoute>} />
+                            <Route path="pharmacy/vendor-returns" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><VendorReturns /></ProtectedRoute>} />
                             <Route path="pharmacy/collections" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyCollections /></ProtectedRoute>} />
+<<<<<<< HEAD
                             <Route path="pharmacy/purchase-invoices" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PurchaseInvoiceHistory /></ProtectedRoute>} />
+=======
+                            <Route path="pharmacy/departments" element={<ProtectedRoute requiredPermissions={['pharmacy_view', 'pharmacy_manage']}><PharmacyDepartments /></ProtectedRoute>} />
+>>>>>>> 4d4c4bcccfc97a3271159dc91f5fbcd1cbb41d59
 
                             {/* Reception Pages */}
                             <Route path="reception/dashboard" element={<ProtectedRoute requiredPermissions={['appointment_manage', 'patient_create']}><ReceptionDashboard /></ProtectedRoute>} />

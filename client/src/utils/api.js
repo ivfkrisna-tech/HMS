@@ -4,8 +4,10 @@ import { logout } from '../store/slices/authSlice';
 
 // FIX: Local testing ke liye empty string aur Live ke liye VITE_API_URL
 const getBaseURL = () => {
-    // 1. Local ke liye direct localhost:3000 likh do (Proxy ki koi zaroorat nahi)
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const hostname = window.location.hostname;
+    
+    // 1. Local ya koi bhi local subdomain (.localhost) ke liye
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')) {
         return 'http://localhost:3000'; 
     }
     
@@ -231,6 +233,19 @@ export const receptionAPI = {
         const response = await apiClient.get(`/api/reception/follow-up-status/${patientId}`);
         return response.data;
     },
+    // ─── Reminders ─────────────────────────────────────────────────────────────
+    createReminder: async (data) => {
+        const response = await apiClient.post('/api/reception/reminders', data);
+        return response.data;
+    },
+    getTodayReminders: async () => {
+        const response = await apiClient.get('/api/reception/reminders/today');
+        return response.data;
+    },
+    completeReminder: async (id) => {
+        const response = await apiClient.put(`/api/reception/reminders/${id}/complete`);
+        return response.data;
+    },
 };
 
 export const adminAPI = {
@@ -296,6 +311,9 @@ export const labAPI = {
 };
 
 export const pharmacyAPI = {
+    getDashboardSummary: async (hospitalId) => (await apiClient.get(`/api/pharmacy/orders/dashboard-summary?hospitalId=${hospitalId}`)).data,
+    getVendorReturns: async () => (await apiClient.get('/api/pharmacy/vendor-returns')).data,
+    createVendorReturn: async (data) => (await apiClient.post('/api/pharmacy/vendor-returns', data)).data,
     getInventory: async () => (await apiClient.get('/api/pharmacy/inventory')).data,
     addMedicine: async (data) => (await apiClient.post('/api/pharmacy/inventory', data)).data,
     updateMedicine: async (id, data) => (await apiClient.put(`/api/pharmacy/inventory/${id}`, data)).data,
@@ -312,10 +330,23 @@ export const pharmacyAPI = {
         if (qs) url += `?${qs}`;
         return (await apiClient.get(url)).data;
     },
+<<<<<<< HEAD
     uploadPurchaseInvoice: async (formData) => (await apiClient.post('/api/pharmacy/purchase-invoice/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data,
     getPurchaseInvoices: async () => (await apiClient.get('/api/pharmacy/purchase-invoice')).data,
     getPurchaseInvoiceById: async (id) => (await apiClient.get(`/api/pharmacy/purchase-invoice/${id}`)).data,
     deletePurchaseInvoice: async (id) => (await apiClient.delete(`/api/pharmacy/purchase-invoice/${id}`)).data
+=======
+    recordConsumption: async (data) => (await apiClient.post('/api/pharmacy/consumption', data)).data,
+    getDepartments: async () => (await apiClient.get('/api/pharmacy/departments')).data,
+    createDepartment: async (data) => (await apiClient.post('/api/pharmacy/departments', data)).data,
+    getDepartmentStocks: async (departmentId = '') => {
+        let url = '/api/pharmacy/department-stocks';
+        if (departmentId) url += `?departmentId=${departmentId}`;
+        return (await apiClient.get(url)).data;
+    },
+    transferToDepartment: async (data) => (await apiClient.post('/api/pharmacy/departments/transfer', data)).data,
+    recordDepartmentUsage: async (data) => (await apiClient.post('/api/pharmacy/departments/usage', data)).data
+>>>>>>> 4d4c4bcccfc97a3271159dc91f5fbcd1cbb41d59
 };
 
 export const pharmacyOrderAPI = {
@@ -464,6 +495,7 @@ export const billingAPI = {
     searchPatients: async (query) => (await apiClient.get(`/api/billing/search-patients?query=${query}`)).data,
     getPatientBills: async (identifier) => (await apiClient.get(`/api/billing/patient/${identifier}`)).data,
     addFacilityCharge: async (data) => (await apiClient.post('/api/billing/facility-charge', data)).data,
+    editFacilityCharge: async (id, data) => (await apiClient.put(`/api/billing/facility-charge/${id}`, data)).data,
     processPayment: async (data) => (await apiClient.put('/api/billing/pay', data)).data,
 };
 

@@ -6,6 +6,8 @@ const Appointment = require('../models/appointment.model');
 const Lab = require('../models/lab.model');
 const SharedReportNote = require('../models/sharedReportNote.model');
 const { verifyToken } = require('../middleware/auth.middleware');
+const { resolveTenant } = require('../middleware/tenantMiddleware');
+const { getTenantModels } = require('../db/tenantModels');
 const imagekit = require('../utils/imagekit');
 
 const upload = multer({
@@ -19,6 +21,14 @@ const verifyLab = async (req, res, next) => {
 
     if (!roleName.includes('lab') && !roleName.includes('admin') && !roleName.includes('doctor') && !roleName.includes('reception')) {
         return res.status(403).json({ message: 'Access denied. Lab personnel only.' });
+    }
+    next();
+};
+
+const verifyStaff = async (req, res, next) => {
+    const roleName = req.user._roleData ? req.user._roleData.name.toLowerCase() : String(req.user.role).toLowerCase();
+    if (roleName === 'patient' || roleName === 'user') {
+        return res.status(403).json({ message: 'Access denied. Staff only.' });
     }
     next();
 };
@@ -205,20 +215,29 @@ router.post('/upload-report/:reportId', verifyToken, verifyLab, (req, res, next)
 
     } catch (error) {
         console.error("Upload Error Details:", error);
-        require('fs').writeFileSync('C:\\Users\\DEEPIKA\\Downloads\\HMS-main\\server\\upload_error_dump.txt', error.stack || error.message);
+        require('fs').writeFileSync('upload_error_dump.txt', error.stack || error.message);
         res.status(500).json({ success: false, message: error.stack || error.message });
     }
 });
 
 // 4. GET SHARED REPORT NOTES
-router.get('/shared-notes/:reportId', verifyToken, verifyLab, async (req, res) => {
+router.get('/shared-notes/:reportId', verifyToken, resolveTenant, verifyStaff, async (req, res) => {
     try {
         const { reportId } = req.params;
-        const report = await LabReport.findById(reportId);
+        let TLabReport = LabReport;
+        let TSharedReportNote = SharedReportNote;
+        
+        if (req.tenantDb) {
+            const models = getTenantModels(req.tenantDb);
+            TLabReport = models.LabReport;
+            TSharedReportNote = models.SharedReportNote;
+        }
+
+        const report = await TLabReport.findById(reportId) || await LabReport.findById(reportId);
         if (!report) {
             return res.status(404).json({ success: false, message: 'Report not found' });
         }
-        const noteDoc = await SharedReportNote.findOne({ reportId });
+        const noteDoc = await TSharedReportNote.findOne({ reportId }) || await SharedReportNote.findOne({ reportId });
         if (!noteDoc) {
             return res.status(200).json({
                 success: true,
@@ -245,12 +264,21 @@ router.get('/shared-notes/:reportId', verifyToken, verifyLab, async (req, res) =
 });
 
 // 5. CREATE / UPDATE SHARED REPORT NOTES
-router.put('/shared-notes/:reportId', verifyToken, verifyLab, async (req, res) => {
+router.put('/shared-notes/:reportId', verifyToken, resolveTenant, verifyStaff, async (req, res) => {
     try {
         const { reportId } = req.params;
         const { notes, patientId, appointmentId, hospitalId } = req.body;
 
-        const report = await LabReport.findById(reportId);
+        let TLabReport = LabReport;
+        let TSharedReportNote = SharedReportNote;
+        
+        if (req.tenantDb) {
+            const models = getTenantModels(req.tenantDb);
+            TLabReport = models.LabReport;
+            TSharedReportNote = models.SharedReportNote;
+        }
+
+        const report = await TLabReport.findById(reportId) || await LabReport.findById(reportId);
         if (!report) {
             return res.status(404).json({ success: false, message: 'Report not found' });
         }
@@ -279,7 +307,7 @@ router.put('/shared-notes/:reportId', verifyToken, verifyLab, async (req, res) =
         if (hospitalId || req.user.hospitalId) updateData.hospitalId = hospitalId || req.user.hospitalId;
 
         // Ensure unique per reportId
-        const noteDoc = await SharedReportNote.findOneAndUpdate(
+        const noteDoc = await TSharedReportNote.findOneAndUpdate(
             { reportId },
             { $set: updateData, $setOnInsert: { reportId } },
             { new: true, upsert: true }

@@ -427,8 +427,13 @@ const DoctorPatientDetails = () => {
                 selectedPackages: selectedPackages,
                 pharmacy: (sessionData.medicines || []).filter(m => m.medicineName?.trim()).map(m => {
                     const isInjection = (m.medicineName || '').toLowerCase().includes('inj') || (m.medicineName || '').toLowerCase().includes('drip') || m.totalDosageRequired > 0;
+                    
+                    const medNameLower = (m.medicineName || '').toLowerCase();
+                    const unit = medNameLower.includes('insulin') || medNameLower.includes('heparin') || medNameLower.includes('iu') ? 'IU' : 'ml';
+                    const actualDoseString = isInjection ? `${m.dosePerAdmin || 1} ${unit}` : (m.dose || '');
+                    
                     const scheduleText = isInjection 
-                        ? `${m.dosePerAdmin} ml/IU x ${m.frequency}/day for ${m.durationDays} days` 
+                        ? `${m.dosePerAdmin || 1} ${unit} x ${m.frequency || 1}/day for ${m.durationDays || 1} days` 
                         : '';
                     
                     return {
@@ -448,6 +453,7 @@ const DoctorPatientDetails = () => {
                         durationDays: Number(m.durationDays) || 0,
                         vialSize: Number(m.vialSize) || 0,
                         scheduleText: scheduleText,
+                        dose: actualDoseString,
                         mixId: m.mixId || null,
                         mixName: m.mixName || null
                     };
