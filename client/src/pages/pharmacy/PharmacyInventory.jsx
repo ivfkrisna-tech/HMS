@@ -1019,7 +1019,7 @@ const PharmacyInventory = () => {
                 </div>
             )}
 
-<<<<<<< HEAD
+
             {/* Invoice Details Modal */}
             {showInvoiceDetails && pendingInvoice && (
                 <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1100,7 +1100,11 @@ const PharmacyInventory = () => {
                             <button type="button" onClick={() => { setShowInvoiceConfirm(false); setPendingPdfFile(null); }} style={{ padding: '10px', background: 'transparent', color: '#64748b', border: 'none', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>
                                 Cancel
                             </button>
-=======
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showConsumptionModal && (
                 <div className="modal-overlay">
                     <div className="modal-content inventory-modal" style={{maxWidth: '500px'}}>
@@ -1168,7 +1172,6 @@ const PharmacyInventory = () => {
                                     <button type="submit" disabled={savingConsumption} className="btn-save">{savingConsumption ? 'Saving...' : 'Record Consumption'}</button>
                                 </div>
                             </form>
->>>>>>> 4d4c4bcccfc97a3271159dc91f5fbcd1cbb41d59
                         </div>
                     </div>
                 </div>

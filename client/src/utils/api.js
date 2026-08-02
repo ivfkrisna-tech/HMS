@@ -330,12 +330,10 @@ export const pharmacyAPI = {
         if (qs) url += `?${qs}`;
         return (await apiClient.get(url)).data;
     },
-<<<<<<< HEAD
     uploadPurchaseInvoice: async (formData) => (await apiClient.post('/api/pharmacy/purchase-invoice/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data,
     getPurchaseInvoices: async () => (await apiClient.get('/api/pharmacy/purchase-invoice')).data,
     getPurchaseInvoiceById: async (id) => (await apiClient.get(`/api/pharmacy/purchase-invoice/${id}`)).data,
-    deletePurchaseInvoice: async (id) => (await apiClient.delete(`/api/pharmacy/purchase-invoice/${id}`)).data
-=======
+    deletePurchaseInvoice: async (id) => (await apiClient.delete(`/api/pharmacy/purchase-invoice/${id}`)).data,
     recordConsumption: async (data) => (await apiClient.post('/api/pharmacy/consumption', data)).data,
     getDepartments: async () => (await apiClient.get('/api/pharmacy/departments')).data,
     createDepartment: async (data) => (await apiClient.post('/api/pharmacy/departments', data)).data,
@@ -346,7 +344,6 @@ export const pharmacyAPI = {
     },
     transferToDepartment: async (data) => (await apiClient.post('/api/pharmacy/departments/transfer', data)).data,
     recordDepartmentUsage: async (data) => (await apiClient.post('/api/pharmacy/departments/usage', data)).data
->>>>>>> 4d4c4bcccfc97a3271159dc91f5fbcd1cbb41d59
 };
 
 export const pharmacyOrderAPI = {
