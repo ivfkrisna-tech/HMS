@@ -480,9 +480,14 @@ const PharmacyInventory = () => {
                                     <span><strong>Imported:</strong> {invoiceStats.imported}</span>
                                 </div>
                             </div>
-                            <button type="button" onClick={() => setShowInvoiceDetails(true)} style={{ padding: '8px 16px', background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                View Invoice Details
-                            </button>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button type="button" onClick={handleClearInvoice} style={{ padding: '8px 16px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    Cancel / Clear
+                                </button>
+                                <button type="button" onClick={() => setShowInvoiceDetails(true)} style={{ padding: '8px 16px', background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    View Invoice Details
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
