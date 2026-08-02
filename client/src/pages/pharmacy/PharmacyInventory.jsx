@@ -823,8 +823,22 @@ const PharmacyInventory = () => {
                                 <h3 className="section-title">Inventory & Pricing</h3>
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label>Quantity</label>
-                                        <input required type="number" value={newMedicine.stock} onChange={(e) => setNewMedicine({ ...newMedicine, stock: e.target.value })} placeholder="0" />
+                                        <label>Purchase Qty *</label>
+                                        <input required type="number" min="0" value={newMedicine.purchaseQty} onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewMedicine({ ...newMedicine, purchaseQty: val, stock: Number(val) + Number(newMedicine.freeQty || 0) });
+                                        }} placeholder="0" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Free Qty (Scheme)</label>
+                                        <input type="number" min="0" value={newMedicine.freeQty} onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewMedicine({ ...newMedicine, freeQty: val, stock: Number(newMedicine.purchaseQty || 0) + Number(val) });
+                                        }} placeholder="0" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Total Stock</label>
+                                        <input readOnly type="number" value={newMedicine.stock} style={{ background: '#f1f5f9', fontWeight: 'bold' }} />
                                     </div>
                                     <div className="form-group">
                                         <label>Unit</label>
@@ -838,16 +852,21 @@ const PharmacyInventory = () => {
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label>Purchase Price (₹)</label>
+                                        <label>Cost Price (₹) *</label>
                                         <div className="input-with-icon">
                                             <input required type="number" step="any" value={newMedicine.buyingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, buyingPrice: e.target.value })} placeholder="0.00" />
                                         </div>
                                     </div>
                                     <div className="form-group">
-                                        <label>Selling Price (₹)</label>
-                                        <div className="input-with-icon">
-                                            <input required type="number" step="any" value={newMedicine.sellingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, sellingPrice: e.target.value })} placeholder="0.00" />
-                                        </div>
+                                        <label>Discount Type</label>
+                                        <select value={newMedicine.discountType} onChange={(e) => setNewMedicine({ ...newMedicine, discountType: e.target.value })}>
+                                            <option value="Percentage">Percentage (%)</option>
+                                            <option value="Flat Amount">Flat Amount (₹)</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Discount Value</label>
+                                        <input type="number" min="0" step="any" value={newMedicine.discountValue} onChange={(e) => setNewMedicine({ ...newMedicine, discountValue: e.target.value })} placeholder="0" />
                                     </div>
                                 </div>
                                 <div className="form-row">
@@ -862,6 +881,42 @@ const PharmacyInventory = () => {
                                         <div className="input-with-icon">
                                             <input required type="number" step="any" value={newMedicine.cgstPercent} onChange={(e) => setNewMedicine({ ...newMedicine, cgstPercent: e.target.value })} placeholder="0" />
                                         </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label style={{ color: '#0369a1' }}>Final Amount (₹)</label>
+                                        <input readOnly type="text" value={
+                                            (() => {
+                                                const qty = Number(newMedicine.purchaseQty) || 0;
+                                                const price = Number(newMedicine.buyingPrice) || 0;
+                                                let baseTotal = qty * price;
+                                                
+                                                let disc = 0;
+                                                if (newMedicine.discountType === 'Percentage') {
+                                                    disc = baseTotal * ((Number(newMedicine.discountValue) || 0) / 100);
+                                                } else {
+                                                    disc = Number(newMedicine.discountValue) || 0;
+                                                }
+                                                
+                                                const afterDisc = Math.max(0, baseTotal - disc);
+                                                
+                                                const cgstAmt = afterDisc * ((Number(newMedicine.cgstPercent) || 0) / 100);
+                                                const sgstAmt = afterDisc * ((Number(newMedicine.sgstPercent) || 0) / 100);
+                                                
+                                                return (afterDisc + cgstAmt + sgstAmt).toFixed(2);
+                                            })()
+                                        } style={{ background: '#f0f9ff', fontWeight: 'bold', color: '#0369a1', borderColor: '#bae6fd' }} />
+                                    </div>
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Selling Price (₹) *</label>
+                                        <div className="input-with-icon">
+                                            <input required type="number" step="any" value={newMedicine.sellingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, sellingPrice: e.target.value })} placeholder="0.00" />
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Profit Margin</label>
+                                        <input type="text" readOnly value={newMedicine.buyingPrice && newMedicine.sellingPrice ? `${(((Number(newMedicine.sellingPrice) - Number(newMedicine.buyingPrice)) / (Number(newMedicine.buyingPrice) || 1)) * 100).toFixed(1)}%` : '--'} style={{ background: '#f1f5f9', fontWeight: 'bold', color: Number(newMedicine.sellingPrice) > Number(newMedicine.buyingPrice) ? '#059669' : '#dc2626' }} />
                                     </div>
                                 </div>
                             </div>
