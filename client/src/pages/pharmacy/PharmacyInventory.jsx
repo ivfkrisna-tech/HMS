@@ -34,7 +34,8 @@ const PharmacyInventory = () => {
         sgst: '', cgst: '', cgstPercent: '', sgstPercent: '',
         batchNumber: '', expiryDate: '',
         purchaseDate: new Date().toISOString().split('T')[0],
-        isMultiDose: false, packVolume: '', volumeUnit: 'IU', billingType: 'FULL_UNIT'
+        isMultiDose: false, packVolume: '', volumeUnit: 'IU', billingType: 'FULL_UNIT',
+        purchaseQty: '', freeQty: '', discountType: 'Percentage', discountValue: ''
     };
 
     const [newMedicine, setNewMedicine] = useState(initialFormState);
@@ -191,7 +192,11 @@ const PharmacyInventory = () => {
             ...prev,
             name: med.medicineName,
             batchNumber: med.batch || '',
-            stock: med.purchaseQty || '',
+            stock: (Number(med.purchaseQty) || 0) + (Number(med.freeQty) || 0) || '',
+            purchaseQty: med.purchaseQty || '',
+            freeQty: med.freeQty || '',
+            discountType: 'Percentage',
+            discountValue: med.discount || '',
             unit: med.unit || 'Tablets',
             buyingPrice: med.purchaseRate || '',
             sellingPrice: med.mrp || '',
@@ -271,7 +276,11 @@ const PharmacyInventory = () => {
             expiryDate: new Date(newMedicine.expiryDate),
             purchaseDate: new Date(newMedicine.purchaseDate),
             isMultiDose: Boolean(newMedicine.isMultiDose),
-            packVolume: Number(newMedicine.packVolume) || 1
+            packVolume: Number(newMedicine.packVolume) || 1,
+            purchaseQty: Number(newMedicine.purchaseQty) || 0,
+            freeQty: Number(newMedicine.freeQty) || 0,
+            discountType: newMedicine.discountType || 'Percentage',
+            discountValue: Number(newMedicine.discountValue) || 0
         };
 
         console.log("UPDATE PAYLOAD SENT:", cleanedData);
@@ -347,7 +356,11 @@ const PharmacyInventory = () => {
             isMultiDose: med.isMultiDose || false,
             packVolume: med.packVolume || '',
             volumeUnit: med.volumeUnit || 'ml',
-            billingType: med.billingType || 'FULL_UNIT'
+            billingType: med.billingType || 'FULL_UNIT',
+            purchaseQty: med.purchaseQty || '',
+            freeQty: med.freeQty || '',
+            discountType: med.discountType || 'Percentage',
+            discountValue: med.discountValue || ''
         });
         setIsEditing(true);
         setEditId(med._id);
@@ -521,10 +534,24 @@ const PharmacyInventory = () => {
                             )}
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
                             <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SEALED STOCK QTY (PACKS/BOTTLES) *</label>
-                                <input required type="number" min="0" value={newMedicine.stock} onChange={(e) => setNewMedicine({ ...newMedicine, stock: e.target.value })} placeholder="e.g. 500" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>PURCHASE QTY *</label>
+                                <input required type="number" min="0" value={newMedicine.purchaseQty} onChange={(e) => {
+                                    const val = e.target.value;
+                                    setNewMedicine({ ...newMedicine, purchaseQty: val, stock: Number(val) + Number(newMedicine.freeQty || 0) });
+                                }} placeholder="e.g. 10" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                            </div>
+                            <div className="form-group">
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>FREE QTY (SCHEME)</label>
+                                <input type="number" min="0" value={newMedicine.freeQty} onChange={(e) => {
+                                    const val = e.target.value;
+                                    setNewMedicine({ ...newMedicine, freeQty: val, stock: Number(newMedicine.purchaseQty || 0) + Number(val) });
+                                }} placeholder="e.g. 2" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                            </div>
+                            <div className="form-group">
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK</label>
+                                <input readOnly type="number" value={newMedicine.stock} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 'bold' }} />
                             </div>
                             <div className="form-group">
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>UNIT</label>
@@ -532,28 +559,27 @@ const PharmacyInventory = () => {
                                     {['Tablets', 'Capsules', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
                             </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>BATCH NUMBER</label>
-                                <input type="text" value={newMedicine.batchNumber} onChange={(e) => setNewMedicine({ ...newMedicine, batchNumber: e.target.value })} placeholder="e.g. BT-2026-001" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
                             <div className="form-group">
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>COST PRICE (₹) *</label>
                                 <input required type="number" min="0" step="any" value={newMedicine.buyingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, buyingPrice: e.target.value })} placeholder="e.g. 30" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                             </div>
                             <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SELLING PRICE (₹) *</label>
-                                <input required type="number" min="0" step="any" value={newMedicine.sellingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, sellingPrice: e.target.value })} placeholder="e.g. 50" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>DISCOUNT TYPE</label>
+                                <select value={newMedicine.discountType} onChange={(e) => setNewMedicine({ ...newMedicine, discountType: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
+                                    <option value="Percentage">Percentage (%)</option>
+                                    <option value="Flat Amount">Flat Amount (₹)</option>
+                                </select>
                             </div>
                             <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>PROFIT MARGIN</label>
-                                <input type="text" readOnly value={newMedicine.buyingPrice && newMedicine.sellingPrice ? `${(((Number(newMedicine.sellingPrice) - Number(newMedicine.buyingPrice)) / (Number(newMedicine.buyingPrice) || 1)) * 100).toFixed(1)}%` : '--'} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: '700', color: Number(newMedicine.sellingPrice) > Number(newMedicine.buyingPrice) ? '#059669' : '#dc2626' }} />
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>DISCOUNT VALUE</label>
+                                <input type="number" min="0" step="any" value={newMedicine.discountValue} onChange={(e) => setNewMedicine({ ...newMedicine, discountValue: e.target.value })} placeholder="e.g. 10" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
                             <div className="form-group">
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>CGST (%)</label>
                                 <input type="number" min="0" step="any" value={newMedicine.cgstPercent} onChange={(e) => setNewMedicine({ ...newMedicine, cgstPercent: e.target.value })} placeholder="e.g. 5" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
@@ -562,7 +588,45 @@ const PharmacyInventory = () => {
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SGST (%)</label>
                                 <input type="number" min="0" step="any" value={newMedicine.sgstPercent} onChange={(e) => setNewMedicine({ ...newMedicine, sgstPercent: e.target.value })} placeholder="e.g. 5" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                             </div>
-                            <div className="form-group"></div>
+                            <div className="form-group">
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#0369a1', marginBottom: '8px' }}>FINAL AMOUNT (₹)</label>
+                                <input readOnly type="text" value={
+                                    (() => {
+                                        const qty = Number(newMedicine.purchaseQty) || 0;
+                                        const price = Number(newMedicine.buyingPrice) || 0;
+                                        let baseTotal = qty * price;
+                                        
+                                        let disc = 0;
+                                        if (newMedicine.discountType === 'Percentage') {
+                                            disc = baseTotal * ((Number(newMedicine.discountValue) || 0) / 100);
+                                        } else {
+                                            disc = Number(newMedicine.discountValue) || 0;
+                                        }
+                                        
+                                        const afterDisc = Math.max(0, baseTotal - disc);
+                                        
+                                        const cgstAmt = afterDisc * ((Number(newMedicine.cgstPercent) || 0) / 100);
+                                        const sgstAmt = afterDisc * ((Number(newMedicine.sgstPercent) || 0) / 100);
+                                        
+                                        return (afterDisc + cgstAmt + sgstAmt).toFixed(2);
+                                    })()
+                                } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #bae6fd', background: '#f0f9ff', fontWeight: 'bold', color: '#0369a1' }} />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                            <div className="form-group">
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SELLING PRICE (₹) *</label>
+                                <input required type="number" min="0" step="any" value={newMedicine.sellingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, sellingPrice: e.target.value })} placeholder="e.g. 50" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                            </div>
+                            <div className="form-group">
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>PROFIT MARGIN</label>
+                                <input type="text" readOnly value={newMedicine.buyingPrice && newMedicine.sellingPrice ? `${(((Number(newMedicine.sellingPrice) - Number(newMedicine.buyingPrice)) / (Number(newMedicine.buyingPrice) || 1)) * 100).toFixed(1)}%` : '--'} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: '700', color: Number(newMedicine.sellingPrice) > Number(newMedicine.buyingPrice) ? '#059669' : '#dc2626' }} />
+                            </div>
+                            <div className="form-group">
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>BATCH NUMBER</label>
+                                <input type="text" value={newMedicine.batchNumber} onChange={(e) => setNewMedicine({ ...newMedicine, batchNumber: e.target.value })} placeholder="e.g. BT-2026-001" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                            </div>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
