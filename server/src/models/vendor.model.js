@@ -33,6 +33,11 @@ const vendorSchema = new mongoose.Schema({
             message: props => `${props.value} is not a valid GSTIN format!`
         }
     },
+    dlNumber: {
+        type: String,
+        default: '',
+        trim: true
+    },
     status: {
         type: String,
         enum: ['Active', 'Inactive'],

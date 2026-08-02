@@ -45,7 +45,7 @@ router.get('/', verifyToken, async (req, res) => {
 // 2. CREATE A NEW LAB TEST
 router.post('/', verifyAdminOrSuperAdmin, async (req, res) => {
     try {
-        const { name, code, description, price, category, isActive } = req.body;
+        const { name, code, description, price, category, isActive, sgst, cgst, discount } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, message: 'Test name is required' });
@@ -62,7 +62,7 @@ router.post('/', verifyAdminOrSuperAdmin, async (req, res) => {
         }
 
         const newTest = await LabTest.create({
-            name, code, description, price, category, isActive, hospitalId
+            name, code, description, price, category, isActive, hospitalId, sgst, cgst, discount
         });
 
         res.status(201).json({ success: true, message: 'Lab test created', data: newTest });
@@ -75,7 +75,7 @@ router.post('/', verifyAdminOrSuperAdmin, async (req, res) => {
 // 3. UPDATE A LAB TEST
 router.put('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
     try {
-        const { name, code, description, price, category, isActive, hospitalPrices } = req.body;
+        const { name, code, description, price, category, isActive, hospitalPrices, sgst, cgst, discount } = req.body;
 
         const test = await LabTest.findById(req.params.id);
         if (!test) return res.status(404).json({ success: false, message: 'Lab test not found' });
@@ -98,6 +98,9 @@ router.put('/:id', verifyAdminOrSuperAdmin, async (req, res) => {
         if (category !== undefined) updateData.category = category;
         if (isActive !== undefined) updateData.isActive = isActive;
         if (hospitalPrices !== undefined) updateData.hospitalPrices = hospitalPrices;
+        if (sgst !== undefined) updateData.sgst = sgst;
+        if (cgst !== undefined) updateData.cgst = cgst;
+        if (discount !== undefined) updateData.discount = discount;
 
         const updatedTest = await LabTest.findByIdAndUpdate(
             req.params.id,

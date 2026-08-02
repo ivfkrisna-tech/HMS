@@ -22,9 +22,9 @@ const verifyBillingAccess = async (req, res, next) => {
             const roleName = (roleData?.name || '').toLowerCase();
             const perms = roleData?.permissions || [];
 
-            if (['cashier', 'accountant', 'reception', 'receptionist', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(roleIdStr) ||
-                ['cashier', 'accountant', 'reception', 'receptionist', 'centraladmin', 'superadmin', 'hospitaladmin'].includes(roleName) ||
-                perms.includes('billing_view') || perms.includes('billing_manage') ||
+            if (['cashier', 'accountant', 'reception', 'receptionist', 'centraladmin', 'superadmin', 'hospitaladmin', 'pharmacy', 'pharmacist'].includes(roleIdStr) ||
+                ['cashier', 'accountant', 'reception', 'receptionist', 'centraladmin', 'superadmin', 'hospitaladmin', 'pharmacy', 'pharmacist'].includes(roleName) ||
+                perms.includes('billing_view') || perms.includes('billing_manage') || perms.includes('pharmacy_manage') ||
                 perms.includes('appointment_manage') || perms.includes('*')) {
                 await resolveTenant(req, res, next);
             } else {
@@ -142,7 +142,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 .select('appointmentDate appointmentTime amount paymentStatus paymentMode serviceName doctorName status createdAt')
                 .sort({ appointmentDate: -1 }).lean(),
             LabReport.find(patientSearchQuery)
-                .select('testNames testName amount price paymentStatus paymentMode testStatus createdAt')
+                .select('testNames testName amount price paymentStatus paymentMode testStatus createdAt sgst cgst discount')
                 .sort({ createdAt: -1 }).lean(),
             PharmacyOrder.find(patientSearchQuery)
                 .select('items totalAmount paymentStatus orderStatus createdAt')
@@ -161,7 +161,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 .select('appointmentDate appointmentTime amount paymentStatus paymentMode serviceName doctorName status createdAt')
                 .sort({ appointmentDate: -1 }).lean(),
             MasterLabReport.find(patientSearchQuery)
-                .select('testNames testName amount price paymentStatus paymentMode testStatus createdAt')
+                .select('testNames testName amount price paymentStatus paymentMode testStatus createdAt sgst cgst discount')
                 .sort({ createdAt: -1 }).lean(),
             MasterPharmacyOrder.find(patientSearchQuery)
                 .select('items totalAmount paymentStatus orderStatus createdAt')
@@ -188,6 +188,34 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         const admissions = mergeDocs(tenantAdmissions, masterAdmissions).sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate));
         const packages = mergeDocs(tenantPackages, masterPackages).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+        const LabTest = require('../models/labTest.model');
+        const allLabTests = await LabTest.find({}).lean();
+        const hidStr = (req.user.hospitalId || '').toString();
+
+        const finalLabReports = labReports.map(report => {
+            const r = { ...report };
+            if (!r.sgst && !r.cgst) {
+                let computedSgst = 0;
+                let computedCgst = 0;
+                const tNames = Array.isArray(r.testNames) ? r.testNames : (r.testName ? [r.testName] : []);
+                tNames.forEach(name => {
+                    const normalized = name.trim().toLowerCase();
+                    const testObj = allLabTests.find(t => t.name.trim().toLowerCase() === normalized);
+                    if (testObj) {
+                        let basePrice = testObj.price || 0;
+                        if (hidStr && testObj.hospitalPrices && testObj.hospitalPrices[hidStr]) {
+                            basePrice = testObj.hospitalPrices[hidStr];
+                        }
+                        if (testObj.sgst) computedSgst += (basePrice * testObj.sgst) / 100;
+                        if (testObj.cgst) computedCgst += (basePrice * testObj.cgst) / 100;
+                    }
+                });
+                r.sgst = computedSgst;
+                r.cgst = computedCgst;
+            }
+            return r;
+        });
+
         console.log(`Raw Admissions Results (${admissions.length} found):`, JSON.stringify(admissions, null, 2));
         
         const payload = {
@@ -202,7 +230,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 dob: patient.dob,
                 avatar: patient.avatar || null,
             },
-            billing: { appointments, labReports, pharmacyOrders, facilityCharges, admissions, packages }
+            billing: { appointments, labReports: finalLabReports, pharmacyOrders, facilityCharges, admissions, packages }
         };
         console.log(`Final Response Keys:`, Object.keys(payload));
         console.log(`Billing Payload Keys:`, Object.keys(payload.billing));
@@ -241,6 +269,32 @@ router.post('/facility-charge', verifyBillingAccess, async (req, res) => {
     }
 });
 
+// 2b. Edit Facility Charge (Before Payment)
+router.put('/facility-charge/:id', verifyBillingAccess, async (req, res) => {
+    try {
+        const { pricePerDay, days, facilityName } = req.body;
+        const FacilityCharge = MasterFacilityCharge;
+        
+        const charge = await FacilityCharge.findById(req.params.id);
+        if (!charge) return res.status(404).json({ success: false, message: 'Charge not found' });
+        
+        if (charge.paymentStatus === 'Paid') {
+            return res.status(400).json({ success: false, message: 'Cannot edit a paid charge' });
+        }
+
+        if (pricePerDay !== undefined) charge.pricePerDay = Number(pricePerDay);
+        if (days !== undefined) charge.days = Number(days);
+        if (facilityName !== undefined) charge.facilityName = facilityName;
+        
+        charge.totalAmount = charge.pricePerDay * charge.days;
+        await charge.save();
+        
+        res.json({ success: true, message: 'Charge updated successfully', charge });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // 3. Mark items as paid — updates tenant DB
 router.put('/pay', verifyBillingAccess, async (req, res) => {
     try {
@@ -259,10 +313,14 @@ router.put('/pay', verifyBillingAccess, async (req, res) => {
         await Promise.all([
             appointmentIds.length > 0 && Appointment.updateMany({ _id: { $in: appointmentIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             appointmentIds.length > 0 && MasterAppointment.updateMany({ _id: { $in: appointmentIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            
-            labReportIds.length > 0 && LabReport.updateMany({ _id: { $in: labReportIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            labReportIds.length > 0 && MasterLabReport.updateMany({ _id: { $in: labReportIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            
+            ...(labReportIds || []).map(id => {
+                const disc = (req.body.labDiscounts && req.body.labDiscounts[id]) ? Number(req.body.labDiscounts[id]) : (Number(req.body.discount) || 0);
+                return LabReport.updateOne({ _id: id }, { $set: { paymentStatus: 'Paid', paymentMode, discount: disc } });
+            }),
+            ...(labReportIds || []).map(id => {
+                const disc = (req.body.labDiscounts && req.body.labDiscounts[id]) ? Number(req.body.labDiscounts[id]) : (Number(req.body.discount) || 0);
+                return MasterLabReport.updateOne({ _id: id }, { $set: { paymentStatus: 'Paid', paymentMode, discount: disc } });
+            }),
             pharmacyOrderIds.length > 0 && PharmacyOrder.updateMany({ _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             pharmacyOrderIds.length > 0 && MasterPharmacyOrder.updateMany({ _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             

@@ -6,7 +6,7 @@ import { useBranding } from '../../context/BrandingContext';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
-    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers, FiRefreshCcw, FiShoppingCart
+    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers, FiRefreshCcw, FiShoppingCart, FiCornerUpLeft
 } from 'react-icons/fi';
 import './DashboardLayout.css';
 
@@ -67,6 +67,8 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 { label: 'Inventory', path: '/pharmacy/inventory', icon: <FiPackage /> },
                 { label: 'Pharmacy Orders', path: '/pharmacy/orders', icon: <FiClipboard /> },
                 { label: 'Return & Exchange', path: '/pharmacy/returns', icon: <FiRefreshCcw /> },
+                { label: 'Vendor Returns', path: '/pharmacy/vendor-returns', icon: <FiCornerUpLeft /> },
+                { label: 'Departments & Transfer', path: '/pharmacy/departments', icon: <FiActivity /> },
             ];
         }
         if (role === 'accountant') {
@@ -112,6 +114,12 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
                 }
                 if (!links.some(l => l.path === '/pharmacy/returns')) {
                     links.push({ label: 'Pharmacy Returns', path: '/pharmacy/returns', icon: <FiRefreshCcw /> });
+                }
+                if (!links.some(l => l.path === '/pharmacy/vendor-returns')) {
+                    links.push({ label: 'Vendor Returns', path: '/pharmacy/vendor-returns', icon: <FiCornerUpLeft /> });
+                }
+                if (!links.some(l => l.path === '/pharmacy/departments')) {
+                    links.push({ label: 'Departments & Transfer', path: '/pharmacy/departments', icon: <FiActivity /> });
                 }
             }
             

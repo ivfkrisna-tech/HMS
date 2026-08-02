@@ -277,7 +277,7 @@ const NursePatientProfile = () => {
                                         return (
                                         <div key={item.id} className="np-med-row-card item-given-border">
                                             <div className="np-med-main-info">
-                                                <h5>✓ {item.name}</h5>
+                                                <h5>✓ {item.name} {item.dose && item.dose !== 'Standard Dose' ? `(${item.dose})` : ''}</h5>
                                                 <span className="np-med-sub-text">
                                                     {item.time} • {item.type}
                                                     {item.volumeMl && <span style={{ color: '#4338ca', fontWeight: 600 }}> • Vol: {item.volumeMl}</span>}
@@ -354,7 +354,7 @@ const NursePatientProfile = () => {
                                                 }`}
                                             >
                                                 <div className="np-med-main-info">
-                                                    <h5>{item.isGiven ? '✓' : isOverdue ? '⚠️' : '🔒'} {item.name}</h5>
+                                                    <h5>{item.isGiven ? '✓' : isOverdue ? '⚠️' : '🔒'} {item.name} {item.dose && item.dose !== 'Standard Dose' ? `(${item.dose})` : ''}</h5>
                                                     <span className="np-med-sub-text">
                                                         {item.time} • {item.type}
                                                         {item.volumeMl && <span style={{ color: '#4338ca', fontWeight: 600 }}> • Vol: {item.volumeMl}</span>}
@@ -433,7 +433,7 @@ const NursePatientProfile = () => {
                                         return (
                                         <div key={item.id} className="np-med-row-card item-scheduled-border">
                                             <div className="np-med-main-info">
-                                                <h5>🔒 {item.name}</h5>
+                                                <h5>🔒 {item.name} {item.dose && item.dose !== 'Standard Dose' ? `(${item.dose})` : ''}</h5>
                                                 <span className="np-med-sub-text">
                                                     {item.time} • {item.type}
                                                     {item.volumeMl && <span style={{ color: '#4338ca', fontWeight: 600 }}> • Vol: {item.volumeMl}</span>}

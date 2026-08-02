@@ -2,28 +2,28 @@ const mongoose = require('mongoose');
 
 const brandingSchema = new mongoose.Schema({
     // Identity
-    appName:    { type: String, default: '' },   // e.g. "AKG Medical Suite"
-    tagline:    { type: String, default: '' },   // e.g. "Caring for Every Life"
-    logoUrl:    { type: String, default: '' },   // hosted image URL
+    appName: { type: String, default: '' },   // e.g. "AKG Medical Suite"
+    tagline: { type: String, default: '' },   // e.g. "Caring for Every Life"
+    logoUrl: { type: String, default: '' },   // hosted image URL
     faviconUrl: { type: String, default: '' },
     // Color Palette
-    primaryColor:    { type: String, default: '#14b8a6' }, // teal
-    secondaryColor:  { type: String, default: '#0a2647' }, // navy
-    accentColor:     { type: String, default: '#6366f1' }, // purple
-    successColor:    { type: String, default: '#10b981' },
+    primaryColor: { type: String, default: '#14b8a6' }, // teal
+    secondaryColor: { type: String, default: '#0a2647' }, // navy
+    accentColor: { type: String, default: '#6366f1' }, // purple
+    successColor: { type: String, default: '#10b981' },
     backgroundColor: { type: String, default: '#f8fafc' },
-    textColor:       { type: String, default: '#1e293b' },
+    textColor: { type: String, default: '#1e293b' },
     // Contact
-    supportEmail:  { type: String, default: '' },
-    supportPhone:  { type: String, default: '' },
-    address:       { type: String, default: '' },
+    supportEmail: { type: String, default: '' },
+    supportPhone: { type: String, default: '' },
+    address: { type: String, default: '' },
     // Social / Links
-    websiteUrl:    { type: String, default: '' },
-    instagramUrl:  { type: String, default: '' },
-    facebookUrl:   { type: String, default: '' },
-    twitterUrl:    { type: String, default: '' },
+    websiteUrl: { type: String, default: '' },
+    instagramUrl: { type: String, default: '' },
+    facebookUrl: { type: String, default: '' },
+    twitterUrl: { type: String, default: '' },
     // Footer
-    footerText:    { type: String, default: '' },  // e.g. "© 2025 AKG Hospital. All rights reserved."
+    footerText: { type: String, default: '' },  // e.g. "© 2025 AKG Hospital. All rights reserved."
 }, { _id: false });
 
 const hospitalSchema = new mongoose.Schema({
@@ -38,6 +38,8 @@ const hospitalSchema = new mongoose.Schema({
     email: { type: String, default: '' },
     website: { type: String, default: '' },
     logo: { type: String, default: null },
+    gstin: { type: String, default: '' },
+    dlNumber: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
     departments: { type: [String], default: ['IVF'] },
     departmentFees: { type: Map, of: Number, default: {} },
@@ -70,14 +72,14 @@ const hospitalSchema = new mongoose.Schema({
 
     // Staff tier limits (enforced at staff creation)
     tier: {
-        maxDoctors:       { type: Number, default: 1 },
+        maxDoctors: { type: Number, default: 1 },
         maxReceptionists: { type: Number, default: 1 },
     },
 
     // Subscription / billing config (set by centraladmin)
     subscription: {
-        ratePerPatient:  { type: Number, default: 0 },
-        billingEnabled:  { type: Boolean, default: false },
+        ratePerPatient: { type: Number, default: 0 },
+        billingEnabled: { type: Boolean, default: false },
     },
 
     // Local deployment — API key (bcrypt hashed) issued when clinic goes on-premise
@@ -86,8 +88,8 @@ const hospitalSchema = new mongoose.Schema({
 
     // Local server status — updated by heartbeat / stats sync
     localServer: {
-        isOnline:      { type: Boolean, default: false },
-        lastSeenAt:    { type: Date, default: null },
+        isOnline: { type: Boolean, default: false },
+        lastSeenAt: { type: Date, default: null },
         serverVersion: { type: String, default: '' },
     },
 
@@ -104,9 +106,9 @@ const hospitalSchema = new mongoose.Schema({
         default: 'per_patient',
     },
     revenueConfig: {
-        monthlyFee:    { type: Number, default: 0 },   // for fixed_monthly
-        ratePerLogin:  { type: Number, default: 0 },   // for per_login (future)
-        billingCycle:  { type: String, enum: ['monthly', 'quarterly', 'annual'], default: 'monthly' },
+        monthlyFee: { type: Number, default: 0 },   // for fixed_monthly
+        ratePerLogin: { type: Number, default: 0 },   // for per_login (future)
+        billingCycle: { type: String, enum: ['monthly', 'quarterly', 'annual'], default: 'monthly' },
     },
 }, { timestamps: true });
 

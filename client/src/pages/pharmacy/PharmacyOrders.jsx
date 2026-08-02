@@ -15,6 +15,7 @@ const PharmacyOrders = () => {
     const [doctors, setDoctors] = useState([]);
     const [hospitalInfo, setHospitalInfo] = useState({});
     const [dashboardStats, setDashboardStats] = useState({ todayCollection: 0, overallCollection: 0, pendingCollection: 0, doctorGuaranteedAmount: 0 });
+    const [billingSettings, setBillingSettings] = useState({ gstin: '', dlNumber: '' });
 
     // Modals
     const [showBillModal, setShowBillModal] = useState(false);
@@ -26,7 +27,25 @@ const PharmacyOrders = () => {
     const [paymentMode, setPaymentMode] = useState('Cash');
     const [authorizedByDoctor, setAuthorizedByDoctor] = useState('');
     const [authorizationNote, setAuthorizationNote] = useState('');
+    const [discountPercent, setDiscountPercent] = useState(0);
 
+    // Walk-in Billing
+    const [showWalkInModal, setShowWalkInModal] = useState(false);
+    const [walkInForm, setWalkInForm] = useState({
+        patientName: '',
+        patientPhone: '',
+        doctorName: '',
+        items: [],
+        discountPercent: 0,
+        subtotal: 0,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        totalAmount: 0,
+        discountAmount: 0,
+        grandTotal: 0
+    });
+    const [walkInSearch, setWalkInSearch] = useState('');
+    const [walkInSaving, setWalkInSaving] = useState(false);
     useEffect(() => {
         fetchOrders();
         fetchInventory();
@@ -42,7 +61,11 @@ const PharmacyOrders = () => {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            if (data.success) setInventory(data.inventory);
+            if (data.success) {
+                const inventoryData = data.medicines || data.inventory || data.items || data.data || data || [];
+                console.log("Resolved Inventory Data:", inventoryData);
+                setInventory(Array.isArray(inventoryData) ? inventoryData : []);
+            }
         } catch (error) {
             console.error("Failed to load inventory", error);
         }
@@ -87,10 +110,43 @@ const PharmacyOrders = () => {
                     gstin: res.hospital.gstin,
                     dlNumber: res.hospital.dlNumber
                 });
+                setBillingSettings({
+                    gstin: res.hospital.gstin || '',
+                    dlNumber: res.hospital.dlNumber || ''
+                });
             }
         } catch (error) {
             console.warn("Failed to load hospital info. Using default layout.", error.message);
             setHospitalInfo({ name: 'Aryan Hospital', address: 'Hospital Address', phone: '0000000000' });
+        }
+    };
+
+    const handleUpdateBillingSettings = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const hostname = window.location.hostname;
+            const backendUrl = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost'))
+                ? 'http://localhost:3000'
+                : (import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com');
+
+            const res = await fetch(`${backendUrl}/api/pharmacy/hospital-billing`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify(billingSettings)
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("Pharmacy Billing Details updated successfully!");
+                fetchHospital();
+            } else {
+                alert(data.message || "Failed to update billing details");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error updating billing details");
         }
     };
 
@@ -103,6 +159,55 @@ const PharmacyOrders = () => {
             console.error("Failed to fetch pharmacy orders", err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleWalkInSubmit = async (e) => {
+        e.preventDefault();
+        setWalkInSaving(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/pharmacy/orders/outside-patient-bill', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    patientName: walkInForm.patientName,
+                    patientPhone: walkInForm.patientPhone,
+                    doctorName: walkInForm.doctorName,
+                    items: walkInForm.items,
+                    totalAmount: walkInForm.subtotal,
+                    taxableAmount: walkInForm.subtotal,
+                    cgstAmount: walkInForm.cgstAmount,
+                    sgstAmount: walkInForm.sgstAmount,
+                    discountAmount: walkInForm.discountAmount
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setShowWalkInModal(false);
+                fetchOrders();
+                fetchInventory();
+                // Reset form
+                setWalkInForm({
+                    patientName: '', patientPhone: '', doctorName: '', items: [], discountPercent: 0,
+                    subtotal: 0, cgstAmount: 0, sgstAmount: 0, totalAmount: 0, discountAmount: 0, grandTotal: 0
+                });
+                alert('Walk-in Bill generated successfully!');
+                
+                // Open bill modal to print
+                setSelectedOrder(data.order);
+                setShowBillModal(true);
+            } else {
+                alert(data.message || 'Failed to generate bill');
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error generating walk-in bill');
+        } finally {
+            setWalkInSaving(false);
         }
     };
 
@@ -228,6 +333,7 @@ const PharmacyOrders = () => {
         setPaymentMode('Cash');
         setAuthorizedByDoctor('');
         setAuthorizationNote('');
+        setDiscountPercent(order.discountPercent || 0);
         setShowPaymentModal(true);
     };
 
@@ -242,7 +348,8 @@ const PharmacyOrders = () => {
             const token = localStorage.getItem('token');
 
             // 👇 Yeh rasta seedha Render backend ki taraf jayega
-            const backendUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            const hostname = window.location.hostname;
+            const backendUrl = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost'))
                 ? 'http://localhost:3000'
                 : (import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com');
 
@@ -264,6 +371,7 @@ const PharmacyOrders = () => {
     };
     const handleViewBill = (order) => {
         setSelectedOrder(order);
+        setDiscountPercent(order.discountPercent || 0);
         setShowBillModal(true);
     };
 
@@ -282,18 +390,29 @@ const PharmacyOrders = () => {
         doc.text(hospitalAddress, 105, 26, { align: 'center' });
         doc.text(`Phone: ${hospitalPhone}`, 105, 31, { align: 'center' });
 
+        let yOffset = 0;
+        let authString = [];
+        if (hospitalInfo?.gstin) authString.push(`GSTIN: ${hospitalInfo.gstin}`);
+        if (hospitalInfo?.dlNumber) authString.push(`DL No: ${hospitalInfo.dlNumber}`);
+        
+        if (authString.length > 0) {
+            yOffset = 5;
+            doc.setFontSize(9);
+            doc.text(authString.join('  |  '), 105, 31 + yOffset, { align: 'center' });
+        }
+
         doc.setDrawColor(200);
-        doc.line(15, 35, 195, 35);
+        doc.line(15, 35 + yOffset, 195, 35 + yOffset);
 
         doc.setFontSize(16);
         doc.setTextColor(0);
-        doc.text('Pharmacy Invoice', 105, 45, { align: 'center' });
+        doc.text('Pharmacy Invoice', 105, 45 + yOffset, { align: 'center' });
 
         doc.setFontSize(10);
-        doc.text(`Invoice No: ${selectedOrder._id.slice(-8).toUpperCase()}`, 15, 55);
-        doc.text(`Date: ${new Date().toLocaleDateString()}`, 150, 55);
-        doc.text(`Patient: ${selectedOrder.userId?.name || 'N/A'}`, 15, 62);
-        doc.text(`Doctor: Dr. ${selectedOrder.doctorId?.name || 'N/A'}`, 150, 62);
+        doc.text(`Invoice No: ${selectedOrder._id.slice(-8).toUpperCase()}`, 15, 55 + yOffset);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`, 150, 55 + yOffset);
+        doc.text(`Patient: ${selectedOrder.userId?.name || 'N/A'}`, 15, 62 + yOffset);
+        doc.text(`Doctor: Dr. ${selectedOrder.doctorId?.name || 'N/A'}`, 150, 62 + yOffset);
 
         let subtotal = 0;
         let totalCgst = 0;
@@ -353,7 +472,7 @@ const PharmacyOrders = () => {
         });
 
         doc.autoTable({
-            startY: 70,
+            startY: 70 + yOffset,
             head: [['#', 'Medicine Name', 'Billed Qty', 'Unit Rate', 'GST %', 'Total Amount']],
             body: tableData,
             theme: 'grid',
@@ -362,22 +481,46 @@ const PharmacyOrders = () => {
         });
 
         const finalY = doc.lastAutoTable.finalY + 10;
-        const grandTotal = subtotal + totalCgst + totalSgst;
+        const pct = selectedOrder.discountPercent || discountPercent || 0;
+        let discountAmt = 0;
+        if (pct > 0) {
+            discountAmt = (subtotal * pct) / 100;
+        } else {
+            discountAmt = selectedOrder.discountAmount || 0;
+        }
+        const grandTotal = Math.max(0, subtotal + totalCgst + totalSgst - discountAmt);
 
         doc.setFontSize(10);
         doc.text(`Subtotal: Rs. ${subtotal.toFixed(2)}`, 140, finalY);
         doc.text(`CGST: Rs. ${totalCgst.toFixed(2)}`, 140, finalY + 6);
         doc.text(`SGST: Rs. ${totalSgst.toFixed(2)}`, 140, finalY + 12);
+        
+        let currentY = finalY + 12;
+        if (discountAmt > 0) {
+            currentY += 6;
+            doc.setTextColor(220, 38, 38);
+            const discountLabel = pct > 0 ? `Discount (${pct}%):` : `Discount:`;
+            doc.text(`${discountLabel} -Rs. ${discountAmt.toFixed(2)}`, 140, currentY);
+            doc.setTextColor(0);
+        }
+
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Grand Total: Rs. ${grandTotal.toFixed(2)}`, 140, finalY + 22);
+        doc.text(`Grand Total: Rs. ${grandTotal.toFixed(2)}`, 140, currentY + 10);
+
+        if (selectedOrder.paymentStatus === 'PAID_BY_DOCTOR' || selectedOrder.paymentMode === 'DOCTOR_AUTHORIZATION') {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(217, 119, 6);
+            doc.text(`Status: Pending by Doctor - ${selectedOrder.authorizedDoctorName || selectedOrder.doctorName || 'Unknown Doctor'}`, 15, currentY + 10);
+        }
 
         doc.save(`Pharmacy_Invoice_${selectedOrder._id.slice(-6)}.pdf`);
     };
 
     console.log("Modal rendering status:", { showBillModal, selectedOrder });
 
-    const getInvoiceCalculations = (order) => {
+    const getInvoiceCalculations = (order, appliedDiscountPercent = null) => {
         const items = order?.prescribedItems || order?.items || [];
         let totalSubtotal = 0;
         let totalTax = 0;
@@ -473,7 +616,15 @@ const PharmacyOrders = () => {
             };
         });
 
-        const grandTotal = totalSubtotal + totalTax;
+        const pct = appliedDiscountPercent !== null ? appliedDiscountPercent : (order?.discountPercent || 0);
+        let finalDiscountAmount = 0;
+        if (pct > 0) {
+            finalDiscountAmount = (totalSubtotal * pct) / 100;
+        } else {
+            finalDiscountAmount = order?.discountAmount || 0;
+        }
+
+        const grandTotal = Math.max(0, totalSubtotal + totalTax - finalDiscountAmount);
         const halfTax = totalTax / 2;
 
         return {
@@ -482,6 +633,8 @@ const PharmacyOrders = () => {
             cgst: halfTax.toFixed(2),
             sgst: halfTax.toFixed(2),
             totalTax: totalTax.toFixed(2),
+            discountPercent: pct,
+            discountAmount: finalDiscountAmount.toFixed(2),
             grandTotal: grandTotal.toFixed(2)
         };
     };
@@ -489,7 +642,7 @@ const PharmacyOrders = () => {
     return (
         <div className="pharmacy-management-container" style={{ padding: '20px' }}>
             {showBillModal && selectedOrder && (() => {
-                const invoiceData = getInvoiceCalculations(selectedOrder);
+                const invoiceData = getInvoiceCalculations(selectedOrder, discountPercent);
                 return (
                     <div
                         style={{
@@ -548,10 +701,19 @@ const PharmacyOrders = () => {
                                 {/* Hospital Letterhead Header */}
                                 <div style={{ textAlign: 'center', borderBottom: '2px solid #0d9488', paddingBottom: '12px' }}>
                                     <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '900', color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                        ARYAN HOSPITAL
+                                        {hospitalInfo?.name || 'ARYAN HOSPITAL'}
                                     </h1>
                                     <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Pharmacy & Dispensary Section</p>
-                                    <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>Mumbai, Maharashtra | Ph: 9089089899 | Email: aryan@gmail.com</p>
+                                    <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
+                                        {hospitalInfo?.address || 'Mumbai, Maharashtra'} | Ph: {hospitalInfo?.phone || '9089089899'} | Email: {hospitalInfo?.email || 'aryan@gmail.com'}
+                                    </p>
+                                    {(hospitalInfo?.gstin || hospitalInfo?.dlNumber) && (
+                                        <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#334155', fontWeight: 'bold' }}>
+                                            {hospitalInfo.gstin ? `GSTIN: ${hospitalInfo.gstin}` : ''}
+                                            {hospitalInfo.gstin && hospitalInfo.dlNumber ? '  |  ' : ''}
+                                            {hospitalInfo.dlNumber ? `DL No: ${hospitalInfo.dlNumber}` : ''}
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Invoice Meta Bar */}
@@ -560,7 +722,7 @@ const PharmacyOrders = () => {
                                     <div>DATE: <span style={{ color: '#0f172a' }}>{selectedOrder?.createdAt ? new Date(selectedOrder.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}</span></div>
                                     <div>
                                         STATUS: <span style={{ color: selectedOrder?.paymentStatus === 'Paid' ? '#059669' : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? '#d97706' : '#dc2626'), fontWeight: '900' }}>
-                                            {selectedOrder?.paymentStatus === 'Paid' ? 'PAID' : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? 'PAID (DR)' : 'PENDING')}
+                                            {selectedOrder?.paymentStatus === 'Paid' ? 'PAID' : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? `PENDING BY DR - ${selectedOrder?.authorizedDoctorName || selectedOrder?.doctorName || 'Unknown'}`.toUpperCase() : 'PENDING')}
                                         </span>
                                     </div>
                                 </div>
@@ -572,8 +734,8 @@ const PharmacyOrders = () => {
                                         <p style={{ margin: '2px 0 0 0', fontWeight: 'bold', color: '#0f172a', fontSize: '13px' }}>{selectedOrder?.userId?.name || selectedOrder?.patientName || selectedOrder?.patient?.name || 'Unknown Patient'}</p>
                                     </div>
                                     <div>
-                                        <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Patient ID / UHID</p>
-                                        <p style={{ margin: '2px 0 0 0', fontWeight: 'bold', color: '#0f172a', fontSize: '13px' }}>{selectedOrder?.patientId || selectedOrder?.uhid || selectedOrder?.patient?.uhid || 'N/A'}</p>
+                                        <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Patient ID / Phone</p>
+                                        <p style={{ margin: '2px 0 0 0', fontWeight: 'bold', color: '#0f172a', fontSize: '13px' }}>{selectedOrder?.patientId || selectedOrder?.uhid || selectedOrder?.patientPhone || selectedOrder?.patient?.uhid || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <p style={{ margin: 0, color: '#94a3b8', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Doctor Name</p>
@@ -650,6 +812,31 @@ const PharmacyOrders = () => {
                                             <span>SGST ({invoiceData.processedItems[0]?.gstPercent / 2 || 6}%):</span>
                                             <span style={{ fontWeight: 'bold' }}>₹{invoiceData.sgst}</span>
                                         </div>
+                                        {selectedOrder?.orderStatus !== 'Completed' && (
+                                            <>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
+                                                    <span>Discount (%):</span>
+                                                    <input 
+                                                        type="number" 
+                                                        min="0"
+                                                        value={discountPercent} 
+                                                        onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)} 
+                                                        style={{ width: '60px', padding: '2px 4px', textAlign: 'right', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                                    />
+                                                </div>
+                                                {invoiceData.discountAmount > 0 && (
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4px', color: '#dc2626', fontSize: '10px' }}>
+                                                        (Discount: -₹{invoiceData.discountAmount})
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                        {selectedOrder?.orderStatus === 'Completed' && invoiceData.discountAmount > 0 && (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#dc2626' }}>
+                                                <span>Discount ({invoiceData.discountPercent > 0 ? `${invoiceData.discountPercent}%` : '₹'}):</span>
+                                                <span style={{ fontWeight: 'bold' }}>-₹{invoiceData.discountAmount}</span>
+                                            </div>
+                                        )}
                                         <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #cbd5e1', fontSize: '13px', fontWeight: '900' }}>
                                             <span>Grand Total:</span>
                                             <span style={{ color: '#0f766e' }}>₹{invoiceData.grandTotal}</span>
@@ -682,9 +869,189 @@ const PharmacyOrders = () => {
                 );
             })()}
 
-            <div className="pharmacy-header" style={{ marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Pharmacy Orders</h2>
-                <p>Process prescriptions sent by doctors and confirm payments.</p>
+            {showWalkInModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '16px' }}>
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', width: '900px', maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
+                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>🛒 Walk-in / Outside Patient Billing</h2>
+                            <button onClick={() => setShowWalkInModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+                        </div>
+                        
+                        <form onSubmit={handleWalkInSubmit}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Patient Name *</label>
+                                    <input required type="text" value={walkInForm.patientName} onChange={e => setWalkInForm({...walkInForm, patientName: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Phone Number</label>
+                                    <input type="text" value={walkInForm.patientPhone} onChange={e => setWalkInForm({...walkInForm, patientPhone: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Doctor Name (Optional)</label>
+                                    <input type="text" value={walkInForm.doctorName} onChange={e => setWalkInForm({...walkInForm, doctorName: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+                                </div>
+                            </div>
+
+                            <div style={{ marginBottom: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 'bold' }}>Add Medicines from Inventory</label>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <select 
+                                        value={walkInSearch} 
+                                        onChange={(e) => {
+                                            const invId = e.target.value;
+                                            if (!invId) return;
+                                            const item = (inventory || []).find(i => i._id === invId);
+                                            if (item) {
+                                                setWalkInForm(prev => {
+                                                    const exists = (prev.items || []).find(i => i.inventoryId === invId);
+                                                    if (exists) return prev;
+                                                    const unitPrice = item.price || item.sellingPrice || 15;
+                                                    const gst = item.cgstPercent + item.sgstPercent || 12;
+                                                    return {
+                                                        ...prev,
+                                                        items: [...(prev.items || []), {
+                                                            inventoryId: item._id,
+                                                            medicineName: item.name || item.medicineName || 'Medicine',
+                                                            batch: item.batchNumber || 'N/A',
+                                                            exp: item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : 'N/A',
+                                                            quantity: 1,
+                                                            dosage: '',
+                                                            unitRate: unitPrice,
+                                                            gstPercent: gst,
+                                                            stock: item.stock
+                                                        }]
+                                                    };
+                                                });
+                                            }
+                                            setWalkInSearch('');
+                                        }}
+                                        style={{ flex: 1, padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                                    >
+                                        <option value="">-- Search & Select Medicine --</option>
+                                        {(inventory || []).filter(i => (i.stock || i.quantity || 0) > 0).map((item, idx) => {
+                                            const itemName = item.name || item.medicineName || item.itemName || 'Unknown Medicine';
+                                            const itemStock = item.stock || item.quantity || 0;
+                                            const itemPrice = item.price || item.sellingPrice || 0;
+                                            return (
+                                                <option key={item._id || idx} value={item._id}>
+                                                    {itemName} (Batch: {item.batchNumber || 'N/A'} | Stock: {itemStock} | ₹{itemPrice})
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+                                
+                                {walkInForm.items.length > 0 && (
+                                    <table style={{ width: '100%', marginTop: '12px', fontSize: '12px', textAlign: 'left', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                                                <th style={{ padding: '8px' }}>Medicine Name</th>
+                                                <th style={{ padding: '8px' }}>Qty</th>
+                                                <th style={{ padding: '8px' }}>Dosage</th>
+                                                <th style={{ padding: '8px' }}>Rate (₹)</th>
+                                                <th style={{ padding: '8px' }}>GST (%)</th>
+                                                <th style={{ padding: '8px' }}>Total (₹)</th>
+                                                <th style={{ padding: '8px' }}>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {walkInForm.items.map((item, idx) => {
+                                                const total = item.quantity * item.unitRate * (1 + item.gstPercent/100);
+                                                return (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                        <td style={{ padding: '8px', fontWeight: 'bold' }}>{item.medicineName} <span style={{fontSize:'9px', color:'#64748b'}}>(Stk: {item.stock})</span></td>
+                                                        <td style={{ padding: '8px' }}>
+                                                            <input type="number" min="1" max={item.stock} value={item.quantity} onChange={(e) => {
+                                                                const newItems = [...walkInForm.items];
+                                                                newItems[idx].quantity = Number(e.target.value) || 1;
+                                                                setWalkInForm({...walkInForm, items: newItems});
+                                                            }} style={{ width: '50px', padding: '4px' }} />
+                                                        </td>
+                                                        <td style={{ padding: '8px' }}>
+                                                            <input type="text" value={item.dosage || ''} onChange={(e) => {
+                                                                const newItems = [...walkInForm.items];
+                                                                newItems[idx].dosage = e.target.value;
+                                                                setWalkInForm({...walkInForm, items: newItems});
+                                                            }} style={{ width: '70px', padding: '4px' }} placeholder="BD, TDS..." />
+                                                        </td>
+                                                        <td style={{ padding: '8px' }}>{item.unitRate}</td>
+                                                        <td style={{ padding: '8px' }}>{item.gstPercent}%</td>
+                                                        <td style={{ padding: '8px' }}>{total.toFixed(2)}</td>
+                                                        <td style={{ padding: '8px' }}>
+                                                            <button type="button" onClick={() => {
+                                                                const newItems = walkInForm.items.filter((_, i) => i !== idx);
+                                                                setWalkInForm({...walkInForm, items: newItems});
+                                                            }} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+
+                            {/* Calculations (Auto-updating) */}
+                            {(() => {
+                                let sub = 0;
+                                let tax = 0;
+                                walkInForm.items.forEach(it => {
+                                    const base = it.quantity * it.unitRate;
+                                    sub += base;
+                                    tax += base * (it.gstPercent/100);
+                                });
+                                const discAmt = (sub + tax) * (walkInForm.discountPercent / 100);
+                                const grand = (sub + tax) - discAmt;
+                                
+                                // Silently update state if needed, though we can just calc on submit
+                                walkInForm.subtotal = sub;
+                                walkInForm.cgstAmount = tax / 2;
+                                walkInForm.sgstAmount = tax / 2;
+                                walkInForm.totalAmount = sub + tax;
+                                walkInForm.discountAmount = discAmt;
+                                walkInForm.grandTotal = grand;
+
+                                return (
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                                        <div style={{ width: '250px', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span>Subtotal:</span> <strong>₹{sub.toFixed(2)}</strong></div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span>Tax (GST):</span> <strong>₹{tax.toFixed(2)}</strong></div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
+                                                <span>Discount (%):</span> 
+                                                <input type="number" min="0" max="100" value={walkInForm.discountPercent} onChange={e => setWalkInForm({...walkInForm, discountPercent: Number(e.target.value)||0})} style={{ width: '60px', padding: '2px 4px', textAlign: 'right' }} />
+                                            </div>
+                                            {discAmt > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', color: 'red', fontSize: '10px', marginBottom: '4px' }}>(-₹{discAmt.toFixed(2)})</div>}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 'bold', color: '#0f766e' }}>
+                                                <span>Grand Total:</span> <span>₹{grand.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                                <button type="button" onClick={() => setShowWalkInModal(false)} style={{ padding: '8px 16px', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+                                <button type="submit" disabled={walkInSaving || walkInForm.items.length === 0} style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    {walkInSaving ? 'Saving...' : 'Generate Bill & Pay'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <div className="pharmacy-header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Pharmacy Orders</h2>
+                    <p>Process prescriptions sent by doctors and confirm payments.</p>
+                </div>
+                <button 
+                    onClick={() => setShowWalkInModal(true)}
+                    style={{ padding: '10px 16px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px rgba(16,185,129,0.2)' }}
+                >
+                    <span style={{ fontSize: '18px' }}>+</span> Outside Patient Bill
+                </button>
             </div>
 
             {/* KPI Cards */}
@@ -701,6 +1068,41 @@ const PharmacyOrders = () => {
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Pending / Dr Guaranteed</h4>
                     <h2 style={{ margin: 0, color: '#0f172a' }}>₹{dashboardStats?.pendingCollection?.toFixed(2) || '0.00'}</h2>
                     <small style={{ color: '#8b5cf6' }}>Dr Auth: ₹{dashboardStats?.doctorGuaranteedAmount?.toFixed(2) || '0.00'}</small>
+                </div>
+            </div>
+
+            <div style={{ background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px', fontSize: '1rem', color: '#1e293b' }}>Pharmacy Billing Details</h4>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>GST Number</label>
+                        <input 
+                            type="text" 
+                            value={billingSettings.gstin}
+                            onChange={(e) => setBillingSettings(prev => ({...prev, gstin: e.target.value}))}
+                            placeholder="Enter GSTIN"
+                            style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem' }}
+                        />
+                    </div>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                        <label style={{ display: 'block', fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>Drug License (DL) Number</label>
+                        <input 
+                            type="text" 
+                            value={billingSettings.dlNumber}
+                            onChange={(e) => setBillingSettings(prev => ({...prev, dlNumber: e.target.value}))}
+                            placeholder="Enter DL Number"
+                            style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem' }}
+                        />
+                    </div>
+                    <div>
+                        <button 
+                            type="button" 
+                            onClick={handleUpdateBillingSettings}
+                            style={{ padding: '8px 16px', backgroundColor: '#0f766e', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            Save Details
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -725,10 +1127,14 @@ const PharmacyOrders = () => {
                                 return (
                                     <tr key={order._id}>
                                         <td>
-                                            <div style={{ fontWeight: 'bold' }}>{order.userId?.name}</div>
-                                            <div style={{ fontSize: '0.8rem', color: '#666' }}>{order.patientId}</div>
+                                            <div style={{ fontWeight: 'bold' }}>{order.isOutsidePatient ? order.patientName : order.userId?.name}</div>
+                                            {order.isOutsidePatient ? (
+                                                <div style={{ fontSize: '0.8rem', color: '#059669', fontWeight: 'bold' }}>[Walk-in] {order.patientPhone}</div>
+                                            ) : (
+                                                <div style={{ fontSize: '0.8rem', color: '#666' }}>{order.patientId}</div>
+                                            )}
                                         </td>
-                                        <td>Dr. {order.doctorId?.name}</td>
+                                        <td>Dr. {order.isOutsidePatient ? (order.doctorName || 'N/A') : order.doctorId?.name}</td>
                                         <td>
                                             <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.9rem' }}>
                                                 {orderItems.map((item, idx) => (
@@ -768,7 +1174,7 @@ const PharmacyOrders = () => {
                                                 color: (order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? '#d97706' : (order.paymentStatus === 'Paid' ? '#166534' : (order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '#000' : '#991b1b')),
                                                 fontWeight: 'bold'
                                             }}>
-                                                {order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '-' : ((order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? 'Paid (Dr)' : order.paymentStatus)}
+                                                {order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '-' : ((order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? `Pending by Doctor - ${order.authorizedDoctorName || order.doctorName || 'Unknown'}` : order.paymentStatus)}
                                             </span>
                                         </td>
                                         <td style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -836,7 +1242,7 @@ const PharmacyOrders = () => {
                                         <input type="radio" name="paymentSource" value="Patient" checked={paymentSource === 'Patient'} onChange={() => setPaymentSource('Patient')} /> Patient
                                     </label>
                                     <label>
-                                        <input type="radio" name="paymentSource" value="Doctor" checked={paymentSource === 'Doctor'} onChange={() => setPaymentSource('Doctor')} /> Doctor Authorization
+                                        <input type="radio" name="paymentSource" value="Doctor" checked={paymentSource === 'Doctor'} onChange={() => setPaymentSource('Doctor')} /> Pending by Doctor
                                     </label>
                                 </div>
                             </div>
@@ -900,7 +1306,7 @@ const PharmacyOrders = () => {
                                     if (doc) selectedDoctorName = doc.name;
                                 }
                                 const paymentFlowItems = paymentFlowOrder.items || paymentFlowOrder.prescribedItems || [];
-                                const calcData = getInvoiceCalculations(paymentFlowOrder);
+                                const calcData = getInvoiceCalculations(paymentFlowOrder, discountPercent);
                                 const payload = {
                                     purchasedIndices: Array.from({ length: paymentFlowItems.length }, (_, i) => i),
                                     paymentMode: paymentSource === 'Doctor' ? 'DOCTOR_AUTHORIZATION' : paymentMode.toUpperCase(),
@@ -908,6 +1314,8 @@ const PharmacyOrders = () => {
                                     authorizedByDoctor: paymentSource === 'Doctor' ? authorizedByDoctor : undefined,
                                     authorizedDoctorName: paymentSource === 'Doctor' ? selectedDoctorName : undefined,
                                     authorizationNote: paymentSource === 'Doctor' ? authorizationNote : undefined,
+                                    discountPercent: discountPercent,
+                                    discountAmount: Number(calcData.discountAmount) || 0,
                                     frontendTotals: {
                                         taxableAmount: calcData.subtotal,
                                         cgstAmount: calcData.cgst,

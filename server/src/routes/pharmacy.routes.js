@@ -5,6 +5,36 @@ const { verifyToken } = require('../middleware/auth.middleware');
 
 const User = require('../models/user.model');
 const Role = require('../models/role.model');
+const Hospital = require('../models/hospital.model');
+const VendorReturn = require('../models/vendorReturn.model');
+const ConsumptionLog = require('../models/consumptionLog.model');
+const Department = require('../models/department.model');
+const DepartmentStock = require('../models/departmentStock.model');
+const DepartmentTransfer = require('../models/departmentTransfer.model');
+const DepartmentUsage = require('../models/departmentUsage.model');
+const FacilityCharge = require('../models/facilityCharge.model');
+// Update Pharmacy Billing Details
+router.put('/hospital-billing', verifyToken, async (req, res) => {
+    try {
+        if (!req.user.hospitalId) {
+            return res.status(400).json({ success: false, message: 'No hospital associated with this user' });
+        }
+        
+        const { gstin, dlNumber } = req.body;
+        const hospital = await Hospital.findById(req.user.hospitalId);
+        if (!hospital) {
+            return res.status(404).json({ success: false, message: 'Hospital not found' });
+        }
+
+        if (gstin !== undefined) hospital.gstin = gstin;
+        if (dlNumber !== undefined) hospital.dlNumber = dlNumber;
+        
+        await hospital.save();
+        res.json({ success: true, message: 'Billing details updated successfully', data: hospital });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 // GET all inventory
 router.get('/inventory', verifyToken, async (req, res) => {
@@ -260,6 +290,308 @@ router.get('/analytics/collections', verifyToken, async (req, res) => {
             orders,
             returns
         });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// VENDOR RETURNS (RTV)
+router.post('/vendor-returns', verifyToken, async (req, res) => {
+    try {
+        if (!req.user.hospitalId) {
+            return res.status(400).json({ success: false, message: 'No hospital associated with this user' });
+        }
+
+        const { vendorName, invoiceOrBillNo, items, totalReturnAmount } = req.body;
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ success: false, message: 'No items provided for return' });
+        }
+
+        // Deduct inventory sequentially to avoid race conditions
+        for (const item of items) {
+            if (item.inventoryId) {
+                await Inventory.findOneAndUpdate(
+                    { _id: item.inventoryId, hospitalId: req.user.hospitalId },
+                    { $inc: { stock: -Math.abs(item.quantityReturned) } },
+                    { new: true }
+                );
+            }
+        }
+
+        const newReturn = new VendorReturn({
+            hospitalId: req.user.hospitalId,
+            vendorName,
+            invoiceOrBillNo,
+            items,
+            totalReturnAmount
+        });
+
+        await newReturn.save();
+        res.status(201).json({ success: true, message: 'Vendor return saved successfully', returnRecord: newReturn });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+router.get('/vendor-returns', verifyToken, async (req, res) => {
+    try {
+        if (!req.user.hospitalId) {
+            return res.status(400).json({ success: false, message: 'No hospital associated with this user' });
+        }
+
+        const returns = await VendorReturn.find({ hospitalId: req.user.hospitalId })
+            .sort({ returnDate: -1 });
+
+        res.json({ success: true, returns });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST Record Internal Consumption
+router.post('/consumption', verifyToken, async (req, res) => {
+    try {
+        const { medicineId, quantity, reason, givenTo } = req.body;
+        const hospitalId = req.user.hospitalId;
+
+        if (!medicineId || !quantity || quantity <= 0 || !reason) {
+            return res.status(400).json({ success: false, message: 'Invalid consumption details provided' });
+        }
+
+        // 1. Fetch Inventory Item
+        const inventory = await Inventory.findOne({ _id: medicineId, hospitalId });
+        if (!inventory) {
+            return res.status(404).json({ success: false, message: 'Medicine not found in inventory' });
+        }
+
+        // 2. Validate Stock
+        if (inventory.stock < quantity) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Insufficient stock. Only ${inventory.stock} ${inventory.unit} available.` 
+            });
+        }
+
+        // 3. Deduct Stock and Save (Triggers pre-save hook for status update)
+        inventory.stock -= quantity;
+        await inventory.save();
+
+        // 4. Create Audit Log
+        const consumptionLog = new ConsumptionLog({
+            hospitalId,
+            medicineId,
+            quantity,
+            reason,
+            givenTo,
+            loggedBy: req.user.id
+        });
+        await consumptionLog.save();
+
+        res.status(201).json({ 
+            success: true, 
+            message: 'Consumption logged successfully', 
+            consumptionLog,
+            newStock: inventory.stock
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+// --- Department Stock Transfer & Usage APIs ---
+
+// GET all departments
+router.get('/departments', verifyToken, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const departments = await Department.find({ hospitalId, isActive: true }).sort({ name: 1 });
+        res.json({ success: true, departments });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST create department
+router.post('/departments', verifyToken, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const { name, description } = req.body;
+        
+        if (!name) return res.status(400).json({ success: false, message: 'Department name is required' });
+
+        const dept = new Department({ hospitalId, name, description });
+        await dept.save();
+        res.status(201).json({ success: true, department: dept });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET department stocks
+router.get('/department-stocks', verifyToken, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const { departmentId } = req.query;
+        
+        const query = { hospitalId, quantity: { $gt: 0 } };
+        if (departmentId) query.departmentId = departmentId;
+
+        const stocks = await DepartmentStock.find(query)
+            .populate('departmentId', 'name')
+            .populate('medicineId', 'name batchNumber sellingPrice category unit')
+            .sort({ updatedAt: -1 });
+
+        res.json({ success: true, stocks });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST transfer to department
+router.post('/departments/transfer', verifyToken, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const { departmentId, medicineId, quantity } = req.body;
+
+        if (!departmentId || !medicineId || !quantity || quantity <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid transfer details' });
+        }
+
+        // 1. Fetch Inventory Item
+        const inventory = await Inventory.findOne({ _id: medicineId, hospitalId });
+        if (!inventory) {
+            return res.status(404).json({ success: false, message: 'Medicine not found in inventory' });
+        }
+
+        // 2. Validate Stock
+        if (inventory.stock < quantity) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Insufficient stock in main pharmacy. Only ${inventory.stock} available.` 
+            });
+        }
+
+        // 3. Deduct from main inventory
+        inventory.stock -= quantity;
+        await inventory.save(); // Triggers status hook
+
+        // 4. Add to department stock
+        let deptStock = await DepartmentStock.findOne({ hospitalId, departmentId, medicineId });
+        if (deptStock) {
+            deptStock.quantity += quantity;
+            await deptStock.save();
+        } else {
+            deptStock = new DepartmentStock({ hospitalId, departmentId, medicineId, quantity });
+            await deptStock.save();
+        }
+
+        // 5. Log transfer
+        const transferLog = new DepartmentTransfer({
+            hospitalId,
+            departmentId,
+            medicineId,
+            quantity,
+            transferredBy: req.user.id
+        });
+        await transferLog.save();
+
+        res.status(201).json({ success: true, message: 'Transfer completed successfully', deptStock });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST record usage & bill patient
+router.post('/departments/usage', verifyToken, async (req, res) => {
+    try {
+        const hospitalId = req.user.hospitalId;
+        const { departmentId, medicineId, patientId, quantity, unitPrice } = req.body;
+
+        if (!departmentId || !medicineId || !patientId || !quantity || quantity <= 0 || unitPrice === undefined) {
+            return res.status(400).json({ success: false, message: 'Invalid usage details provided' });
+        }
+
+        // 1. Validate Department Stock
+        const deptStock = await DepartmentStock.findOne({ hospitalId, departmentId, medicineId });
+        if (!deptStock || deptStock.quantity < quantity) {
+            return res.status(400).json({ success: false, message: 'Insufficient stock in this department.' });
+        }
+
+        // 2. Deduct from department stock
+        deptStock.quantity -= quantity;
+        await deptStock.save();
+
+        // 3. Fetch medicine details for billing label
+        const medicine = await Inventory.findById(medicineId).select('name');
+        const dept = await Department.findById(departmentId).select('name');
+        
+        const totalAmount = Number(quantity) * Number(unitPrice);
+        const facilityName = `${medicine ? medicine.name : 'Medicine'} (${dept ? dept.name : 'Dept'} Usage)`;
+
+        // 4. Log usage
+        const usageLog = new DepartmentUsage({
+            hospitalId,
+            departmentId,
+            medicineId,
+            patientId,
+            quantity,
+            unitPrice,
+            totalAmount,
+            recordedBy: req.user.id
+        });
+        await usageLog.save();
+
+        // 5. Bill Patient (Pharmacy Order)
+        const PharmacyOrder = require('../models/pharmacyOrder.model');
+        const UserMaster = require('../models/user.model');
+        const Appointment = require('../models/appointment.model');
+
+        let pharmacyOrder = await PharmacyOrder.findOne({ 
+            userId: patientId, 
+            paymentStatus: 'Pending',
+            hospitalId: hospitalId
+        }).sort({ createdAt: -1 });
+
+        const orderItem = {
+            medicineName: facilityName,
+            price: Number(unitPrice),
+            quantity: Number(quantity),
+            purchased: true,
+            days: 1
+        };
+
+        if (pharmacyOrder) {
+            pharmacyOrder.items.push(orderItem);
+            pharmacyOrder.totalAmount = (pharmacyOrder.totalAmount || 0) + totalAmount;
+            pharmacyOrder.taxableAmount = pharmacyOrder.totalAmount;
+            pharmacyOrder.totalCost = pharmacyOrder.totalAmount;
+            await pharmacyOrder.save();
+        } else {
+            const patient = await UserMaster.findById(patientId);
+            const lastAppt = await Appointment.findOne({ patientId }).sort({ createdAt: -1 });
+
+            pharmacyOrder = new PharmacyOrder({
+                hospitalId,
+                patientId: patientId.toString(),
+                userId: patientId,
+                doctorId: req.user.id, 
+                appointmentId: lastAppt ? lastAppt._id : (new (require('mongoose').Types.ObjectId)()), // Dummy ID if no appt exists to pass validation safely, or use isOutsidePatient
+                isOutsidePatient: !lastAppt,
+                patientName: patient ? patient.name : 'Unknown',
+                patientPhone: patient ? patient.phone : '',
+                doctorName: req.user.name || 'Staff',
+                items: [orderItem],
+                totalAmount: totalAmount,
+                taxableAmount: totalAmount,
+                totalCost: totalAmount,
+                paymentStatus: 'Pending',
+                orderStatus: 'Upcoming'
+            });
+            await pharmacyOrder.save();
+        }
+
+        res.status(201).json({ success: true, message: 'Usage recorded and patient billed successfully' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

@@ -29,9 +29,41 @@ const PharmacyInventory = () => {
 
     const [vendors, setVendors] = useState([]);
     const [showVendorModal, setShowVendorModal] = useState(false);
-    const [vendorForm, setVendorForm] = useState({ vendorName: '', contactPerson: '', phone: '', gstin: '' });
+    const [vendorForm, setVendorForm] = useState({ vendorName: '', contactPerson: '', phone: '', gstin: '', dlNumber: '' });
     const [vendorErrors, setVendorErrors] = useState({});
     const [savingVendor, setSavingVendor] = useState(false);
+
+    // Consumption Log States
+    const [showConsumptionModal, setShowConsumptionModal] = useState(false);
+    const [consumptionForm, setConsumptionForm] = useState({ medicineId: '', quantity: 1, reason: 'Doctor/Staff Use', givenTo: '' });
+    const [savingConsumption, setSavingConsumption] = useState(false);
+
+    const handleRecordConsumption = async (e) => {
+        e.preventDefault();
+        const selectedMed = medicines.find(m => m._id === consumptionForm.medicineId);
+        if (!selectedMed) return alert("Please select a medicine.");
+        if (consumptionForm.quantity > selectedMed.stock) {
+            return alert(`Quantity cannot exceed available stock (${selectedMed.stock}).`);
+        }
+
+        setSavingConsumption(true);
+        try {
+            const res = await pharmacyAPI.recordConsumption({
+                ...consumptionForm,
+                quantity: Number(consumptionForm.quantity)
+            });
+            if (res.success) {
+                alert("Consumption logged successfully");
+                setShowConsumptionModal(false);
+                setConsumptionForm({ medicineId: '', quantity: 1, reason: 'Doctor/Staff Use', givenTo: '' });
+                fetchInventory();
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || "Failed to record consumption");
+        } finally {
+            setSavingConsumption(false);
+        }
+    };
 
     useEffect(() => { 
         fetchInventory(); 
@@ -75,7 +107,7 @@ const PharmacyInventory = () => {
             if (res.success) {
                 fetchVendors();
                 setShowVendorModal(false);
-                setVendorForm({ vendorName: '', contactPerson: '', phone: '', gstin: '' });
+                setVendorForm({ vendorName: '', contactPerson: '', phone: '', gstin: '', dlNumber: '' });
                 setVendorErrors({});
                 alert("Vendor added successfully");
             }
@@ -187,6 +219,13 @@ const PharmacyInventory = () => {
                         <p style={{ color: 'var(--text-light)', fontSize: '14px', margin: '4px 0 0' }}>Manage your hospital's medicine stock, pricing, and expiry tracking</p>
                     </div>
                     <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => setShowConsumptionModal(true)}
+                            className="btn-add"
+                            style={{ padding: '8px 20px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', boxShadow: 'none' }}
+                        >
+                            📌 Record Consumption
+                        </button>
                         <button
                             onClick={() => setShowVendorModal(true)}
                             className="btn-add"
@@ -546,6 +585,7 @@ const PharmacyInventory = () => {
                                         <input required type="date" value={newMedicine.expiryDate} onChange={(e) => setNewMedicine({ ...newMedicine, expiryDate: e.target.value })} />
                                     </div>
                                 </div>
+
                             </div>
 
                             <div className="modal-actions">
@@ -557,118 +597,152 @@ const PharmacyInventory = () => {
                 </div>
             )}
 
-            {showDetailsModal && selectedMedicine && (
-                <div className="modal-overlay">
-                    <div className="modal-content inventory-modal" style={{ maxWidth: '600px', width: '95%' }}>
-                        <div className="modal-header">
-                            <div>
-                                <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <span style={{ fontSize: '1.5rem' }}>👁️</span> Medicine Details
-                                </h2>
-                                <p className="modal-subtitle" style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e3a8a', marginTop: '5px' }}>{selectedMedicine.name}</p>
+            {showDetailsModal && selectedMedicine && (() => {
+                // Find all medicines in the same batch/vendor bill
+                const groupedMedicines = medicines.filter(med => 
+                    (med.batchNumber && med.batchNumber === selectedMedicine.batchNumber && 
+                    (med.vendor === selectedMedicine.vendor || med.vendorId === selectedMedicine.vendorId)) || 
+                    (med._id === selectedMedicine._id) // Fallback for itself if batch/vendor is missing
+                );
+
+                // Deduplicate in case fallback overlaps with batch matching
+                const uniqueGrouped = Array.from(new Set(groupedMedicines.map(m => m._id)))
+                    .map(id => groupedMedicines.find(m => m._id === id));
+
+                let totalQuantity = 0;
+                let totalInvestment = 0;
+                let totalExpectedRevenue = 0;
+
+                uniqueGrouped.forEach(med => {
+                    const stock = med.stock || 0;
+                    const buyingPrice = med.buyingPrice || 0;
+                    const sellingPrice = med.sellingPrice || 0;
+                    const cgst = med.cgstPercent || 0;
+                    const sgst = med.sgstPercent || 0;
+                    const unitFinalCost = buyingPrice + (buyingPrice * (cgst + sgst) / 100);
+
+                    totalQuantity += stock;
+                    totalInvestment += stock * unitFinalCost;
+                    totalExpectedRevenue += stock * sellingPrice;
+                });
+
+                const profitMargin = totalExpectedRevenue - totalInvestment;
+
+                return (
+                    <div className="modal-overlay">
+                        <div className="modal-content inventory-modal" style={{ maxWidth: '950px', width: '95%' }}>
+                            <div className="modal-header">
+                                <div>
+                                    <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <span style={{ fontSize: '1.5rem' }}>🧾</span> Purchase Bill / Stock View
+                                    </h2>
+                                    <p className="modal-subtitle" style={{ fontSize: '14px', color: '#1e3a8a', marginTop: '5px' }}>
+                                        Batch: <strong>{selectedMedicine.batchNumber || 'N/A'}</strong> | Vendor: <strong>{selectedMedicine.vendor || 'N/A'}</strong>
+                                    </p>
+                                </div>
+                                <button className="close-btn" onClick={() => setShowDetailsModal(false)}>×</button>
                             </div>
-                            <button className="close-btn" onClick={() => setShowDetailsModal(false)}>×</button>
-                        </div>
-                        <div className="pharma-form" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                    <h3 style={{ fontSize: '13px', color: '#64748b', textTransform: 'uppercase', marginBottom: '10px', marginTop: 0 }}>Stock & Inventory</h3>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <span style={{ color: '#475569' }}>Total Stock:</span>
-                                        <strong style={{ color: selectedMedicine.stock < (selectedMedicine.minStockAlertLevel || 50) ? '#dc2626' : '#059669' }}>{selectedMedicine.stock} {selectedMedicine.unit || 'Tablets'}</strong>
+                            <div className="pharma-form" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                
+                                {/* Header Section */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
+                                    <div>
+                                        <div style={{ color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontSize: '11px', fontWeight: 'bold' }}>Supplier/Vendor</div>
+                                        <div style={{ fontWeight: 'bold', color: '#0f172a' }}>{selectedMedicine.vendor || 'N/A'}</div>
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <span style={{ color: '#475569' }}>Min Alert Level:</span>
-                                        <strong>{selectedMedicine.minStockAlertLevel || 50}</strong>
+                                    <div>
+                                        <div style={{ color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontSize: '11px', fontWeight: 'bold' }}>Batch / Invoice #</div>
+                                        <div style={{ fontWeight: 'bold', color: '#0f172a' }}>{selectedMedicine.batchNumber || 'N/A'}</div>
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ color: '#475569' }}>Rack Location:</span>
-                                        <strong>{selectedMedicine.rackLocation || 'Unassigned'}</strong>
-                                    </div>
-                                </div>
-
-                                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                    <h3 style={{ fontSize: '13px', color: '#64748b', textTransform: 'uppercase', marginBottom: '10px', marginTop: 0 }}>Batch & Tracking</h3>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <span style={{ color: '#475569' }}>Batch Number:</span>
-                                        <strong>{selectedMedicine.batchNumber || 'N/A'}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <span style={{ color: '#475569' }}>Purchase Date:</span>
-                                        <strong>{selectedMedicine.purchaseDate ? new Date(selectedMedicine.purchaseDate).toLocaleDateString() : 'N/A'}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ color: '#475569' }}>Expiry Date:</span>
-                                        <strong style={{ color: new Date(selectedMedicine.expiryDate) < new Date() ? '#dc2626' : '#0f172a' }}>
+                                    <div>
+                                        <div style={{ color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontSize: '11px', fontWeight: 'bold' }}>Expiry Date</div>
+                                        <div style={{ fontWeight: 'bold', color: new Date(selectedMedicine.expiryDate) < new Date() ? '#dc2626' : '#0f172a' }}>
                                             {selectedMedicine.expiryDate ? new Date(selectedMedicine.expiryDate).toLocaleDateString() : 'N/A'}
-                                        </strong>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style={{ color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontSize: '11px', fontWeight: 'bold' }}>Category & Rack</div>
+                                        <div style={{ fontWeight: 'bold', color: '#0f172a' }}>{selectedMedicine.category} | {selectedMedicine.rackLocation || 'Unassigned'}</div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                <h3 style={{ fontSize: '13px', color: '#64748b', textTransform: 'uppercase', marginBottom: '10px', marginTop: 0 }}>Vendor & Category</h3>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <span style={{ color: '#475569' }}>Category:</span>
-                                    <strong>{selectedMedicine.category}</strong>
+                                {/* Stock Breakdown Table */}
+                                <div>
+                                    <h3 style={{ fontSize: '14px', color: '#334155', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>📦 Items in this Purchase Bill</h3>
+                                    <div style={{ overflowX: 'auto', maxHeight: '300px' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', border: '1px solid #e2e8f0' }}>
+                                            <thead>
+                                                <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1', color: '#475569', textTransform: 'uppercase', fontSize: '11px', position: 'sticky', top: 0 }}>
+                                                    <th style={{ padding: '10px' }}>Medicine Name</th>
+                                                    <th style={{ padding: '10px' }}>Batch #</th>
+                                                    <th style={{ padding: '10px' }}>Stock Qty</th>
+                                                    <th style={{ padding: '10px' }}>Cost Price (ex. Tax)</th>
+                                                    <th style={{ padding: '10px' }}>Selling Price</th>
+                                                    <th style={{ padding: '10px' }}>Total Amount (incl. Tax)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {uniqueGrouped.map(med => {
+                                                    const unitCost = (med.buyingPrice || 0) * (1 + ((med.cgstPercent || 0) + (med.sgstPercent || 0)) / 100);
+                                                    const totalCost = (med.stock || 0) * unitCost;
+                                                    return (
+                                                        <tr key={med._id} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: med._id === selectedMedicine._id ? '#fefce8' : 'transparent' }}>
+                                                            <td style={{ padding: '10px', fontWeight: 'bold', color: '#0f172a' }}>{med.name} {med._id === selectedMedicine._id ? '(Selected)' : ''}</td>
+                                                            <td style={{ padding: '10px' }}>{med.batchNumber || 'N/A'}</td>
+                                                            <td style={{ padding: '10px', fontWeight: 'bold', color: med.stock < (med.minStockAlertLevel || 50) ? '#dc2626' : '#059669' }}>{med.stock} {med.unit || 'Tabs'}</td>
+                                                            <td style={{ padding: '10px' }}>₹{med.buyingPrice || 0} <span style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>(+{med.cgstPercent || 0}% CGST, +{med.sgstPercent || 0}% SGST)</span></td>
+                                                            <td style={{ padding: '10px', color: '#059669', fontWeight: 'bold' }}>₹{med.sellingPrice || 0}</td>
+                                                            <td style={{ padding: '10px', fontWeight: 'bold' }}>₹{totalCost.toFixed(2)}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <span style={{ color: '#475569' }}>Salt/Composition:</span>
-                                    <strong>{selectedMedicine.salt || 'N/A'}</strong>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <span style={{ color: '#475569' }}>Vendor/Supplier:</span>
-                                    <strong>{selectedMedicine.vendor || 'N/A'}</strong>
-                                </div>
-                            </div>
 
-                            <div style={{ background: '#f0f9ff', padding: '15px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
-                                <h3 style={{ fontSize: '13px', color: '#0369a1', textTransform: 'uppercase', marginBottom: '10px', marginTop: 0 }}>Pricing & Taxes</h3>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <span style={{ color: '#0c4a6e' }}>Purchase Price (excl. GST):</span>
-                                    <strong>₹{selectedMedicine.buyingPrice || 0}</strong>
+                                {/* Financial Calculations Section */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginTop: '10px' }}>
+                                    <div style={{ background: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                                        <div style={{ color: '#166534', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Total Stock Qty</div>
+                                        <div style={{ color: '#14532d', fontSize: '20px', fontWeight: '900' }}>{totalQuantity}</div>
+                                    </div>
+                                    <div style={{ background: '#eff6ff', padding: '15px', borderRadius: '8px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
+                                        <div style={{ color: '#1e40af', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Total Investment</div>
+                                        <div style={{ color: '#1e3a8a', fontSize: '20px', fontWeight: '900' }}>₹{totalInvestment.toFixed(2)}</div>
+                                    </div>
+                                    <div style={{ background: '#fffbeb', padding: '15px', borderRadius: '8px', border: '1px solid #fde68a', textAlign: 'center' }}>
+                                        <div style={{ color: '#b45309', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Expected Revenue</div>
+                                        <div style={{ color: '#92400e', fontSize: '20px', fontWeight: '900' }}>₹{totalExpectedRevenue.toFixed(2)}</div>
+                                    </div>
+                                    <div style={{ background: profitMargin >= 0 ? '#f0fdfa' : '#fef2f2', padding: '15px', borderRadius: '8px', border: profitMargin >= 0 ? '1px solid #a7f3d0' : '1px solid #fecaca', textAlign: 'center' }}>
+                                        <div style={{ color: profitMargin >= 0 ? '#0f766e' : '#b91c1c', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Potential Profit Margin</div>
+                                        <div style={{ color: profitMargin >= 0 ? '#0d9488' : '#dc2626', fontSize: '20px', fontWeight: '900' }}>₹{profitMargin.toFixed(2)}</div>
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <span style={{ color: '#0c4a6e' }}>Selling Price:</span>
-                                    <strong style={{ color: '#059669', fontSize: '16px' }}>₹{selectedMedicine.sellingPrice || 0}</strong>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <span style={{ color: '#0c4a6e' }}>CGST:</span>
-                                    <strong>{selectedMedicine.cgstPercent || 0}%</strong>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                                    <span style={{ color: '#0c4a6e' }}>SGST:</span>
-                                    <strong>{selectedMedicine.sgstPercent || 0}%</strong>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1em', borderTop: '1px solid #7dd3fc', paddingTop: '10px' }}>
-                                    <span style={{ color: '#082f49' }}><strong>Final Purchase Cost (incl. GST):</strong></span>
-                                    <strong style={{ color: '#1d4ed8', fontSize: '18px' }}>
-                                        ₹{(Number(selectedMedicine.buyingPrice || 0) + 
-                                          Number(selectedMedicine.buyingPrice || 0) * (Number(selectedMedicine.sgstPercent || 0) + Number(selectedMedicine.cgstPercent || 0)) / 100).toFixed(2)}
-                                    </strong>
-                                </div>
-                            </div>
 
-                        </div>
-                        <div className="modal-actions" style={{ padding: '15px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                            <button 
-                                type="button" 
-                                className="btn-add" 
-                                style={{ background: '#ecfdf5', color: '#10b981', border: '1px solid #a7f3d0', padding: '8px 16px', boxShadow: 'none' }}
-                                onClick={() => {
-                                    setShowDetailsModal(false);
-                                    handleEdit(selectedMedicine);
-                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                            >
-                                ✏️ Edit Medicine
-                            </button>
-                            <button type="button" className="btn-cancel" onClick={() => setShowDetailsModal(false)} style={{ padding: '8px 16px' }}>Close</button>
+                            </div>
+                            
+                            <div className="modal-actions" style={{ padding: '15px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button 
+                                    type="button" 
+                                    className="btn-add" 
+                                    style={{ background: '#ecfdf5', color: '#10b981', border: '1px solid #a7f3d0', padding: '8px 16px', boxShadow: 'none' }}
+                                    onClick={() => {
+                                        setShowDetailsModal(false);
+                                        handleEdit(selectedMedicine);
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                >
+                                    ✏️ Edit Selected Medicine
+                                </button>
+                                <button type="button" className="btn-cancel" onClick={() => setShowDetailsModal(false)} style={{ padding: '8px 16px' }}>Close</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {showVendorModal && (
                 <div className="modal-overlay">
@@ -701,9 +775,85 @@ const PharmacyInventory = () => {
                                     <input type="text" value={vendorForm.gstin} onChange={(e) => setVendorForm({ ...vendorForm, gstin: e.target.value.toUpperCase().slice(0, 15) })} placeholder="GST Number" />
                                     {vendorErrors.gstin && <span className="error-text" style={{color: 'red', fontSize: '12px'}}>{vendorErrors.gstin}</span>}
                                 </div>
+                                <div className="form-group" style={{ marginBottom: '15px' }}>
+                                    <label>Drug License (DL) Number</label>
+                                    <input type="text" value={vendorForm.dlNumber} onChange={(e) => setVendorForm({ ...vendorForm, dlNumber: e.target.value })} placeholder="e.g., 20B/21B/... or DL Number" />
+                                </div>
                                 <div className="modal-actions" style={{ marginTop: '20px' }}>
                                     <button type="button" className="btn-cancel" onClick={() => setShowVendorModal(false)}>Cancel</button>
                                     <button type="submit" disabled={savingVendor} className="btn-save">{savingVendor ? 'Saving...' : 'Save Vendor'}</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showConsumptionModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content inventory-modal" style={{maxWidth: '500px'}}>
+                        <div className="modal-header">
+                            <div>
+                                <h2>📌 Record Consumption</h2>
+                                <p className="modal-subtitle">Log internal medicine usage</p>
+                            </div>
+                            <button className="close-btn" onClick={() => setShowConsumptionModal(false)}>×</button>
+                        </div>
+                        <div className="pharma-form" style={{padding: '20px'}}>
+                            <form onSubmit={handleRecordConsumption}>
+                                <div className="form-group" style={{ marginBottom: '15px' }}>
+                                    <label>Select Medicine *</label>
+                                    <select 
+                                        required 
+                                        value={consumptionForm.medicineId} 
+                                        onChange={(e) => setConsumptionForm({ ...consumptionForm, medicineId: e.target.value })}
+                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                    >
+                                        <option value="">-- Choose Medicine --</option>
+                                        {medicines.filter(m => m.stock > 0).map(med => (
+                                            <option key={med._id} value={med._id}>
+                                                {med.name} (Batch: {med.batchNumber || 'N/A'}) - In Stock: {med.stock}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group" style={{ marginBottom: '15px' }}>
+                                    <label>Quantity *</label>
+                                    <input 
+                                        required 
+                                        type="number" 
+                                        min="1" 
+                                        value={consumptionForm.quantity} 
+                                        onChange={(e) => setConsumptionForm({ ...consumptionForm, quantity: e.target.value })} 
+                                        placeholder="Enter quantity used" 
+                                    />
+                                </div>
+                                <div className="form-group" style={{ marginBottom: '15px' }}>
+                                    <label>Reason / Category *</label>
+                                    <select 
+                                        required 
+                                        value={consumptionForm.reason} 
+                                        onChange={(e) => setConsumptionForm({ ...consumptionForm, reason: e.target.value })}
+                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                    >
+                                        <option value="Doctor/Staff Use">Doctor / Staff Use</option>
+                                        <option value="Hospital Emergency / First Aid">Hospital Emergency / First Aid</option>
+                                        <option value="Sample / Promotional">Sample / Promotional</option>
+                                        <option value="Damaged / Expired Write-off">Damaged / Expired Write-off</option>
+                                    </select>
+                                </div>
+                                <div className="form-group" style={{ marginBottom: '15px' }}>
+                                    <label>Given To (Optional)</label>
+                                    <input 
+                                        type="text" 
+                                        value={consumptionForm.givenTo} 
+                                        onChange={(e) => setConsumptionForm({ ...consumptionForm, givenTo: e.target.value })} 
+                                        placeholder="e.g., Dr. Sharma, Staff Name" 
+                                    />
+                                </div>
+                                <div className="modal-actions" style={{ marginTop: '20px' }}>
+                                    <button type="button" className="btn-cancel" onClick={() => setShowConsumptionModal(false)}>Cancel</button>
+                                    <button type="submit" disabled={savingConsumption} className="btn-save">{savingConsumption ? 'Saving...' : 'Record Consumption'}</button>
                                 </div>
                             </form>
                         </div>

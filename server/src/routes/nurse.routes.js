@@ -250,6 +250,9 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
             const pendingCount = Math.max(0, meds.length - todayLogs.length);
             const activeMed = hasOngoingTreatment(meds);
 
+            const apptDateStr = appt.appointmentDate ? getISTDateStr(appt.appointmentDate) : '';
+            const isToday = apptDateStr === todayStr;
+
             patientMap.set(idStr, {
                 _id: p._id,
                 name: p.name || 'Unknown Patient',
@@ -269,14 +272,15 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
                 hasActiveMedication: activeMed,
                 admissionDate: 'N/A',
                 followUpStatus: appt.status || 'Scheduled',
-                appointmentStatus: appt.status || 'Confirmed'
+                appointmentStatus: appt.status || 'Confirmed',
+                hasAppointmentToday: isToday
             });
         }
 
         const patientsList = Array.from(patientMap.values()).filter(p => {
             const roleName = (req.user._roleData?.name || '').toLowerCase();
             if (roleName === 'nurse') {
-                return p.isAdmitted || p.status === 'admitted' || p.hasActiveMedication;
+                return p.isAdmitted || p.status === 'admitted' || p.hasActiveMedication || p.hasAppointmentToday;
             }
             return true;
         });
@@ -391,6 +395,7 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
                         yesterdayItems.push({
                             id: `y_${i}_${idx}`,
                             name: med.name,
+                            dose: med.dose,
                             time: t,
                             type: med.type,
                             volumeMl: med.volumeMl,
@@ -409,6 +414,7 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
                     todayItems.push({
                         id: `t_${i}_${idx}`,
                         name: med.name,
+                        dose: med.dose,
                         time: t,
                         type: med.type,
                         volumeMl: med.volumeMl,
@@ -425,6 +431,7 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
                     tomorrowItems.push({
                         id: `tm_${i}_${idx}`,
                         name: med.name,
+                        dose: med.dose,
                         time: t,
                         type: med.type,
                         volumeMl: med.volumeMl,
@@ -544,16 +551,24 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
             const usedQtyUnits = injLogs.length;
             const remainingQtyUnits = Math.max(0, purchasedQtyUnits - usedQtyUnits);
 
-            const purchasedQty = `${purchasedQtyUnits} units`;
-            const remainingQty = `${remainingQtyUnits} units`;
+            let unitStr = 'units';
+            if (injMed.dose) {
+                const match = String(injMed.dose).match(/[a-zA-Z]+/);
+                if (match) {
+                    unitStr = match[0].toLowerCase();
+                }
+            }
+
+            const purchasedQty = `${purchasedQtyUnits} ${unitStr}`;
+            const remainingQty = `${remainingQtyUnits} ${unitStr}`;
 
             injectionTracking.push({
                 name: injMed.name,
                 purchased: purchasedQty,
-                used: `${injLogs.length} units`,
+                used: `${injLogs.length} ${unitStr}`,
                 remaining: remainingQty,
-                usedToday: `${todayInjLogs.length} units`,
-                usedYesterday: `${yesterdayInjLogs.length} units`,
+                usedToday: `${todayInjLogs.length} ${unitStr}`,
+                usedYesterday: `${yesterdayInjLogs.length} ${unitStr}`,
                 administeredBy: latestLog ? (latestLog.administeredBy || 'Nurse') : 'N/A',
                 date: latestLog ? latestLog.date : 'N/A',
                 time: latestLog ? latestLog.time : 'N/A'
