@@ -261,12 +261,31 @@ const PharmacyInventory = () => {
     const handleAddMedicine = async (e) => {
         e.preventDefault();
 
+        const pQty = Number(newMedicine.purchaseQty) || 0;
+        const fQty = Number(newMedicine.freeQty) || 0;
+        const totalStock = pQty + fQty;
+        
+        const price = Number(newMedicine.buyingPrice) || 0;
+        let baseTotal = pQty * price;
+        
+        let disc = 0;
+        if (newMedicine.discountType === 'Percentage') {
+            disc = baseTotal * ((Number(newMedicine.discountValue) || 0) / 100);
+        } else {
+            disc = Number(newMedicine.discountValue) || 0;
+        }
+        
+        const afterDisc = Math.max(0, baseTotal - disc);
+        const cgstAmt = afterDisc * ((Number(newMedicine.cgstPercent) || 0) / 100);
+        const sgstAmt = afterDisc * ((Number(newMedicine.sgstPercent) || 0) / 100);
+        const calculatedFinalAmount = afterDisc + cgstAmt + sgstAmt;
+
         const cleanedData = {
             ...newMedicine,
             salt: newMedicine.salt || '',
-            stock: Number(newMedicine.stock),
+            stock: totalStock, // STRICT ENFORCEMENT: Purchase Qty + Free Qty
             minStockAlertLevel: Number(newMedicine.minStockAlertLevel) || 50,
-            buyingPrice: Number(newMedicine.buyingPrice),
+            buyingPrice: price,
             sellingPrice: Number(newMedicine.sellingPrice),
             sgst: Number(newMedicine.sgst) || 0,
             cgst: Number(newMedicine.cgst) || 0,
@@ -277,10 +296,11 @@ const PharmacyInventory = () => {
             purchaseDate: new Date(newMedicine.purchaseDate),
             isMultiDose: Boolean(newMedicine.isMultiDose),
             packVolume: Number(newMedicine.packVolume) || 1,
-            purchaseQty: Number(newMedicine.purchaseQty) || 0,
-            freeQty: Number(newMedicine.freeQty) || 0,
+            purchaseQty: pQty,
+            freeQty: fQty,
             discountType: newMedicine.discountType || 'Percentage',
-            discountValue: Number(newMedicine.discountValue) || 0
+            discountValue: Number(newMedicine.discountValue) || 0,
+            finalAmount: calculatedFinalAmount
         };
 
         console.log("UPDATE PAYLOAD SENT:", cleanedData);
@@ -958,24 +978,61 @@ const PharmacyInventory = () => {
                 const uniqueGrouped = Array.from(new Set(groupedMedicines.map(m => m._id)))
                     .map(id => groupedMedicines.find(m => m._id === id));
 
-                let totalQuantity = 0;
-                let totalInvestment = 0;
+                let totalPurchaseQty = 0;
+                let totalFreeQty = 0;
+                let totalStockQty = 0;
+                let totalGrossPurchaseAmount = 0;
+                let totalDiscountAmount = 0;
+                let totalTaxableAmount = 0;
+                let totalCGST = 0;
+                let totalSGST = 0;
+                let totalGST = 0;
+                let totalFinalPurchaseAmount = 0;
                 let totalExpectedRevenue = 0;
 
                 uniqueGrouped.forEach(med => {
-                    const stock = med.stock || 0;
-                    const buyingPrice = med.buyingPrice || 0;
-                    const sellingPrice = med.sellingPrice || 0;
-                    const cgst = med.cgstPercent || 0;
-                    const sgst = med.sgstPercent || 0;
-                    const unitFinalCost = buyingPrice + (buyingPrice * (cgst + sgst) / 100);
-
-                    totalQuantity += stock;
-                    totalInvestment += stock * unitFinalCost;
-                    totalExpectedRevenue += stock * sellingPrice;
+                    const pQty = (med.purchaseQty !== undefined && med.purchaseQty !== null) ? Number(med.purchaseQty) : (Number(med.stock) || 0);
+                    const fQty = Number(med.freeQty) || 0;
+                    const stock = pQty + fQty; // Total stock for revenue
+                    
+                    const buyingPrice = Number(med.buyingPrice) || 0;
+                    const sellingPrice = Number(med.sellingPrice) || 0;
+                    
+                    const gross = pQty * buyingPrice;
+                    
+                    let discountAmount = 0;
+                    if (med.discountType === 'Flat Amount') {
+                        discountAmount = Number(med.discountValue) || 0;
+                    } else {
+                        discountAmount = gross * ((Number(med.discountValue) || 0) / 100);
+                    }
+                    
+                    const taxable = Math.max(0, gross - discountAmount);
+                    const cgstPercent = Number(med.cgstPercent) || 0;
+                    const sgstPercent = Number(med.sgstPercent) || 0;
+                    
+                    const cgstAmt = taxable * (cgstPercent / 100);
+                    const sgstAmt = taxable * (sgstPercent / 100);
+                    const gstAmt = cgstAmt + sgstAmt;
+                    
+                    const finalAmt = taxable + gstAmt;
+                    const revenue = stock * sellingPrice;
+                    
+                    totalPurchaseQty += pQty;
+                    totalFreeQty += fQty;
+                    totalStockQty += stock;
+                    totalGrossPurchaseAmount += gross;
+                    totalDiscountAmount += discountAmount;
+                    totalTaxableAmount += taxable;
+                    totalCGST += cgstAmt;
+                    totalSGST += sgstAmt;
+                    totalGST += gstAmt;
+                    totalFinalPurchaseAmount += finalAmt;
+                    totalExpectedRevenue += revenue;
                 });
 
-                const profitMargin = totalExpectedRevenue - totalInvestment;
+                const expectedProfit = totalExpectedRevenue - totalFinalPurchaseAmount;
+                const effectiveCost = totalStockQty > 0 ? (totalFinalPurchaseAmount / totalStockQty) : 0;
 
                 return (
                     <div className="modal-overlay">
@@ -1033,8 +1090,27 @@ const PharmacyInventory = () => {
                                             </thead>
                                             <tbody>
                                                 {uniqueGrouped.map(med => {
-                                                    const unitCost = (med.buyingPrice || 0) * (1 + ((med.cgstPercent || 0) + (med.sgstPercent || 0)) / 100);
-                                                    const totalCost = (med.stock || 0) * unitCost;
+                                                    const pQty = (med.purchaseQty !== undefined && med.purchaseQty !== null) ? Number(med.purchaseQty) : (Number(med.stock) || 0);
+                                                    const buyingPrice = Number(med.buyingPrice) || 0;
+                                                    const gross = pQty * buyingPrice;
+                                                    
+                                                    let discountAmount = 0;
+                                                    if (med.discountType === 'Flat Amount') {
+                                                        discountAmount = Number(med.discountValue) || 0;
+                                                    } else {
+                                                        discountAmount = gross * ((Number(med.discountValue) || 0) / 100);
+                                                    }
+                                                    
+                                                    const taxable = Math.max(0, gross - discountAmount);
+                                                    const cgstPercent = Number(med.cgstPercent) || 0;
+                                                    const sgstPercent = Number(med.sgstPercent) || 0;
+                                                    
+                                                    const cgstAmt = taxable * (cgstPercent / 100);
+                                                    const sgstAmt = taxable * (sgstPercent / 100);
+                                                    const gstAmt = cgstAmt + sgstAmt;
+                                                    
+                                                    const totalFinalCost = taxable + gstAmt;
+
                                                     return (
                                                         <tr key={med._id} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: med._id === selectedMedicine._id ? '#fefce8' : 'transparent' }}>
                                                             <td style={{ padding: '10px', fontWeight: 'bold', color: '#0f172a' }}>{med.name} {med._id === selectedMedicine._id ? '(Selected)' : ''}</td>
@@ -1042,7 +1118,7 @@ const PharmacyInventory = () => {
                                                             <td style={{ padding: '10px', fontWeight: 'bold', color: med.stock < (med.minStockAlertLevel || 50) ? '#dc2626' : '#059669' }}>{med.stock} {med.unit || 'Tabs'}</td>
                                                             <td style={{ padding: '10px' }}>₹{med.buyingPrice || 0} <span style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>(+{med.cgstPercent || 0}% CGST, +{med.sgstPercent || 0}% SGST)</span></td>
                                                             <td style={{ padding: '10px', color: '#059669', fontWeight: 'bold' }}>₹{med.sellingPrice || 0}</td>
-                                                            <td style={{ padding: '10px', fontWeight: 'bold' }}>₹{totalCost.toFixed(2)}</td>
+                                                            <td style={{ padding: '10px', fontWeight: 'bold' }}>₹{totalFinalCost.toFixed(2)}</td>
                                                         </tr>
                                                     );
                                                 })}
@@ -1053,22 +1129,41 @@ const PharmacyInventory = () => {
 
                                 {/* Financial Calculations Section */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginTop: '10px' }}>
+                                    
                                     <div style={{ background: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
-                                        <div style={{ color: '#166534', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Total Stock Qty</div>
-                                        <div style={{ color: '#14532d', fontSize: '20px', fontWeight: '900' }}>{totalQuantity}</div>
+                                        <div style={{ color: '#166534', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Qty (Purchase + Free)</div>
+                                        <div style={{ color: '#14532d', fontSize: '18px', fontWeight: '900' }}>{totalPurchaseQty} + {totalFreeQty}</div>
+                                        <div style={{ color: '#166534', fontSize: '12px', marginTop: '4px' }}>Total Stock: {totalStockQty}</div>
                                     </div>
-                                    <div style={{ background: '#eff6ff', padding: '15px', borderRadius: '8px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
-                                        <div style={{ color: '#1e40af', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Total Investment</div>
-                                        <div style={{ color: '#1e3a8a', fontSize: '20px', fontWeight: '900' }}>₹{totalInvestment.toFixed(2)}</div>
+                                    
+                                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                        <div style={{ color: '#475569', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Gross Amount</div>
+                                        <div style={{ color: '#0f172a', fontSize: '18px', fontWeight: '900' }}>₹{totalGrossPurchaseAmount.toFixed(2)}</div>
+                                        <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>- Disc: ₹{totalDiscountAmount.toFixed(2)}</div>
                                     </div>
+
                                     <div style={{ background: '#fffbeb', padding: '15px', borderRadius: '8px', border: '1px solid #fde68a', textAlign: 'center' }}>
-                                        <div style={{ color: '#b45309', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Expected Revenue</div>
-                                        <div style={{ color: '#92400e', fontSize: '20px', fontWeight: '900' }}>₹{totalExpectedRevenue.toFixed(2)}</div>
+                                        <div style={{ color: '#b45309', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Taxable & GST</div>
+                                        <div style={{ color: '#92400e', fontSize: '18px', fontWeight: '900' }}>₹{totalTaxableAmount.toFixed(2)}</div>
+                                        <div style={{ color: '#d97706', fontSize: '12px', marginTop: '4px' }}>+ GST: ₹{totalGST.toFixed(2)}</div>
                                     </div>
-                                    <div style={{ background: profitMargin >= 0 ? '#f0fdfa' : '#fef2f2', padding: '15px', borderRadius: '8px', border: profitMargin >= 0 ? '1px solid #a7f3d0' : '1px solid #fecaca', textAlign: 'center' }}>
-                                        <div style={{ color: profitMargin >= 0 ? '#0f766e' : '#b91c1c', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Potential Profit Margin</div>
-                                        <div style={{ color: profitMargin >= 0 ? '#0d9488' : '#dc2626', fontSize: '20px', fontWeight: '900' }}>₹{profitMargin.toFixed(2)}</div>
+
+                                    <div style={{ background: '#eff6ff', padding: '15px', borderRadius: '8px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
+                                        <div style={{ color: '#1e40af', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Final Purchase Amt</div>
+                                        <div style={{ color: '#1e3a8a', fontSize: '20px', fontWeight: '900' }}>₹{totalFinalPurchaseAmount.toFixed(2)}</div>
+                                        <div style={{ color: '#3b82f6', fontSize: '12px', marginTop: '4px' }}>Eff. Cost: ₹{effectiveCost.toFixed(2)}/unit</div>
                                     </div>
+
+                                    <div style={{ background: '#f5f3ff', padding: '15px', borderRadius: '8px', border: '1px solid #ddd6fe', textAlign: 'center', gridColumn: 'span 2' }}>
+                                        <div style={{ color: '#6d28d9', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Expected Revenue</div>
+                                        <div style={{ color: '#5b21b6', fontSize: '20px', fontWeight: '900' }}>₹{totalExpectedRevenue.toFixed(2)}</div>
+                                    </div>
+
+                                    <div style={{ background: expectedProfit >= 0 ? '#f0fdfa' : '#fef2f2', padding: '15px', borderRadius: '8px', border: expectedProfit >= 0 ? '1px solid #a7f3d0' : '1px solid #fecaca', textAlign: 'center', gridColumn: 'span 2' }}>
+                                        <div style={{ color: expectedProfit >= 0 ? '#0f766e' : '#b91c1c', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Expected Profit</div>
+                                        <div style={{ color: expectedProfit >= 0 ? '#0d9488' : '#dc2626', fontSize: '20px', fontWeight: '900' }}>₹{expectedProfit.toFixed(2)}</div>
+                                    </div>
+
                                 </div>
 
                             </div>
