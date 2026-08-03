@@ -283,12 +283,27 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
 router.patch('/:id/complete', verifyToken, async (req, res) => {
     try {
         console.log("\n🚀 [BACKEND CHECKOUT] Received req.body:", JSON.stringify(req.body, null, 2));
-        const { purchasedIndices, paymentMode, paymentStatus, authorizedByDoctor, authorizedDoctorName, authorizationNote, frontendTotals } = req.body;
+        const {
+            purchasedIndices = [],
+            paymentMode = 'CASH',
+            paymentStatus = 'Paid',
+            authorizedByDoctor = false,
+            authorizedDoctorName = '',
+            authorizationNote = '',
+            discountPercent: reqDiscountPercent = 0,
+            discountAmount: reqDiscountAmount = 0,
+            frontendTotals = {}
+        } = req.body || {};
         // HARD ISOLATION: Only allow completing orders from your hospital
         const findQuery = { _id: req.params.id };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
         const order = await PharmacyOrder.findOne(findQuery);
         if (!order) return res.status(404).json({ success: false, message: "Order not found or unauthorized" });
+
+        // Validate order items array
+        if (!order.items || !Array.isArray(order.items)) {
+            return res.status(400).json({ success: false, message: "Order items are missing or invalid." });
+        }
 
         // Determine which items are purchased
         const purchasedSet = new Set(
@@ -468,16 +483,16 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
         order.markModified('items');
 
         // Finalize pricing: Preserve frontend calculations to prevent liquid bill inflation
-        if (discountAmount !== undefined) order.discountAmount = discountAmount;
-        if (discountPercent !== undefined) order.discountPercent = discountPercent;
+        order.discountAmount = Number(reqDiscountAmount) || 0;
+        order.discountPercent = Number(reqDiscountPercent) || 0;
         
-        const finalDiscount = Number(discountAmount) || 0;
+        const finalDiscount = order.discountAmount;
 
-        if (frontendTotals) {
-            order.taxableAmount = frontendTotals.taxableAmount || taxableAmount;
-            order.cgstAmount = frontendTotals.cgstAmount || cgstAmount;
-            order.sgstAmount = frontendTotals.sgstAmount || sgstAmount;
-            order.totalAmount = frontendTotals.totalAmount || (totalAmount - finalDiscount);
+        if (frontendTotals && typeof frontendTotals === 'object') {
+            order.taxableAmount = parseFloat(frontendTotals.taxableAmount) || taxableAmount;
+            order.cgstAmount = parseFloat(frontendTotals.cgstAmount) || cgstAmount;
+            order.sgstAmount = parseFloat(frontendTotals.sgstAmount) || sgstAmount;
+            order.totalAmount = parseFloat(frontendTotals.totalAmount) || Math.max(0, totalAmount - finalDiscount);
         } else {
             order.taxableAmount = taxableAmount;
             order.cgstAmount = cgstAmount;
@@ -526,7 +541,8 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
 
         res.json({ success: true, message: 'Order completed successfully', order });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error("🔥 [Pharmacy Order Complete Error]:", error);
+        res.status(500).json({ success: false, message: error.message || 'An internal error occurred during checkout' });
     }
 });
 

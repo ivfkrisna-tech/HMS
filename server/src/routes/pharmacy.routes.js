@@ -377,7 +377,7 @@ router.post('/purchase-invoice/upload', verifyToken, uploadInvoice.single('invoi
         // 1. Parse PDF immediately
         const fileBuffer = fs.readFileSync(req.file.path);
         const parsedData = await parseInvoice(fileBuffer);
-        const { vendorName, invoiceNumber, invoiceDate, grandTotal, taxableAmount, discount, cgst, sgst, igst } = parsedData.invoice;
+        const { vendorName, vendorAddress, vendorDL, invoiceNumber, invoiceDate, grandTotal, taxableAmount, discount, cgst, sgst, igst } = parsedData.invoice;
         const totalMedicines = parsedData.invoice.totalMedicines || parsedData.medicines.length;
         const purchaseQty = parsedData.invoice.purchaseQty;
         const freeQty = parsedData.invoice.freeQty;
@@ -399,6 +399,9 @@ router.post('/purchase-invoice/upload', verifyToken, uploadInvoice.single('invoi
         // 3. Create Database Record
         const newInvoice = new PurchaseInvoice({
             vendorName,
+            vendorGST: parsedData.invoice.vendorGST,
+            vendorAddress,
+            vendorDL,
             invoiceNumber,
             invoiceDate: invoiceDate ? new Date(invoiceDate) : null,
             grandTotal,
@@ -449,10 +452,133 @@ router.post('/purchase-invoice/upload', verifyToken, uploadInvoice.single('invoi
     }
 });
 
+// POST process purchase invoice (bulk import)
+router.post('/purchase-invoice/:id/process', verifyToken, async (req, res) => {
+    try {
+        const invoice = await PurchaseInvoice.findById(req.params.id);
+        if (!invoice) {
+            return res.status(404).json({ success: false, message: 'Invoice not found' });
+        }
+        if (invoice.status === 'Completed') {
+            return res.status(400).json({ success: false, message: 'Invoice already processed' });
+        }
+
+        const filePath = path.join(__dirname, '../../uploads/invoices', invoice.uploadedPDF.generatedName);
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, message: 'Invoice PDF file not found on server' });
+        }
+
+        const fileBuffer = fs.readFileSync(filePath);
+        const parsedData = await parseInvoice(fileBuffer);
+        
+        if (!parsedData || !parsedData.medicines || !Array.isArray(parsedData.medicines)) {
+            return res.status(400).json({ success: false, message: 'Invalid or empty parsed data from invoice PDF' });
+        }
+        
+        const pharmacyId = req.user.id;
+        const hospitalId = req.user.hospitalId;
+
+        let importedCount = 0;
+        let trueGrandTotal = 0;
+        
+        for (const med of parsedData.medicines) {
+            // Check if it exists
+            const query = { 
+                name: med.medicineName, 
+                batchNumber: med.batch || ''
+            };
+            if (hospitalId) {
+                query.hospitalId = hospitalId;
+            } else {
+                query.pharmacyId = pharmacyId;
+            }
+
+            let item = await Inventory.findOne(query);
+
+            const purchaseQty = med.purchaseQty || 0;
+            const freeQty = med.freeQty || 0;
+            const totalQty = purchaseQty + freeQty;
+            const buyingPrice = med.purchaseRate || 0;
+            
+            trueGrandTotal += (purchaseQty * buyingPrice);
+
+            if (item) {
+                item.stock += totalQty;
+                item.buyingPrice = buyingPrice || item.buyingPrice;
+                item.sellingPrice = med.mrp || item.sellingPrice;
+                item.purchaseInvoiceId = invoice._id;
+                await item.save();
+            } else {
+                item = new Inventory({
+                    pharmacyId,
+                    hospitalId,
+                    name: med.medicineName,
+                    batchNumber: med.batch || '',
+                    stock: totalQty,
+                    buyingPrice: buyingPrice,
+                    sellingPrice: med.mrp || 0,
+                    cgst: med.gst / 2 || 0,
+                    sgst: med.gst / 2 || 0,
+                    purchaseQty: purchaseQty,
+                    freeQty: freeQty,
+                    discountType: med.discountType || 'Percentage',
+                    discountValue: med.discountValue || med.discount || 0,
+                    purchaseInvoiceId: invoice._id,
+                    vendor: invoice.vendorName || 'Unknown Vendor'
+                });
+                
+                if (med.expiry) {
+                    const parts = med.expiry.split(/[\/\-]/);
+                    if (parts.length === 2) {
+                        let month = parseInt(parts[0]);
+                        let year = parseInt(parts[1]);
+                        if (year < 100) year += 2000;
+                        item.expiryDate = new Date(year, month - 1, 1);
+                    }
+                }
+                await item.save();
+            }
+            importedCount++;
+        }
+
+        invoice.importedMedicines = invoice.totalMedicines || importedCount;
+        invoice.remainingMedicines = 0;
+        invoice.status = 'Completed';
+        invoice.grandTotal = trueGrandTotal;
+        await invoice.save();
+
+        res.json({ success: true, message: 'Invoice processed successfully', importedCount, trueGrandTotal });
+    } catch (error) {
+        console.error("Process Invoice Error:", error);
+        res.status(500).json({ success: false, message: error.message || 'Failed to process invoice' });
+    }
+});
+
 // GET all purchase invoices
 router.get('/purchase-invoice', verifyToken, async (req, res) => {
     try {
         const invoices = await PurchaseInvoice.find().sort({ createdAt: -1 });
+        
+        // Fallback calculation for older invoices with 0 grandTotal
+        for (let inv of invoices) {
+            if (!inv.grandTotal && inv.status === 'Completed') {
+                const items = await Inventory.find({ purchaseInvoiceId: inv._id });
+                let calculatedTotal = 0;
+                for (let med of items) {
+                    const qty = med.purchaseQty || 0;
+                    const price = med.buyingPrice || 0;
+                    const discount = med.discountValue || 0;
+                    const afterDiscount = (qty * price) - discount;
+                    const taxAmt = afterDiscount * ((med.cgst || 0) + (med.sgst || 0)) / 100;
+                    calculatedTotal += afterDiscount + taxAmt;
+                }
+                if (calculatedTotal > 0) {
+                    inv.grandTotal = calculatedTotal;
+                    await PurchaseInvoice.updateOne({ _id: inv._id }, { $set: { grandTotal: calculatedTotal } });
+                }
+            }
+        }
+
         res.json({ success: true, data: invoices });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -466,7 +592,39 @@ router.get('/purchase-invoice/:id', verifyToken, async (req, res) => {
         if (!invoice) {
             return res.status(404).json({ success: false, message: 'Invoice not found' });
         }
-        res.json({ success: true, data: invoice });
+        
+        let importedMedicines = [];
+        if (invoice.status === 'Completed') {
+            importedMedicines = await Inventory.find({ purchaseInvoiceId: invoice._id });
+        } else {
+            // For pending invoices, we can re-parse the PDF to return the medicines to display
+            const filePath = path.join(__dirname, '../../uploads/invoices', invoice.uploadedPDF.generatedName);
+            if (fs.existsSync(filePath)) {
+                const fileBuffer = fs.readFileSync(filePath);
+                try {
+                    const parsedData = await parseInvoice(fileBuffer);
+                    importedMedicines = parsedData.medicines.map(m => ({
+                        name: m.medicineName,
+                        batchNumber: m.batch,
+                        purchaseQty: m.purchaseQty,
+                        freeQty: m.freeQty,
+                        buyingPrice: m.purchaseRate,
+                        sellingPrice: m.mrp,
+                        totalAmount: m.purchaseQty * m.purchaseRate,
+                        expiryDate: m.expiry,
+                        discountValue: m.discount || 0,
+                        cgst: m.gst ? m.gst / 2 : 0,
+                        sgst: m.gst ? m.gst / 2 : 0
+                    }));
+                } catch(e) { console.error('Parse error on GET:', e); }
+            }
+        }
+        
+        // Add medicines array to response for the modal to use
+        const invoiceData = invoice.toObject();
+        invoiceData.importedMedicinesList = importedMedicines;
+
+        res.json({ success: true, data: invoiceData });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

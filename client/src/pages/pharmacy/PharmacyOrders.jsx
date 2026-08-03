@@ -1174,7 +1174,7 @@ const PharmacyOrders = () => {
                                                 color: (order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? '#d97706' : (order.paymentStatus === 'Paid' ? '#166534' : (order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '#000' : '#991b1b')),
                                                 fontWeight: 'bold'
                                             }}>
-                                                {order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '-' : ((order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? `Pending by Doctor - ${order.authorizedDoctorName || order.doctorName || 'Unknown'}` : order.paymentStatus)}
+                                                {order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '-' : ((order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? (order.authorizedDoctorName || order.doctorName || order.doctorId?.name ? `Pending by Doctor - ${order.authorizedDoctorName || order.doctorName || order.doctorId?.name}` : 'Doctor Approval Pending') : order.paymentStatus)}
                                             </span>
                                         </td>
                                         <td style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>

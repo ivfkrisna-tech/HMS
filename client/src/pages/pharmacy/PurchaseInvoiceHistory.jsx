@@ -50,9 +50,34 @@ const PurchaseInvoiceHistory = () => {
         navigate('/pharmacy/inventory');
     };
 
-    const handleView = (invoice) => {
-        setSelectedInvoice(invoice);
-        setShowModal(true);
+    const handleProcessInvoice = async (id) => {
+        if (!window.confirm("Are you sure you want to process and import this invoice?")) return;
+        setLoading(true);
+        try {
+            const res = await pharmacyAPI.processPurchaseInvoice(id);
+            if (res.success) {
+                alert(`Invoice processed successfully. ${res.importedCount} medicines imported.`);
+                fetchInvoices();
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || "Failed to process invoice");
+            setLoading(false);
+        }
+    };
+
+    const handleView = async (invoice) => {
+        setLoading(true);
+        try {
+            const res = await pharmacyAPI.getPurchaseInvoiceById(invoice._id);
+            if (res.success && res.data) {
+                setSelectedInvoice(res.data);
+                setShowModal(true);
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || "Failed to load invoice details");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const filteredInvoices = invoices.filter(inv => {
@@ -135,9 +160,13 @@ const PurchaseInvoiceHistory = () => {
                                         <td style={{ padding: '16px 20px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                                 <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'linear-gradient(135deg, #c7d2fe, #a5b4fc)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4338ca', fontWeight: 'bold', fontSize: '14px' }}>
-                                                    {(inv.vendorName || 'V')[0].toUpperCase()}
+                                                    {((inv.vendorName && !/plot|road|street|floor|nagar|marg/i.test(inv.vendorName)) ? inv.vendorName[0] : 'V').toUpperCase()}
                                                 </div>
-                                                <span style={{ fontWeight: '600', color: '#334155', fontSize: '14px' }}>{inv.vendorName || 'Unknown Vendor'}</span>
+                                                <span style={{ fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                                    {inv.vendorName && /plot|road|street|floor|nagar|marg/i.test(inv.vendorName) 
+                                                        ? <div style={{lineHeight: '1.2'}}><span style={{color: '#ef4444'}}>Vendor Missing</span><br /><span style={{fontSize: '11px', color: '#94a3b8', fontWeight: 'normal'}}>Address: {inv.vendorName}</span></div>
+                                                        : (inv.vendorName || 'Unknown Vendor')}
+                                                </span>
                                             </div>
                                         </td>
                                         <td style={{ padding: '16px 20px' }}>
@@ -175,14 +204,14 @@ const PurchaseInvoiceHistory = () => {
                                                     <FiEye size={16} />
                                                 </button>
                                                 {inv.status === 'Pending' && (
-                                                    <button onClick={handleContinueImport} style={{ width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }} title="Continue Import">
+                                                    <button onClick={() => handleProcessInvoice(inv._id)} style={{ width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }} title="Confirm Import">
                                                         <FiPlay size={16} style={{ marginLeft: '2px' }} />
                                                     </button>
                                                 )}
                                                 {inv.uploadedPDF?.generatedName && (
-                                                    <a href={`/uploads/invoices/${inv.uploadedPDF.generatedName}`} target="_blank" rel="noreferrer" style={{ width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={(e) => {e.currentTarget.style.color = '#10b981'; e.currentTarget.style.borderColor = '#10b981';}} onMouseLeave={(e) => {e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#e2e8f0';}} title="Download PDF">
+                                                    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(`/uploads/invoices/${inv.uploadedPDF.generatedName}`, '_blank'); }} style={{ width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={(e) => {e.currentTarget.style.color = '#10b981'; e.currentTarget.style.borderColor = '#10b981';}} onMouseLeave={(e) => {e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#e2e8f0';}} title="Download PDF">
                                                         <FiDownload size={16} />
-                                                    </a>
+                                                    </button>
                                                 )}
                                                 {user?.role === 'admin' && (
                                                     <button onClick={() => handleDelete(inv._id)} style={{ width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={(e) => {e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.borderColor = '#fca5a5';}} onMouseLeave={(e) => {e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#e2e8f0';}} title="Delete Invoice">
@@ -202,53 +231,107 @@ const PurchaseInvoiceHistory = () => {
             {/* Premium View Modal */}
             {showModal && selectedInvoice && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowModal(false)}>
-                    <div style={{ background: 'white', borderRadius: '24px', width: '90%', maxWidth: '600px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden', animation: 'slideUp 0.3s ease-out' }} onClick={e => e.stopPropagation()}>
-                        <div style={{ padding: '24px 32px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                            <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>Invoice Details</h3>
-                            <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', fontSize: '24px', color: '#64748b', cursor: 'pointer' }}>&times;</button>
-                        </div>
-                        <div style={{ padding: '32px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                                <div>
-                                    <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Vendor</p>
-                                    <p style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{selectedInvoice.vendorName}</p>
+                    <div style={{ background: 'white', borderRadius: '16px', width: '90%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden', animation: 'slideUp 0.3s ease-out' }} onClick={e => e.stopPropagation()}>
+                        {/* Header Section */}
+                        <div style={{ padding: '24px 32px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f8fafc' }}>
+                            <div>
+                                <h2 style={{ margin: '0 0 4px', fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>
+                                    {selectedInvoice.vendorName && /plot|road|street|floor|nagar|marg/i.test(selectedInvoice.vendorName) ? 'Vendor Name Missing' : (selectedInvoice.vendorName || 'Unknown Vendor')}
+                                </h2>
+                                <p style={{ margin: '0 0 2px', color: '#475569', fontSize: '14px' }}><strong>Address:</strong> {selectedInvoice.vendorAddress || (selectedInvoice.vendorName && /plot|road|street|floor|nagar|marg/i.test(selectedInvoice.vendorName) ? selectedInvoice.vendorName : 'N/A')}</p>
+                                <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+                                    <span style={{ fontSize: '13px', color: '#64748b' }}><strong>GSTIN:</strong> {selectedInvoice.vendorGST || 'N/A'}</span>
+                                    <span style={{ fontSize: '13px', color: '#64748b' }}><strong>DL No:</strong> {selectedInvoice.vendorDL || 'N/A'}</span>
                                 </div>
-                                <div>
-                                    <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Invoice Number</p>
-                                    <p style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{selectedInvoice.invoiceNumber}</p>
-                                </div>
-                                <div>
-                                    <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Invoice Date</p>
-                                    <p style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{selectedInvoice.invoiceDate ? new Date(selectedInvoice.invoiceDate).toLocaleDateString() : 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Total Amount</p>
-                                    <p style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#10b981' }}>₹{selectedInvoice.grandTotal?.toLocaleString('en-IN') || 0}</p>
-                                </div>
-                                <div>
-                                    <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Status</p>
-                                    <span style={{ display: 'inline-block', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', background: selectedInvoice.status === 'Completed' ? '#dcfce7' : '#fef3c7', color: selectedInvoice.status === 'Completed' ? '#166534' : '#92400e' }}>{selectedInvoice.status}</span>
-                                </div>
-                                <div>
-                                    <p style={{ margin: '0 0 8px', color: '#64748b', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Progress</p>
-                                    <p style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>{selectedInvoice.importedMedicines || 0} / {selectedInvoice.totalMedicines || 0}</p>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', fontSize: '24px', color: '#64748b', cursor: 'pointer', float: 'right' }}>&times;</button>
+                                <div style={{ clear: 'both', marginTop: '12px' }}>
+                                    <p style={{ margin: '0 0 4px', fontSize: '14px', color: '#475569' }}><strong>Invoice No:</strong> {selectedInvoice.invoiceNumber || 'N/A'}</p>
+                                    <p style={{ margin: 0, fontSize: '14px', color: '#475569' }}><strong>Date:</strong> {selectedInvoice.invoiceDate ? new Date(selectedInvoice.invoiceDate).toLocaleDateString() : 'N/A'}</p>
+                                    <div style={{ marginTop: '8px' }}>
+                                        <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '700', background: selectedInvoice.status === 'Completed' ? '#dcfce7' : '#fef3c7', color: selectedInvoice.status === 'Completed' ? '#166534' : '#92400e' }}>{selectedInvoice.status}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div style={{ padding: '20px 32px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                            <button onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: 'white', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.2s' }}>Close</button>
-                            {selectedInvoice.uploadedPDF?.generatedName && (
-                                <a href={`/uploads/invoices/${selectedInvoice.uploadedPDF.generatedName}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-                                    <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'white', color: '#10b981', border: '1px solid #10b981', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
-                                        <FiDownload /> PDF
+
+                        {/* Itemized Table */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '0', background: 'white' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <thead style={{ position: 'sticky', top: 0, background: '#f1f5f9', zIndex: 1 }}>
+                                    <tr>
+                                        <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Medicine Name</th>
+                                        <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Batch</th>
+                                        <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Qty</th>
+                                        <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Price/Unit</th>
+                                        <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Base Amt</th>
+                                        <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Discount</th>
+                                        <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>GST (%)</th>
+                                        <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Net Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(selectedInvoice.importedMedicinesList || []).map((med, idx) => {
+                                        const qty = med.purchaseQty || 0;
+                                        const price = med.buyingPrice || med.purchaseRate || 0;
+                                        const baseAmt = qty * price;
+                                        const discount = med.discountValue || med.discount || 0;
+                                        const cgst = med.cgst || 0;
+                                        const sgst = med.sgst || 0;
+                                        const totalGstPercent = cgst + sgst;
+                                        const afterDiscount = baseAmt - discount;
+                                        const taxAmt = afterDiscount * (totalGstPercent / 100);
+                                        const netAmount = afterDiscount + taxAmt;
+                                        return (
+                                            <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                                <td style={{ padding: '12px 20px', fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>{med.name || med.medicineName}</td>
+                                                <td style={{ padding: '12px 20px', fontSize: '14px', color: '#475569' }}>{med.batchNumber || med.batch || 'N/A'}</td>
+                                                <td style={{ padding: '12px 20px', fontSize: '14px', color: '#475569', textAlign: 'right' }}>{qty}</td>
+                                                <td style={{ padding: '12px 20px', fontSize: '14px', color: '#475569', textAlign: 'right' }}>₹{price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                <td style={{ padding: '12px 20px', fontSize: '14px', color: '#475569', textAlign: 'right' }}>₹{baseAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                <td style={{ padding: '12px 20px', fontSize: '14px', color: '#475569', textAlign: 'right' }}>₹{discount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                <td style={{ padding: '12px 20px', fontSize: '14px', color: '#475569', textAlign: 'right' }}>{totalGstPercent}%</td>
+                                                <td style={{ padding: '12px 20px', fontSize: '14px', fontWeight: '700', color: '#0f172a', textAlign: 'right' }}>₹{netAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {(!selectedInvoice.importedMedicinesList || selectedInvoice.importedMedicinesList.length === 0) && (
+                                        <tr>
+                                            <td colSpan="8" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No items found for this invoice.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Footer Section */}
+                        <div style={{ padding: '20px 32px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                {selectedInvoice.uploadedPDF?.generatedName && (
+                                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(`/uploads/invoices/${selectedInvoice.uploadedPDF.generatedName}`, '_blank'); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'white', color: '#10b981', border: '1px solid #10b981', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+                                        <FiDownload /> Download Original PDF
                                     </button>
-                                </a>
-                            )}
-                            {selectedInvoice.status === 'Pending' && (
-                                <button onClick={() => { setShowModal(false); handleContinueImport(); }} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                    Continue Import
-                                </button>
-                            )}
+                                )}
+                                {selectedInvoice.status === 'Pending' && (
+                                    <button onClick={() => { setShowModal(false); handleProcessInvoice(selectedInvoice._id); }} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                        Confirm Import
+                                    </button>
+                                )}
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <p style={{ margin: '0 0 4px', fontSize: '14px', color: '#64748b', textTransform: 'uppercase', fontWeight: '600' }}>Grand Total</p>
+                                <h3 style={{ margin: 0, fontSize: '28px', fontWeight: '800', color: '#0f172a' }}>
+                                    ₹{((selectedInvoice.importedMedicinesList || []).reduce((sum, med) => {
+                                        const qty = med.purchaseQty || 0;
+                                        const price = med.buyingPrice || med.purchaseRate || 0;
+                                        const discount = med.discountValue || med.discount || 0;
+                                        const afterDiscount = (qty * price) - discount;
+                                        const taxAmt = afterDiscount * ((med.cgst || 0) + (med.sgst || 0)) / 100;
+                                        return sum + afterDiscount + taxAmt;
+                                    }, 0) || selectedInvoice.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </h3>
+                            </div>
                         </div>
                     </div>
                 </div>

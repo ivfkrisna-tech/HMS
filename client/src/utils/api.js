@@ -4,15 +4,7 @@ import { logout } from '../store/slices/authSlice';
 
 // FIX: Local testing ke liye empty string aur Live ke liye VITE_API_URL
 const getBaseURL = () => {
-    const hostname = window.location.hostname;
-    
-    // 1. Local ya koi bhi local subdomain (.localhost) ke liye
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')) {
-        return 'http://localhost:3000'; 
-    }
-    
-    // 2. Live site ke liye Render ka asli URL
-    return import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com'; 
+    return import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
 };
 
 const apiClient = axios.create({
@@ -331,6 +323,7 @@ export const pharmacyAPI = {
         return (await apiClient.get(url)).data;
     },
     uploadPurchaseInvoice: async (formData) => (await apiClient.post('/api/pharmacy/purchase-invoice/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data,
+    processPurchaseInvoice: async (id) => (await apiClient.post(`/api/pharmacy/purchase-invoice/${id}/process`)).data,
     getPurchaseInvoices: async () => (await apiClient.get('/api/pharmacy/purchase-invoice')).data,
     getPurchaseInvoiceById: async (id) => (await apiClient.get(`/api/pharmacy/purchase-invoice/${id}`)).data,
     deletePurchaseInvoice: async (id) => (await apiClient.delete(`/api/pharmacy/purchase-invoice/${id}`)).data,

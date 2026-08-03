@@ -14,9 +14,11 @@ const parseInvoice = async (buffer) => {
         const result = {
             invoice: {
                 vendorName: "",
+                vendorAddress: "",
                 invoiceNumber: "",
                 invoiceDate: "",
                 vendorGST: "",
+                vendorDL: "",
                 customerName: "",
                 customerGST: "",
                 grandTotal: 0,
@@ -40,8 +42,15 @@ const parseInvoice = async (buffer) => {
             const line = lines[i].toLowerCase();
             
             // Vendor Name (heuristic: first line that is not a date or invoice number)
-            if (i === 0) {
-                result.invoice.vendorName = lines[i];
+            if (!result.invoice.vendorName && i < 5) {
+                const isAddress = /plot|road|street|floor|nagar|marg/i.test(lines[i]);
+                const isGST = gstRegex.test(lines[i]);
+                const isDate = /(?:date|invoice)/i.test(lines[i]);
+                if (!isAddress && !isGST && !isDate && lines[i].length > 3) {
+                    result.invoice.vendorName = lines[i];
+                } else if (isAddress && !result.invoice.vendorAddress) {
+                    result.invoice.vendorAddress = lines[i];
+                }
             }
 
             // Invoice Number
@@ -66,6 +75,17 @@ const parseInvoice = async (buffer) => {
             const lineGsts = lines[i].match(gstRegex);
             if (lineGsts) {
                 gsts = gsts.concat(lineGsts);
+            }
+
+            // DL Number
+            const dlMatch = line.match(/(?:dl no|d\.l\. no|dl number|d l no)[\s\.:]*([a-zA-Z0-9\/\-]+)/);
+            if (dlMatch && !result.invoice.vendorDL) {
+                result.invoice.vendorDL = dlMatch[1].toUpperCase();
+            }
+
+            // Heuristic Vendor Address (lines 1 to 3 if not matching invoice number/date)
+            if (i > 0 && i < 4 && !invMatch && !dateMatch && !lineGsts && !result.invoice.vendorAddress) {
+                result.invoice.vendorAddress += (result.invoice.vendorAddress ? ", " : "") + lines[i];
             }
         }
         
