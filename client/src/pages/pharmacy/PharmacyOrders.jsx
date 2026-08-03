@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { pharmacyOrderAPI, hospitalAPI } from '../../utils/api';
 import jsPDF from 'jspdf';
@@ -6,9 +6,19 @@ import 'jspdf-autotable';
 import './PharmacyInventory.css';
 
 const PharmacyOrders = () => {
+    const hostname = window.location.hostname;
+    const backendUrl = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost'))
+        ? 'http://localhost:3000'
+        : (import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com');
+
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [checkedItems, setCheckedItems] = useState({});
+    
+    // Filters
+    const [searchTerm, setSearchTerm] = useState('');
+    const [dateFilter, setDateFilter] = useState('');
+    const [statusFilter, setStatusFilter] = useState('All');
 
     // External Data
     const [inventory, setInventory] = useState([]);
@@ -42,7 +52,8 @@ const PharmacyOrders = () => {
         sgstAmount: 0,
         totalAmount: 0,
         discountAmount: 0,
-        grandTotal: 0
+        grandTotal: 0,
+        paymentMode: 'CASH'
     });
     const [walkInSearch, setWalkInSearch] = useState('');
     const [walkInSaving, setWalkInSaving] = useState(false);
@@ -57,9 +68,10 @@ const PharmacyOrders = () => {
     const fetchInventory = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/pharmacy/inventory', {
+            const res = await fetch(`${backendUrl}/api/pharmacy/inventory`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (!res.ok) throw new Error(`API returned status: ${res.status}`);
             const data = await res.json();
             if (data.success) {
                 const inventoryData = data.medicines || data.inventory || data.items || data.data || data || [];
@@ -74,9 +86,10 @@ const PharmacyOrders = () => {
     const fetchDoctors = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/doctor', {
+            const res = await fetch(`${backendUrl}/api/doctor`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (!res.ok) throw new Error(`API returned status: ${res.status}`);
             const data = await res.json();
             if (data.success) setDoctors(data.doctors || data.data || []);
         } catch (error) {
@@ -87,9 +100,10 @@ const PharmacyOrders = () => {
     const fetchDashboardStats = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/pharmacy/orders/dashboard-summary', {
+            const res = await fetch(`${backendUrl}/api/pharmacy/orders/dashboard-summary`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (!res.ok) throw new Error(`API returned status: ${res.status}`);
             const data = await res.json();
             if (data.success) setDashboardStats(data.data);
         } catch (error) {
@@ -124,10 +138,6 @@ const PharmacyOrders = () => {
     const handleUpdateBillingSettings = async () => {
         try {
             const token = localStorage.getItem('token');
-            const hostname = window.location.hostname;
-            const backendUrl = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost'))
-                ? 'http://localhost:3000'
-                : (import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com');
 
             const res = await fetch(`${backendUrl}/api/pharmacy/hospital-billing`, {
                 method: 'PUT',
@@ -167,7 +177,7 @@ const PharmacyOrders = () => {
         setWalkInSaving(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/pharmacy/orders/outside-patient-bill', {
+            const res = await fetch(`${backendUrl}/api/pharmacy/orders/outside-patient-bill`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -182,7 +192,8 @@ const PharmacyOrders = () => {
                     taxableAmount: walkInForm.subtotal,
                     cgstAmount: walkInForm.cgstAmount,
                     sgstAmount: walkInForm.sgstAmount,
-                    discountAmount: walkInForm.discountAmount
+                    discountAmount: walkInForm.discountAmount,
+                    paymentMode: walkInForm.paymentMode
                 })
             });
             const data = await res.json();
@@ -193,7 +204,7 @@ const PharmacyOrders = () => {
                 // Reset form
                 setWalkInForm({
                     patientName: '', patientPhone: '', doctorName: '', items: [], discountPercent: 0,
-                    subtotal: 0, cgstAmount: 0, sgstAmount: 0, totalAmount: 0, discountAmount: 0, grandTotal: 0
+                    subtotal: 0, cgstAmount: 0, sgstAmount: 0, totalAmount: 0, discountAmount: 0, grandTotal: 0, paymentMode: 'CASH'
                 });
                 alert('Walk-in Bill generated successfully!');
                 
@@ -348,11 +359,6 @@ const PharmacyOrders = () => {
             const token = localStorage.getItem('token');
 
             // 👇 Yeh rasta seedha Render backend ki taraf jayega
-            const hostname = window.location.hostname;
-            const backendUrl = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost'))
-                ? 'http://localhost:3000'
-                : (import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com');
-
             const res = await fetch(`${backendUrl}/api/pharmacy/orders/${orderId}/complete`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -639,6 +645,67 @@ const PharmacyOrders = () => {
         };
     };
 
+    const calculatedStats = useMemo(() => {
+        let todayCollection = 0;
+        let todayCash = 0;
+        let todayOnline = 0;
+        let overallCollection = 0;
+        let overallCash = 0;
+        let overallOnline = 0;
+        let pendingCollection = 0;
+        let doctorGuaranteedAmount = 0;
+
+        const todayIST = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Kolkata" });
+
+        (orders || []).forEach(order => {
+            let amount = parseFloat(order.totalAmount || order.grandTotal) || 0;
+            
+            // Fallback for missing amounts in older orders
+            if (amount === 0 && (order.items?.length > 0 || order.prescribedItems?.length > 0)) {
+                const calcs = getInvoiceCalculations(order);
+                amount = calcs.grandTotal || 0;
+            }
+
+            const oStatus = (order.orderStatus || '').toLowerCase();
+            const pStatus = (order.paymentStatus || '').toLowerCase();
+
+            if (oStatus === 'completed') {
+                if (pStatus === 'paid') {
+                    overallCollection += amount;
+                    
+                    // Normalize Payment Mode
+                    let modeStr = (order.paymentMode || 'cash').toLowerCase().trim();
+                    let isCash = true; // Default fallback
+                    if (['upi', 'online', 'card', 'net_banking', 'net banking', 'netbanking'].includes(modeStr)) {
+                        isCash = false;
+                    }
+                    
+                    if (isCash) overallCash += amount;
+                    else overallOnline += amount;
+
+                    const orderDateStr = order.updatedAt || order.createdAt || new Date();
+                    const orderDate = new Date(orderDateStr).toLocaleDateString("en-US", { timeZone: "Asia/Kolkata" });
+                    if (orderDate === todayIST) {
+                        todayCollection += amount;
+                        if (isCash) todayCash += amount;
+                        else todayOnline += amount;
+                    }
+                } else if (pStatus === 'paid_by_doctor' || order.paymentMode === 'DOCTOR_AUTHORIZATION') {
+                    pendingCollection += amount;
+                    doctorGuaranteedAmount += amount;
+                } else {
+                    pendingCollection += amount;
+                }
+            }
+        });
+
+        return {
+            todayCollection, todayCash, todayOnline,
+            overallCollection, overallCash, overallOnline,
+            pendingCollection, doctorGuaranteedAmount
+        };
+    }, [orders]);
+
     return (
         <div className="pharmacy-management-container" style={{ padding: '20px' }}>
             {showBillModal && selectedOrder && (() => {
@@ -722,7 +789,7 @@ const PharmacyOrders = () => {
                                     <div>DATE: <span style={{ color: '#0f172a' }}>{selectedOrder?.createdAt ? new Date(selectedOrder.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}</span></div>
                                     <div>
                                         STATUS: <span style={{ color: selectedOrder?.paymentStatus === 'Paid' ? '#059669' : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? '#d97706' : '#dc2626'), fontWeight: '900' }}>
-                                            {selectedOrder?.paymentStatus === 'Paid' ? 'PAID' : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? `PENDING BY DR - ${selectedOrder?.authorizedDoctorName || selectedOrder?.doctorName || 'Unknown'}`.toUpperCase() : 'PENDING')}
+                                            {selectedOrder?.paymentStatus === 'Paid' ? `PAID ${selectedOrder?.paymentMode ? `(${selectedOrder.paymentMode})` : ''}` : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? `PENDING BY DR - ${selectedOrder?.authorizedDoctorName || selectedOrder?.doctorName || 'Unknown'}`.toUpperCase() : 'PENDING')}
                                         </span>
                                     </div>
                                 </div>
@@ -775,7 +842,34 @@ const PharmacyOrders = () => {
                                                                 <div style={{ fontSize: '9px' }}>{item.exp || '10/29/2029'}</div>
                                                             </td>
                                                             <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>
-                                                                <div style={{ fontWeight: 'bold' }}>{item.qtyDisplay}</div>
+                                                                <div style={{ fontWeight: 'bold' }}>
+                                                                    {selectedOrder?.orderStatus === 'Completed' ? (
+                                                                        <span>{item.qtyDisplay}</span>
+                                                                    ) : (
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="1"
+                                                                                value={item.finalQty}
+                                                                                onChange={(e) => {
+                                                                                    const val = Number(e.target.value);
+                                                                                    if (val < 0) return;
+                                                                                    const updatedOrder = { ...selectedOrder };
+                                                                                    const itemsArray = updatedOrder.prescribedItems || updatedOrder.items || [];
+                                                                                    const updatedItems = [...itemsArray];
+                                                                                    updatedItems[idx] = { ...updatedItems[idx], qty: val, quantity: val, totalReqd: val };
+                                                                                    if (updatedOrder.prescribedItems) updatedOrder.prescribedItems = updatedItems;
+                                                                                    if (updatedOrder.items) updatedOrder.items = updatedItems;
+                                                                                    setSelectedOrder(updatedOrder);
+                                                                                    setOrders(prev => prev.map(o => o._id === updatedOrder._id ? updatedOrder : o));
+                                                                                    if (paymentFlowOrder?._id === updatedOrder._id) setPaymentFlowOrder(updatedOrder);
+                                                                                }}
+                                                                                style={{ width: '60px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center' }}
+                                                                            />
+                                                                            <span>{item.unitLabel}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                                 {item.packagingBreakdown && (
                                                                     <div style={{ fontSize: '11px', color: '#059669', marginTop: '4px', fontWeight: 'bold' }}>
                                                                         📦 {item.packagingBreakdown}
@@ -1023,7 +1117,20 @@ const PharmacyOrders = () => {
                                 );
                             })()}
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px', alignItems: 'center' }}>
+                                <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <label style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', margin: 0 }}>Payment Mode:</label>
+                                    <select 
+                                        value={walkInForm.paymentMode} 
+                                        onChange={(e) => setWalkInForm({...walkInForm, paymentMode: e.target.value})}
+                                        style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none', fontWeight: 'bold' }}
+                                    >
+                                        <option value="CASH">Cash</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="CARD">Card</option>
+                                        <option value="NET_BANKING">Net Banking</option>
+                                    </select>
+                                </div>
                                 <button type="button" onClick={() => setShowWalkInModal(false)} style={{ padding: '8px 16px', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
                                 <button type="submit" disabled={walkInSaving || walkInForm.items.length === 0} style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
                                     {walkInSaving ? 'Saving...' : 'Generate Bill & Pay'}
@@ -1051,16 +1158,18 @@ const PharmacyOrders = () => {
             <div className="pb-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #10b981' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Today's Collection</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{dashboardStats?.todayCollection?.toFixed(2) || '0.00'}</h2>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.todayCollection.toFixed(2)}</h2>
+                    <small style={{ color: '#059669', fontWeight: 'bold' }}>Cash: ₹{calculatedStats.todayCash.toFixed(2)} | Online: ₹{calculatedStats.todayOnline.toFixed(2)}</small>
                 </div>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #3b82f6' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Overall Collection</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{dashboardStats?.overallCollection?.toFixed(2) || '0.00'}</h2>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.overallCollection.toFixed(2)}</h2>
+                    <small style={{ color: '#2563eb', fontWeight: 'bold' }}>Cash: ₹{calculatedStats.overallCash.toFixed(2)} | Online: ₹{calculatedStats.overallOnline.toFixed(2)}</small>
                 </div>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #f59e0b' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Pending / Dr Guaranteed</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{dashboardStats?.pendingCollection?.toFixed(2) || '0.00'}</h2>
-                    <small style={{ color: '#8b5cf6' }}>Dr Auth: ₹{dashboardStats?.doctorGuaranteedAmount?.toFixed(2) || '0.00'}</small>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.pendingCollection.toFixed(2)}</h2>
+                    <small style={{ color: '#8b5cf6' }}>Dr Auth: ₹{calculatedStats.doctorGuaranteedAmount.toFixed(2)}</small>
                 </div>
             </div>
 
@@ -1099,6 +1208,46 @@ const PharmacyOrders = () => {
                 </div>
             </div>
 
+            {/* Filters Section */}
+            <div style={{ background: '#fff', padding: '16px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: '20px', border: '1px solid #e2e8f0', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                    <input 
+                        type="text"
+                        placeholder="Search by Patient Name, Phone or Doctor..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <input 
+                        type="date"
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value)}
+                        style={{ padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <select 
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        style={{ padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none', backgroundColor: '#fff' }}
+                    >
+                        <option value="All">All Statuses</option>
+                        <option value="Pending">Pending / Upcoming</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+                <div>
+                    <button 
+                        onClick={() => { setSearchTerm(''); setDateFilter(''); setStatusFilter('All'); }}
+                        style={{ padding: '10px 16px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                        Clear Filters
+                    </button>
+                </div>
+            </div>
+
             <div className="inventory-table-wrapper">
                 {loading ? <div className="loader">Loading Orders...</div> : (
                     <table className="inventory-table">
@@ -1114,7 +1263,33 @@ const PharmacyOrders = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {(orders || []).map((order) => {
+                            {(orders || []).filter(order => {
+                                let matchesSearch = true;
+                                if (searchTerm) {
+                                    const lowerSearch = searchTerm.toLowerCase();
+                                    const patientName = String(order.isOutsidePatient ? order.patientName : order.userId?.name || '').toLowerCase();
+                                    const patientPhone = String(order.isOutsidePatient ? order.patientPhone : order.patientId || order.patient?.uhid || '').toLowerCase();
+                                    const doctorName = String(order.isOutsidePatient ? order.doctorName : order.doctorId?.name || '').toLowerCase();
+                                    matchesSearch = patientName.includes(lowerSearch) || patientPhone.includes(lowerSearch) || doctorName.includes(lowerSearch);
+                                }
+                                
+                                let matchesDate = true;
+                                if (dateFilter) {
+                                    const orderDate = order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : '';
+                                    matchesDate = orderDate === dateFilter;
+                                }
+
+                                let matchesStatus = true;
+                                if (statusFilter !== 'All') {
+                                    if (statusFilter === 'Pending') {
+                                        matchesStatus = order.orderStatus === 'Upcoming' || order.orderStatus === 'Pending';
+                                    } else if (statusFilter === 'Completed') {
+                                        matchesStatus = order.orderStatus === 'Completed';
+                                    }
+                                }
+                                
+                                return matchesSearch && matchesDate && matchesStatus;
+                            }).map((order) => {
                                 const orderItems = order.items || order.prescribedItems || [];
                                 const calculatedData = getInvoiceCalculations(order);
                                 return (
@@ -1177,7 +1352,7 @@ const PharmacyOrders = () => {
                                                 color: (order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? '#d97706' : (order.paymentStatus === 'Paid' ? '#166534' : (order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '#000' : '#991b1b')),
                                                 fontWeight: 'bold'
                                             }}>
-                                                {order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '-' : ((order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? (order.authorizedDoctorName || order.doctorName || order.doctorId?.name ? `Pending by Doctor - ${order.authorizedDoctorName || order.doctorName || order.doctorId?.name}` : 'Doctor Approval Pending') : order.paymentStatus)}
+                                                {order.orderStatus === 'Completed' && order.paymentStatus === 'Pending' ? '-' : ((order.paymentStatus === 'PAID_BY_DOCTOR' || order.paymentMode === 'DOCTOR_AUTHORIZATION') ? (order.authorizedDoctorName || order.doctorName || order.doctorId?.name ? `Pending by Doctor - ${order.authorizedDoctorName || order.doctorName || order.doctorId?.name}` : 'Doctor Approval Pending') : (order.paymentStatus === 'Paid' ? `Paid ${order.paymentMode ? `(${order.paymentMode})` : ''}` : order.paymentStatus))}
                                             </span>
                                         </td>
                                         <td style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -1312,6 +1487,7 @@ const PharmacyOrders = () => {
                                 const calcData = getInvoiceCalculations(paymentFlowOrder, discountPercent);
                                 const payload = {
                                     purchasedIndices: Array.from({ length: paymentFlowItems.length }, (_, i) => i),
+                                    updatedItems: paymentFlowItems,
                                     paymentMode: paymentSource === 'Doctor' ? 'DOCTOR_AUTHORIZATION' : paymentMode.toUpperCase(),
                                     paymentStatus: paymentSource === 'Doctor' ? 'PAID_BY_DOCTOR' : 'Paid',
                                     authorizedByDoctor: paymentSource === 'Doctor' ? authorizedByDoctor : undefined,

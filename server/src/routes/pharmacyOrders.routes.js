@@ -186,7 +186,11 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
         const orders = await PharmacyOrder.find(hospitalFilter);
 
         let todayCollection = 0;
+        let todayCash = 0;
+        let todayOnline = 0;
         let overallCollection = 0;
+        let overallCash = 0;
+        let overallOnline = 0;
         let pendingCollection = 0;
         let doctorGuaranteedAmount = 0;
 
@@ -257,9 +261,15 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
             if (oStatus === 'completed') {
                 if (pStatus === 'paid') {
                     overallCollection += amount;
+                    const mode = (order.paymentMode || 'cash').toLowerCase();
+                    if (mode === 'cash') overallCash += amount;
+                    else overallOnline += amount;
+
                     // Fix: Use updatedAt instead of createdAt for accurate collection date and compare using local IST string to bypass UTC midnight drift on cloud servers
                     if (getISTDateString(order.updatedAt || order.createdAt) === todayIST) {
                         todayCollection += amount;
+                        if (mode === 'cash') todayCash += amount;
+                        else todayOnline += amount;
                     }
                 } else if (pStatus === 'paid_by_doctor') {
                     pendingCollection += amount;
@@ -276,7 +286,11 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
             success: true,
             data: {
                 todayCollection,
+                todayCash,
+                todayOnline,
                 overallCollection,
+                overallCash,
+                overallOnline,
                 pendingCollection,
                 doctorGuaranteedAmount
             }
@@ -294,6 +308,7 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
         console.log("\n🚀 [BACKEND CHECKOUT] Received req.body:", JSON.stringify(req.body, null, 2));
         const {
             purchasedIndices = [],
+            updatedItems = [],
             paymentMode = 'CASH',
             paymentStatus = 'Paid',
             authorizedByDoctor = false,
@@ -312,6 +327,20 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
         // Validate order items array
         if (!order.items || !Array.isArray(order.items)) {
             return res.status(400).json({ success: false, message: "Order items are missing or invalid." });
+        }
+
+        // Apply updated quantities if provided
+        if (updatedItems && Array.isArray(updatedItems)) {
+            for (let i = 0; i < order.items.length; i++) {
+                if (updatedItems[i]) {
+                    const newQty = updatedItems[i].qty ?? updatedItems[i].quantity;
+                    if (newQty !== undefined) {
+                        order.items[i].quantity = Number(newQty);
+                        order.items[i].qty = Number(newQty);
+                        order.items[i].totalReqd = Number(newQty);
+                    }
+                }
+            }
         }
 
         // Determine which items are purchased
@@ -558,7 +587,7 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
 // Create Walk-in / Outside Patient Bill
 router.post('/outside-patient-bill', verifyToken, async (req, res) => {
     try {
-        const { patientName, patientPhone, doctorName, items, totalAmount, taxableAmount, cgstAmount, sgstAmount, discountAmount } = req.body;
+        const { patientName, patientPhone, doctorName, items, totalAmount, taxableAmount, cgstAmount, sgstAmount, discountAmount, paymentMode } = req.body;
         
         let hospitalId = req.user.hospitalId || req.body.hospitalId;
 
@@ -591,6 +620,7 @@ router.post('/outside-patient-bill', verifyToken, async (req, res) => {
             sgstAmount,
             discountAmount: discountAmount || 0,
             paymentStatus: 'Paid', // Assuming Walk-in bills are paid immediately over the counter
+            paymentMode: paymentMode || 'CASH',
             orderStatus: 'Completed',
             hospitalId
         });
