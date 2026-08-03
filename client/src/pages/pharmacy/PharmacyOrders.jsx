@@ -616,12 +616,12 @@ const PharmacyOrders = () => {
             };
         });
 
-        const pct = appliedDiscountPercent !== null ? appliedDiscountPercent : (order?.discountPercent || 0);
+        const pct = appliedDiscountPercent !== null ? appliedDiscountPercent : Number(order?.discountPercent || order?.discountPercentage || 0);
         let finalDiscountAmount = 0;
         if (pct > 0) {
             finalDiscountAmount = (totalSubtotal * pct) / 100;
         } else {
-            finalDiscountAmount = order?.discountAmount || 0;
+            finalDiscountAmount = Number(order?.discountAmount || order?.discount || order?.discountValue || 0);
         }
 
         const grandTotal = Math.max(0, totalSubtotal + totalTax - finalDiscountAmount);
@@ -813,25 +813,18 @@ const PharmacyOrders = () => {
                                             <span style={{ fontWeight: 'bold' }}>₹{invoiceData.sgst}</span>
                                         </div>
                                         {selectedOrder?.orderStatus !== 'Completed' && (
-                                            <>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
-                                                    <span>Discount (%):</span>
-                                                    <input 
-                                                        type="number" 
-                                                        min="0"
-                                                        value={discountPercent} 
-                                                        onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)} 
-                                                        style={{ width: '60px', padding: '2px 4px', textAlign: 'right', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                                    />
-                                                </div>
-                                                {invoiceData.discountAmount > 0 && (
-                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4px', color: '#dc2626', fontSize: '10px' }}>
-                                                        (Discount: -₹{invoiceData.discountAmount})
-                                                    </div>
-                                                )}
-                                            </>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
+                                                <span>Discount (%):</span>
+                                                <input 
+                                                    type="number" 
+                                                    min="0"
+                                                    value={discountPercent} 
+                                                    onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)} 
+                                                    style={{ width: '60px', padding: '2px 4px', textAlign: 'right', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                                />
+                                            </div>
                                         )}
-                                        {(selectedOrder?.orderStatus === 'Completed' || selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR') && Number(invoiceData.discountAmount) > 0 && (
+                                        {Number(invoiceData.discountAmount) > 0 && (
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#dc2626', background: '#fee2e2', padding: '4px 8px', borderRadius: '4px' }}>
                                                 <span>Discount Applied ({invoiceData.discountPercent > 0 ? `${invoiceData.discountPercent}%` : 'Flat'}):</span>
                                                 <span style={{ fontWeight: 'bold' }}>-₹{invoiceData.discountAmount}</span>

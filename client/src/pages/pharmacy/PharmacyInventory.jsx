@@ -28,7 +28,7 @@ const PharmacyInventory = () => {
     const [selectedMedicine, setSelectedMedicine] = useState(null);
 
     const initialFormState = {
-        name: '', salt: '', category: '', stock: '', unit: 'Tablets',
+        name: '', salt: '', category: '', stock: '', unit: 'Tablets', unitsPerStrip: 10,
         minStockAlertLevel: 50, rackLocation: '', vendorId: '',
         buyingPrice: '', sellingPrice: '', vendor: '',
         sgst: '', cgst: '', cgstPercent: '', sgstPercent: '',
@@ -39,6 +39,9 @@ const PharmacyInventory = () => {
     };
 
     const [newMedicine, setNewMedicine] = useState(initialFormState);
+
+    const [nameSuggestions, setNameSuggestions] = useState([]);
+    const [showNameSuggestions, setShowNameSuggestions] = useState(false);
 
     const [vendors, setVendors] = useState([]);
     const [showVendorModal, setShowVendorModal] = useState(false);
@@ -263,10 +266,19 @@ const PharmacyInventory = () => {
 
         const pQty = Number(newMedicine.purchaseQty) || 0;
         const fQty = Number(newMedicine.freeQty) || 0;
-        const totalStock = pQty + fQty;
         
-        const price = Number(newMedicine.buyingPrice) || 0;
-        let baseTotal = pQty * price;
+        let totalStock = pQty + fQty;
+        let price = Number(newMedicine.buyingPrice) || 0;
+        let selling = Number(newMedicine.sellingPrice) || 0;
+
+        if (newMedicine.unit === 'Strip' && newMedicine.unitsPerStrip) {
+            const ups = Number(newMedicine.unitsPerStrip) || 1;
+            totalStock = totalStock * ups;
+            price = price / ups;
+            selling = selling / ups;
+        }
+        
+        let baseTotal = pQty * (Number(newMedicine.buyingPrice) || 0);
         
         let disc = 0;
         if (newMedicine.discountType === 'Percentage') {
@@ -283,10 +295,10 @@ const PharmacyInventory = () => {
         const cleanedData = {
             ...newMedicine,
             salt: newMedicine.salt || '',
-            stock: totalStock, // STRICT ENFORCEMENT: Purchase Qty + Free Qty
+            stock: totalStock, // STRICT ENFORCEMENT: Computed based on unit logic
             minStockAlertLevel: Number(newMedicine.minStockAlertLevel) || 50,
             buyingPrice: price,
-            sellingPrice: Number(newMedicine.sellingPrice),
+            sellingPrice: selling,
             sgst: Number(newMedicine.sgst) || 0,
             cgst: Number(newMedicine.cgst) || 0,
             cgstPercent: Number(newMedicine.cgstPercent) || 0,
@@ -506,7 +518,42 @@ const PharmacyInventory = () => {
                                         ))}
                                     </select>
                                 ) : (
-                                    <input required type="text" value={newMedicine.name} onChange={(e) => setNewMedicine({ ...newMedicine, name: e.target.value })} placeholder="e.g. Gonal-F 900 IU Pen / Menopur 75 IU" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                    <div style={{ position: 'relative' }}>
+                                        <input required type="text" value={newMedicine.name} onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewMedicine({ ...newMedicine, name: val });
+                                            if (val.length >= 3) {
+                                                const matches = medicines.filter(m => m.name.toLowerCase().includes(val.toLowerCase())).slice(0, 10);
+                                                setNameSuggestions(matches);
+                                                setShowNameSuggestions(true);
+                                            } else {
+                                                setShowNameSuggestions(false);
+                                            }
+                                        }} onFocus={() => {
+                                            if (newMedicine.name && newMedicine.name.length >= 3) setShowNameSuggestions(true);
+                                        }} onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)} placeholder="e.g. Gonal-F 900 IU Pen / Menopur 75 IU" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} autoComplete="off" />
+                                        
+                                        {showNameSuggestions && nameSuggestions.length > 0 && (
+                                            <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', zIndex: 50, listStyle: 'none', margin: '4px 0 0 0', padding: 0, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', maxHeight: '200px', overflowY: 'auto' }}>
+                                                {nameSuggestions.map((m, idx) => (
+                                                    <li key={idx} onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setNewMedicine(prev => ({ 
+                                                            ...prev, 
+                                                            name: m.name, 
+                                                            salt: m.salt || prev.salt, 
+                                                            category: m.category || prev.category, 
+                                                            unit: m.unit || prev.unit 
+                                                        }));
+                                                        setShowNameSuggestions(false);
+                                                    }} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                                                        <div style={{ fontWeight: '600', color: '#1e293b', fontSize: '0.85rem' }}>{m.name}</div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.salt || 'No Salt'} • {m.category || 'General'}</div>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                             <div className="form-group">
@@ -575,15 +622,25 @@ const PharmacyInventory = () => {
                                 }} placeholder="e.g. 2" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                             </div>
                             <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK</label>
-                                <input readOnly type="number" value={newMedicine.stock} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 'bold' }} />
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK {newMedicine.unit === 'Strip' ? '(UNITS)' : ''}</label>
+                                <input readOnly type="number" value={
+                                    newMedicine.unit === 'Strip' ? ((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1) : (Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)
+                                } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 'bold' }} />
                             </div>
                             <div className="form-group">
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>UNIT</label>
                                 <select value={newMedicine.unit} onChange={(e) => setNewMedicine({ ...newMedicine, unit: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
-                                    {['Tablets', 'Capsules', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
+                                    {['Tablets', 'Capsules', 'Strip', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
                             </div>
+                            {newMedicine.unit === 'Strip' && (
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>UNITS PER STRIP</label>
+                                    <input type="number" min="1" value={newMedicine.unitsPerStrip} onChange={(e) => {
+                                        setNewMedicine({ ...newMedicine, unitsPerStrip: e.target.value });
+                                    }} placeholder="e.g. 10 or 15" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>

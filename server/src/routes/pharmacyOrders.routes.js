@@ -174,7 +174,13 @@ router.post('/process-return', verifyToken, async (req, res) => {
 router.get('/dashboard-summary', verifyToken, async (req, res) => {
     try {
         let hospitalFilter = {};
-        if (req.user.hospitalId) hospitalFilter.hospitalId = req.user.hospitalId;
+        if (req.user.hospitalId) {
+            try {
+                hospitalFilter.hospitalId = new mongoose.Types.ObjectId(req.user.hospitalId);
+            } catch (e) {
+                hospitalFilter.hospitalId = req.user.hospitalId;
+            }
+        }
 
         // Fetch all orders for the dashboard
         const orders = await PharmacyOrder.find(hospitalFilter);
@@ -245,20 +251,23 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
                 amount = calcSubtotal + calcTax;
             }
 
-            if (order.orderStatus === 'Completed') {
-                if (order.paymentStatus === 'Paid' || order.paymentStatus === 'PAID') {
+            const oStatus = (order.orderStatus || '').toLowerCase();
+            const pStatus = (order.paymentStatus || '').toLowerCase();
+
+            if (oStatus === 'completed') {
+                if (pStatus === 'paid') {
                     overallCollection += amount;
                     // Fix: Use updatedAt instead of createdAt for accurate collection date and compare using local IST string to bypass UTC midnight drift on cloud servers
                     if (getISTDateString(order.updatedAt || order.createdAt) === todayIST) {
                         todayCollection += amount;
                     }
-                } else if (order.paymentStatus === 'PAID_BY_DOCTOR') {
+                } else if (pStatus === 'paid_by_doctor') {
                     pendingCollection += amount;
                     doctorGuaranteedAmount += amount;
                 } else {
                     pendingCollection += amount;
                 }
-            } else if (order.orderStatus === 'Pending' || order.orderStatus === 'Upcoming') {
+            } else if (oStatus === 'pending' || oStatus === 'upcoming') {
                 // optionally include in pending if desired
             }
         });
