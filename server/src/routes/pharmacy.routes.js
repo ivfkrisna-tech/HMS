@@ -375,12 +375,32 @@ router.post('/purchase-invoice/upload', verifyToken, uploadInvoice.single('invoi
         const uploadTime = uploadDate.toTimeString().split(' ')[0];
 
         // 1. Parse PDF immediately
-        const fileBuffer = fs.readFileSync(req.file.path);
-        const parsedData = await parseInvoice(fileBuffer);
+        let fileBuffer;
+        let parsedData;
+        try {
+            fileBuffer = fs.readFileSync(req.file.path);
+            if (!fileBuffer || fileBuffer.length === 0) {
+                throw new Error("Uploaded PDF file is empty or corrupt.");
+            }
+            parsedData = await parseInvoice(fileBuffer);
+            
+            if (!parsedData || !parsedData.invoice || !Array.isArray(parsedData.medicines)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Could not extract valid medicine items from this PDF layout.'
+                });
+            }
+        } catch (parseErr) {
+            console.error("PDF Parsing Error:", parseErr);
+            // Cleanup the file before returning error
+            if (req.file && req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            return res.status(400).json({ success: false, message: parseErr.message || 'Failed to parse invoice PDF' });
+        }
+
         const { vendorName, vendorAddress, vendorDL, invoiceNumber, invoiceDate, grandTotal, taxableAmount, discount, cgst, sgst, igst } = parsedData.invoice;
         const totalMedicines = parsedData.invoice.totalMedicines || parsedData.medicines.length;
-        const purchaseQty = parsedData.invoice.purchaseQty;
-        const freeQty = parsedData.invoice.freeQty;
+        const purchaseQty = parsedData.invoice.purchaseQty || 0;
+        const freeQty = parsedData.invoice.freeQty || 0;
 
         // 2. Prevent Duplicate Invoice
         if (vendorName && invoiceNumber) {
