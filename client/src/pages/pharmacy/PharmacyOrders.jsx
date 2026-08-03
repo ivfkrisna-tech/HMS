@@ -831,9 +831,9 @@ const PharmacyOrders = () => {
                                                 )}
                                             </>
                                         )}
-                                        {selectedOrder?.orderStatus === 'Completed' && invoiceData.discountAmount > 0 && (
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#dc2626' }}>
-                                                <span>Discount ({invoiceData.discountPercent > 0 ? `${invoiceData.discountPercent}%` : '₹'}):</span>
+                                        {(selectedOrder?.orderStatus === 'Completed' || selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR') && Number(invoiceData.discountAmount) > 0 && (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#dc2626', background: '#fee2e2', padding: '4px 8px', borderRadius: '4px' }}>
+                                                <span>Discount Applied ({invoiceData.discountPercent > 0 ? `${invoiceData.discountPercent}%` : 'Flat'}):</span>
                                                 <span style={{ fontWeight: 'bold' }}>-₹{invoiceData.discountAmount}</span>
                                             </div>
                                         )}
@@ -1162,7 +1162,17 @@ const PharmacyOrders = () => {
                                             </ul>
                                         </td>
                                         <td className="p-3 text-sm font-semibold text-gray-800">
-                                            ₹{calculatedData.grandTotal}
+                                            {Number(calculatedData.discountAmount) > 0 ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.8rem' }}>₹{(Number(calculatedData.subtotal) + Number(calculatedData.totalTax)).toFixed(2)}</span>
+                                                    <span style={{ color: '#0f172a' }}>₹{calculatedData.grandTotal}</span>
+                                                    <span style={{ fontSize: '0.7rem', color: '#16a34a', background: '#dcfce7', padding: '2px 6px', borderRadius: '4px', marginTop: '4px', display: 'inline-block', width: 'fit-content', fontWeight: 'bold' }}>
+                                                        Disc: ₹{calculatedData.discountAmount}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span>₹{calculatedData.grandTotal}</span>
+                                            )}
                                         </td>
                                         <td>
                                             <span className={`status-badge ${order.orderStatus === 'Completed' ? 'status-active' : 'status-low'}`}>

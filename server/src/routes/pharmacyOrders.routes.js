@@ -184,8 +184,8 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
         let pendingCollection = 0;
         let doctorGuaranteedAmount = 0;
 
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
+        const getISTDateString = (d) => new Date(d || Date.now()).toLocaleDateString("en-US", { timeZone: "Asia/Kolkata" });
+        const todayIST = getISTDateString();
 
         orders.forEach(order => {
             let amount = parseFloat(order.totalAmount) || 0;
@@ -248,8 +248,8 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
             if (order.orderStatus === 'Completed') {
                 if (order.paymentStatus === 'Paid' || order.paymentStatus === 'PAID') {
                     overallCollection += amount;
-                    // Fix: Use updatedAt instead of createdAt for accurate collection date
-                    if (new Date(order.updatedAt) >= startOfToday) {
+                    // Fix: Use updatedAt instead of createdAt for accurate collection date and compare using local IST string to bypass UTC midnight drift on cloud servers
+                    if (getISTDateString(order.updatedAt || order.createdAt) === todayIST) {
                         todayCollection += amount;
                     }
                 } else if (order.paymentStatus === 'PAID_BY_DOCTOR') {
