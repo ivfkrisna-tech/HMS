@@ -26,7 +26,7 @@ const HospitalLogin = () => {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const { loading, error, isAuthenticated, user } = useAuth();
-    const { loadBranding } = useBranding();
+    const { loadBranding, loginBackground: ctxLoginBg } = useBranding();
 
     const [hospital, setHospital] = useState(null);
     const [hospitalLoading, setHospitalLoading] = useState(true);
@@ -53,6 +53,8 @@ const HospitalLogin = () => {
                 if (hospitalData) {
                     setHospital(hospitalData);
                     if (hospitalData._id) loadBranding(hospitalData._id);
+                    // Set browser title to hospital name
+                    document.title = hospitalData.name ? `${hospitalData.name} — Staff Portal` : 'Staff Portal';
                 } else {
                     setHospitalError('Hospital not found. Check the URL and try again.');
                 }
@@ -229,7 +231,7 @@ const HospitalLogin = () => {
                         {/* Right Side: Visual */}
                         <div className="auth-visual">
                             <img
-                                src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=1000&auto=format&fit=crop"
+                                src={ctxLoginBg || 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?q=80&w=1000&auto=format&fit=crop'}
                                 alt="Modern Healthcare"
                                 className="auth-hero-img"
                             />

@@ -61,6 +61,13 @@ app.use(helmet());
 app.set('trust proxy', 1);
 
 // --- CORS CONFIGURATION ---
+const Hospital = require('./models/hospital.model');
+const { normalizeDomain } = require('./utils/domainHelper');
+
+// Cache for dynamic custom domain CORS lookups (5-minute TTL)
+const _corsDomainCache = new Map();  // domain -> { allowed: bool, ts: number }
+const CORS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;                                           // server-to-server / non-browser
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true; // exact localhost
@@ -77,11 +84,40 @@ const isAllowedOrigin = (origin) => {
     return false;
 };
 
+/**
+ * Async CORS origin handler — falls back to DB lookup for custom hospital domains.
+ * Results are cached for 5 minutes.
+ */
+const corsOriginHandler = async (origin, callback) => {
+    // Static whitelist check first (fast path)
+    if (isAllowedOrigin(origin)) return callback(null, true);
+
+    // Dynamic: extract hostname from origin and check if it's a registered custom domain
+    try {
+        const hostname = normalizeDomain(origin);
+        if (!hostname) return callback(new Error('CORS blocked: ' + origin), false);
+
+        // Check cache
+        const cached = _corsDomainCache.get(hostname);
+        if (cached && (Date.now() - cached.ts) < CORS_CACHE_TTL) {
+            return cached.allowed ? callback(null, true) : callback(new Error('CORS blocked: ' + origin), false);
+        }
+
+        // DB lookup
+        const hospital = await Hospital.findOne({ customDomain: hostname, isActive: true }).select('_id').lean();
+        const allowed = !!hospital;
+        _corsDomainCache.set(hostname, { allowed, ts: Date.now() });
+
+        if (allowed) return callback(null, true);
+    } catch (err) {
+        console.warn('[CORS] Dynamic domain lookup error:', err.message);
+    }
+
+    callback(new Error('CORS blocked: ' + origin), false);
+};
+
 app.use(cors({
-    origin: (origin, callback) => {
-        if (isAllowedOrigin(origin)) return callback(null, true);
-        callback(new Error('CORS blocked: ' + origin), false);
-    },
+    origin: corsOriginHandler,
     credentials: true
 }));
 

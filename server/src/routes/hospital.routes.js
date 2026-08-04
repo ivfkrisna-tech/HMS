@@ -90,7 +90,8 @@ router.get('/resolve/:slug', async (req, res) => {
 // Create a new hospital
 router.post('/', verifyCentralAdmin, async (req, res) => {
     try {
-        const { name, address, city, state, phone, email, website, logo, departments, appointmentFee, slug: customSlug } = req.body;
+        const { name, address, city, state, phone, email, website, logo, departments, appointmentFee, slug: customSlug,
+            whiteLabelEnabled, customDomain: rawCustomDomain, loginBackground } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Hospital name is required' });
 
         // Auto-generate URL slug from hospital name: "AKG Hospital" -> "akg-hospital"
@@ -108,7 +109,27 @@ router.post('/', verifyCentralAdmin, async (req, res) => {
             slug = `${baseSlug}-${counter++}`;
         }
 
-        const hospital = new Hospital({ name, slug, address, city, state, phone, email, website, logo, departments: departments?.length ? departments : ['IVF'], appointmentFee: appointmentFee || 500 });
+        // ── White-label: normalize & validate custom domain ────────────────
+        const { normalizeDomain, isValidDomain } = require('../utils/domainHelper');
+        let customDomain = normalizeDomain(rawCustomDomain);
+        if (customDomain) {
+            if (!isValidDomain(customDomain)) {
+                return res.status(400).json({ success: false, message: `Invalid custom domain format: "${customDomain}"` });
+            }
+            const conflict = await Hospital.findOne({ customDomain });
+            if (conflict) {
+                return res.status(409).json({ success: false, message: `Domain "${customDomain}" is already registered to another hospital.` });
+            }
+        }
+
+        const hospital = new Hospital({
+            name, slug, address, city, state, phone, email, website, logo,
+            departments: departments?.length ? departments : ['IVF'],
+            appointmentFee: appointmentFee || 500,
+            whiteLabelEnabled: !!whiteLabelEnabled,
+            customDomain: customDomain || null,
+            loginBackground: loginBackground || '',
+        });
         await hospital.save();
 
 
@@ -190,7 +211,8 @@ router.get('/tenant-status', verifyCentralAdmin, async (req, res) => {
 // Update a hospital
 router.put('/:id', verifyCentralAdmin, async (req, res) => {
     try {
-        const { name, address, city, state, phone, email, website, logo, isActive, departments, appointmentFee, slug, appointmentMode } = req.body;
+        const { name, address, city, state, phone, email, website, logo, isActive, departments, appointmentFee, slug, appointmentMode,
+            whiteLabelEnabled, customDomain: rawCustomDomain, loginBackground } = req.body;
         const hospital = await Hospital.findById(req.params.id);
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
 
@@ -207,6 +229,25 @@ router.put('/:id', verifyCentralAdmin, async (req, res) => {
         if (departments !== undefined) hospital.departments = departments;
         if (appointmentFee !== undefined) hospital.appointmentFee = appointmentFee;
         if (appointmentMode !== undefined && ['slot', 'token'].includes(appointmentMode)) hospital.appointmentMode = appointmentMode;
+
+        // ── White-label fields ─────────────────────────────────────────────
+        if (whiteLabelEnabled !== undefined) hospital.whiteLabelEnabled = !!whiteLabelEnabled;
+        if (loginBackground !== undefined) hospital.loginBackground = loginBackground;
+
+        if (rawCustomDomain !== undefined) {
+            const { normalizeDomain, isValidDomain } = require('../utils/domainHelper');
+            const newDomain = normalizeDomain(rawCustomDomain);
+            if (newDomain) {
+                if (!isValidDomain(newDomain)) {
+                    return res.status(400).json({ success: false, message: `Invalid custom domain format: "${newDomain}"` });
+                }
+                const conflict = await Hospital.findOne({ customDomain: newDomain, _id: { $ne: hospital._id } });
+                if (conflict) {
+                    return res.status(409).json({ success: false, message: `Domain "${newDomain}" is already registered to another hospital.` });
+                }
+            }
+            hospital.customDomain = newDomain;
+        }
 
         await hospital.save();
         res.json({ success: true, message: 'Hospital updated successfully', hospital });

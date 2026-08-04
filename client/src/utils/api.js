@@ -287,6 +287,8 @@ export const publicAPI = {
     },
     // Resolve a custom domain (e.g. "portal.apex.com") to a hospital record — no auth needed
     resolveDomain: async (domain) => (await apiClient.get(`/api/public/resolve-domain?domain=${encodeURIComponent(domain)}`)).data,
+    // Unified pre-login branding — accepts { domain } or { slug } params
+    getPublicBranding: async (params) => (await apiClient.get('/api/public/branding', { params })).data,
 };
 
 export const uploadAPI = {

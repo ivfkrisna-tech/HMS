@@ -6,9 +6,16 @@
  *   - Call useBranding() to access { branding, hospitalName, loadBranding, resetBranding }
  *   - Branding is auto-applied as CSS custom properties on :root
  *   - Stored in localStorage so it persists across page refreshes
+ *
+ * White-Label Flow:
+ *   On mount (before login), the context auto-detects:
+ *     1. Custom domain (crm.krishnaivf.com) → fetches branding by domain
+ *     2. Subdomain (krishna-ivf.krisnaivfgroup5.com) → fetches branding by slug
+ *   This ensures the login screen is fully branded before any user interaction.
  */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { hospitalAPI } from '../utils/api';
+import { hospitalAPI, publicAPI } from '../utils/api';
+import { getSubdomain, isCustomDomain } from '../utils/subdomain';
 import socket from '../utils/socket';
 
 // Default generic branding (platform defaults)
@@ -33,13 +40,18 @@ const DEFAULT_BRANDING = {
     footerText: '',
 };
 
+// Subdomains reserved for the platform — NOT hospital slugs
+const RESERVED_SUBDOMAINS = ['admin', 'www', 'api'];
+
 const BrandingContext = createContext({
     branding: DEFAULT_BRANDING,
     hospitalName: 'Hospital Portal',
     hospitalId: null,
+    loginBackground: '',
     loadBranding: async () => {},
     resetBranding: () => {},
     isCustomBranded: false,
+    brandingReady: false,
 });
 
 /**
@@ -107,6 +119,15 @@ function applyBrandingToCSS(branding) {
     if (branding.appName) {
         document.title = branding.appName;
     }
+
+    // Meta theme-color (for mobile browsers)
+    let metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (!metaTheme) {
+        metaTheme = document.createElement('meta');
+        metaTheme.name = 'theme-color';
+        document.head.appendChild(metaTheme);
+    }
+    metaTheme.content = primary;
 }
 
 /**
@@ -122,6 +143,10 @@ function resetBrandingFromCSS() {
     ];
     overrides.forEach(v => root.style.removeProperty(v));
     document.title = 'Hospital Portal';
+
+    // Reset meta theme-color
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) metaTheme.content = '#14b8a6';
 }
 
 export const BrandingProvider = ({ children }) => {
@@ -134,10 +159,12 @@ export const BrandingProvider = ({ children }) => {
 
     const [hospitalName, setHospitalName] = useState(() => localStorage.getItem('hospitalBrandingName') || 'Hospital Portal');
     const [hospitalId, setHospitalId] = useState(() => localStorage.getItem('hospitalBrandingId') || null);
+    const [loginBackground, setLoginBackground] = useState(() => localStorage.getItem('hospitalLoginBackground') || '');
     const [isCustomBranded, setIsCustomBranded] = useState(false);
+    const [brandingReady, setBrandingReady] = useState(false);
 
     /**
-     * Fetch and apply branding for a specific hospital
+     * Fetch and apply branding for a specific hospital (by hospitalId)
      * Can be called from login page, hospital slug resolution, or admin preview
      */
     const loadBranding = useCallback(async (hId) => {
@@ -168,11 +195,13 @@ export const BrandingProvider = ({ children }) => {
         setBranding(DEFAULT_BRANDING);
         setHospitalName('Hospital Portal');
         setHospitalId(null);
+        setLoginBackground('');
         setIsCustomBranded(false);
         resetBrandingFromCSS();
         localStorage.removeItem('hospitalBranding');
         localStorage.removeItem('hospitalBrandingName');
         localStorage.removeItem('hospitalBrandingId');
+        localStorage.removeItem('hospitalLoginBackground');
     }, []);
 
     // Apply saved branding on mount
@@ -185,6 +214,51 @@ export const BrandingProvider = ({ children }) => {
                 setIsCustomBranded(true);
             } catch { /* ignore */ }
         }
+    }, []);
+
+    // ── Auto-detect custom domain / subdomain on mount (before login) ────────
+    // This ensures the login page is fully branded on first render.
+    useEffect(() => {
+        const autoDetectBranding = async () => {
+            try {
+                let params = null;
+
+                if (isCustomDomain()) {
+                    // Custom domain: crm.krishnaivf.com → resolve by hostname
+                    params = { domain: window.location.hostname };
+                } else {
+                    // Subdomain: krishna-ivf.krisnaivfgroup5.com → resolve by slug
+                    const slug = getSubdomain();
+                    if (slug && !RESERVED_SUBDOMAINS.includes(slug)) {
+                        params = { slug };
+                    }
+                }
+
+                if (params) {
+                    const res = await publicAPI.getPublicBranding(params);
+                    if (res.success) {
+                        const merged = { ...DEFAULT_BRANDING, ...res.branding };
+                        setBranding(merged);
+                        setHospitalName(res.hospitalName || 'Hospital Portal');
+                        setHospitalId(res.hospitalId);
+                        setLoginBackground(res.loginBackground || '');
+                        setIsCustomBranded(true);
+                        applyBrandingToCSS(merged);
+                        // Persist
+                        localStorage.setItem('hospitalBranding', JSON.stringify(merged));
+                        localStorage.setItem('hospitalBrandingName', res.hospitalName || '');
+                        localStorage.setItem('hospitalBrandingId', res.hospitalId);
+                        localStorage.setItem('hospitalLoginBackground', res.loginBackground || '');
+                    }
+                }
+            } catch (err) {
+                console.warn('[Branding] Auto-detect failed:', err?.message);
+            } finally {
+                setBrandingReady(true);
+            }
+        };
+
+        autoDetectBranding();
     }, []);
 
     // Listen for live branding updates from server (Central Admin)
@@ -203,7 +277,7 @@ export const BrandingProvider = ({ children }) => {
 
 
     return (
-        <BrandingContext.Provider value={{ branding, hospitalName, hospitalId, loadBranding, resetBranding, isCustomBranded }}>
+        <BrandingContext.Provider value={{ branding, hospitalName, hospitalId, loginBackground, loadBranding, resetBranding, isCustomBranded, brandingReady }}>
             {children}
         </BrandingContext.Provider>
     );

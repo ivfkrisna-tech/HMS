@@ -64,3 +64,40 @@ export const isCustomDomain = () => {
     // It's a custom domain if the hostname does NOT end with the root domain
     return !hostname.endsWith(ROOT_DOMAIN);
 };
+
+/**
+ * Returns the full URL for a hospital based on its white-label configuration.
+ *
+ * When whiteLabelEnabled && customDomain → https://customDomain
+ * Otherwise                              → https://slug.ROOT_DOMAIN  (or slug.localhost:port for dev)
+ *
+ * @param {Object} hospital - Hospital document (needs slug, whiteLabelEnabled, customDomain)
+ * @returns {string} Full URL for the hospital
+ */
+export const getHospitalUrl = (hospital) => {
+    if (!hospital) return '';
+
+    // White-label with custom domain
+    if (hospital.whiteLabelEnabled && hospital.customDomain) {
+        return `https://${hospital.customDomain}`;
+    }
+
+    // Default: subdomain URL
+    const slug = hospital.slug;
+    if (!slug) return '';
+
+    // Build base host from current window location
+    let host = window.location.host;
+    if (host.startsWith('www.')) host = host.replace('www.', '');
+    const parts = host.split('.');
+    if (parts.length > 2 && !host.includes('localhost')) {
+        host = parts.slice(-2).join('.');
+    } else if (host.includes('localhost')) {
+        const port = window.location.port ? `:${window.location.port}` : '';
+        host = `localhost${port}`;
+    }
+
+    const protocol = window.location.protocol;
+    return `${protocol}//${slug}.${host}`;
+};
+

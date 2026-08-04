@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { adminAPI, uploadAPI, hospitalAPI, hospitalAdminAPI, questionLibraryAPI, simpleClinicAPI, revenueAPI } from '../../utils/api';
 import HospitalBrandingEditor from '../../components/HospitalBrandingEditor';
+import { getHospitalUrl } from '../../utils/subdomain';
 import '../administration/SuperAdmin.css';
 import './CentralAdminDashboard.css';
 
@@ -17,7 +18,7 @@ const CentralAdminDashboard = () => {
     const [hospitals, setHospitals] = useState([]);
     const [loadingHospitals, setLoadingHospitals] = useState(false);
     const [showHospitalForm, setShowHospitalForm] = useState(false);
-    const [hospitalForm, setHospitalForm] = useState({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'] });
+    const [hospitalForm, setHospitalForm] = useState({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '' });
     const [editHospital, setEditHospital] = useState(null);
     const [savingHospital, setSavingHospital] = useState(false);
     const [deleteHospitalConfirm, setDeleteHospitalConfirm] = useState(null);
@@ -469,7 +470,7 @@ const CentralAdminDashboard = () => {
                 if (res.success) { setSuccess('Hospital updated!'); setEditHospital(null); setShowHospitalForm(false); fetchHospitals(); }
             } else {
                 const res = await hospitalAPI.createHospital(hospitalForm);
-                if (res.success) { setSuccess('Hospital created!'); setShowHospitalForm(false); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'] }); fetchHospitals(); }
+                if (res.success) { setSuccess('Hospital created!'); setShowHospitalForm(false); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '' }); fetchHospitals(); }
             }
         } catch (err) { setError(err.response?.data?.message || 'Error saving hospital.'); }
         finally { setSavingHospital(false); }
@@ -490,7 +491,7 @@ const CentralAdminDashboard = () => {
 
     const openEditHospital = (h) => {
         setEditHospital(h);
-        setHospitalForm({ name: h.name, slug: h.slug || '', address: h.address || '', city: h.city || '', state: h.state || '', phone: h.phone || '', email: h.email || '', website: h.website || '', departments: ['IVF'] });
+        setHospitalForm({ name: h.name, slug: h.slug || '', address: h.address || '', city: h.city || '', state: h.state || '', phone: h.phone || '', email: h.email || '', website: h.website || '', departments: ['IVF'], whiteLabelEnabled: h.whiteLabelEnabled || false, customDomain: h.customDomain || '', loginBackground: h.loginBackground || '' });
         setShowHospitalAdminForm(false);
         setShowHospitalForm(true);
         setTimeout(() => hospitalFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -1000,7 +1001,7 @@ const CentralAdminDashboard = () => {
                                         {showHospitalAdminForm ? 'Cancel' : '👤 Add Hospital Admin'}
                                     </button>
                                     <button className={showHospitalForm ? 'btn-cancel' : 'btn-save'} style={{ padding: '10px 18px' }}
-                                        onClick={() => { setShowHospitalForm(!showHospitalForm); setShowHospitalAdminForm(false); setEditHospital(null); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'] }); }}>
+                                        onClick={() => { setShowHospitalForm(!showHospitalForm); setShowHospitalAdminForm(false); setEditHospital(null); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '' }); }}>
                                         {showHospitalForm ? 'Cancel' : '+ Add Hospital'}
                                     </button>
                                 </div>
@@ -1114,7 +1115,52 @@ const CentralAdminDashboard = () => {
                                         </div>
                                         {/* Consultation fee removed from super admin — managed by Hospital Admin via Consultation Fees tab */}
                                         {/* Departments hidden as we only want IVF */}
-                                        <button type="submit" disabled={savingHospital} className="submit-button">{savingHospital ? 'Saving...' : editHospital ? '✅ Update Hospital' : '✅ Create Hospital'}</button>
+
+                                        {/* White Label Configuration */}
+                                        <div style={{ marginTop: '20px', padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                                <h4 style={{ margin: 0, color: '#1e293b', fontSize: '1rem' }}>🌐 White Label Configuration</h4>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={hospitalForm.whiteLabelEnabled} 
+                                                        onChange={e => setHospitalForm({ ...hospitalForm, whiteLabelEnabled: e.target.checked })}
+                                                        style={{ width: '18px', height: '18px', accentColor: '#14b8a6' }}
+                                                    />
+                                                    Enable Custom Domain
+                                                </label>
+                                            </div>
+                                            
+                                            {hospitalForm.whiteLabelEnabled && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
+                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                        <label className="staff-label">Custom Domain (e.g. crm.hospital.com)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            className="staff-input" 
+                                                            placeholder="Leave empty to use subdomain"
+                                                            value={hospitalForm.customDomain} 
+                                                            onChange={e => setHospitalForm({ ...hospitalForm, customDomain: e.target.value.toLowerCase().replace(/\s/g, '') })}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                        <label className="staff-label">Login Background Image URL (Optional)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            className="staff-input" 
+                                                            placeholder="https://example.com/hospital-bg.jpg"
+                                                            value={hospitalForm.loginBackground} 
+                                                            onChange={e => setHospitalForm({ ...hospitalForm, loginBackground: e.target.value })}
+                                                        />
+                                                    </div>
+                                                    <div style={{ fontSize: '0.85rem', color: '#64748b', background: '#e0f2fe', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                                                        <strong>ℹ️ DNS Required:</strong> Ensure a CNAME record points <code>{hospitalForm.customDomain || 'yourdomain.com'}</code> to <code>{getBaseHost()}</code>.
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button type="submit" disabled={savingHospital} className="submit-button" style={{ marginTop: '24px' }}>{savingHospital ? 'Saving...' : editHospital ? '✅ Update Hospital' : '✅ Create Hospital'}</button>
                                     </form>
                                 </div>
                             )}
@@ -1148,9 +1194,30 @@ const CentralAdminDashboard = () => {
                                                 {h.city && <span>📍 {h.city}{h.state ? `, ${h.state}` : ''}</span>}
                                                 {h.phone && <span>📞 {h.phone}</span>}
                                                 {h.email && <span>✉️ {h.email}</span>}
-                                                {h.slug && <a href={`${window.location.protocol}//${h.slug}.${getBaseHost()}`} target="_blank" rel="noreferrer" style={{display: 'inline-block', marginTop: '6px', background: 'var(--brand-pink)', color: 'white', padding: '2px 6px', fontSize: '10px', borderRadius: '4px', textDecoration: 'none'}}>🌐 {h.slug}.{getBaseHost()}</a>}
+                                                
+                                                {h.whiteLabelEnabled && h.customDomain && (
+                                                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '10px', background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '10px', fontWeight: 600 }}>White-Label ON</span>
+                                                        <span style={{ fontSize: '12px', color: '#334155', fontWeight: 500 }}>{h.customDomain}</span>
+                                                    </div>
+                                                )}
+                                                
+                                                {h.slug && (() => {
+                                                    const url = getHospitalUrl(h);
+                                                    return (
+                                                        <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }} onClick={e => e.stopPropagation()}>
+                                                            <a href={url} target="_blank" rel="noreferrer" style={{flex: 1, textAlign: 'center', background: 'var(--brand-600)', color: 'white', padding: '6px', fontSize: '11px', borderRadius: '6px', textDecoration: 'none', fontWeight: 600, transition: 'background 0.2s'}} onMouseOver={e => e.currentTarget.style.background = 'var(--brand-700)'} onMouseOut={e => e.currentTarget.style.background = 'var(--brand-600)'}>
+                                                                🌐 Open Portal
+                                                            </a>
+                                                            <button onClick={() => { navigator.clipboard.writeText(url); setSuccess('URL copied!'); setTimeout(() => setSuccess(''), 3000); }} style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#475569', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }} onMouseOver={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.borderColor = '#94a3b8'; }} onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}>
+                                                                📋 Copy
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })()}
+                                                
                                                 {(h.departments && h.departments.length > 0) && (
-                                                    <div style={{ marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
+                                                    <div style={{ marginTop: '12px', fontSize: '11px', color: '#64748b' }}>
                                                         <strong>Depts:</strong> {h.departments.join(', ')}
                                                     </div>
                                                 )}

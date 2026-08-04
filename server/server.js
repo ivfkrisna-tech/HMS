@@ -14,6 +14,13 @@ connectDB();
 // 2. HTTP Server and Socket.io
 const server = http.createServer(app);
 
+const Hospital = require('./src/models/hospital.model');
+const { normalizeDomain } = require('./src/utils/domainHelper');
+
+// Cache for dynamic custom domain CORS lookups (5-minute TTL) — shared with Socket.IO
+const _socketCorsDomainCache = new Map();
+const SOCKET_CORS_CACHE_TTL = 5 * 60 * 1000;
+
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
     // 1. Localhost allow karein
@@ -39,8 +46,28 @@ const isAllowedOrigin = (origin) => {
 
 const io = new Server(server, {
     cors: {
-        origin: (origin, callback) => {
+        origin: async (origin, callback) => {
             if (isAllowedOrigin(origin)) return callback(null, true);
+
+            // Dynamic: check if origin is a registered custom domain
+            try {
+                const hostname = normalizeDomain(origin);
+                if (!hostname) return callback(new Error('CORS blocked: ' + origin), false);
+
+                const cached = _socketCorsDomainCache.get(hostname);
+                if (cached && (Date.now() - cached.ts) < SOCKET_CORS_CACHE_TTL) {
+                    return cached.allowed ? callback(null, true) : callback(new Error('CORS blocked: ' + origin), false);
+                }
+
+                const hospital = await Hospital.findOne({ customDomain: hostname, isActive: true }).select('_id').lean();
+                const allowed = !!hospital;
+                _socketCorsDomainCache.set(hostname, { allowed, ts: Date.now() });
+
+                if (allowed) return callback(null, true);
+            } catch (err) {
+                console.warn('[Socket.IO CORS] Dynamic domain lookup error:', err.message);
+            }
+
             callback(new Error('CORS blocked: ' + origin), false);
         },
         methods: ["GET", "POST"]

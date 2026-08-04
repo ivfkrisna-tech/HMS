@@ -54,6 +54,75 @@ router.get('/resolve-domain', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/public/branding?domain=crm.krishnaivf.com
+ * GET /api/public/branding?slug=krishna-ivf
+ *
+ * Unified pre-login branding API — returns full branding config for a hospital.
+ * Used by the frontend BrandingContext to theme the login page BEFORE authentication.
+ * Accepts either a custom domain or a slug (subdomain).
+ * No auth required.
+ */
+router.get('/branding', async (req, res) => {
+    try {
+        const { normalizeDomain } = require('../utils/domainHelper');
+        const domain = normalizeDomain(req.query.domain);
+        const slug = (req.query.slug || '').toLowerCase().trim();
+
+        if (!domain && !slug) {
+            return res.status(400).json({ success: false, message: 'Either domain or slug query param is required' });
+        }
+
+        let hospital = null;
+
+        if (domain) {
+            hospital = await Hospital.findOne({ customDomain: domain, isActive: true }).lean();
+        }
+
+        if (!hospital && slug) {
+            hospital = await Hospital.findOne({ slug, isActive: true }).lean();
+        }
+
+        if (!hospital) {
+            return res.status(404).json({ success: false, message: 'Hospital not found' });
+        }
+
+        // Merge top-level fields into a flat branding response
+        const branding = hospital.branding || {};
+        res.json({
+            success: true,
+            hospitalId: hospital._id,
+            hospitalName: hospital.name,
+            slug: hospital.slug,
+            logo: hospital.logo,
+            customDomain: hospital.customDomain,
+            whiteLabelEnabled: hospital.whiteLabelEnabled || false,
+            loginBackground: hospital.loginBackground || '',
+            clinicType: hospital.clinicType,
+            appointmentMode: hospital.appointmentMode,
+            branding: {
+                appName: branding.appName || hospital.name,
+                tagline: branding.tagline || '',
+                logoUrl: branding.logoUrl || hospital.logo || '',
+                faviconUrl: branding.faviconUrl || '',
+                primaryColor: branding.primaryColor || '#14b8a6',
+                secondaryColor: branding.secondaryColor || '#0a2647',
+                accentColor: branding.accentColor || '#6366f1',
+                successColor: branding.successColor || '#10b981',
+                backgroundColor: branding.backgroundColor || '#f8fafc',
+                textColor: branding.textColor || '#1e293b',
+                supportEmail: branding.supportEmail || hospital.email || '',
+                supportPhone: branding.supportPhone || hospital.phone || '',
+                address: branding.address || hospital.address || '',
+                websiteUrl: branding.websiteUrl || hospital.website || '',
+                footerText: branding.footerText || '',
+            },
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 module.exports = router;
 
 
