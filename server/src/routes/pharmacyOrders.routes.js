@@ -174,18 +174,28 @@ router.post('/process-return', verifyToken, async (req, res) => {
 router.get('/dashboard-summary', verifyToken, async (req, res) => {
     try {
         let hospitalFilter = {};
-        if (req.user.hospitalId) hospitalFilter.hospitalId = req.user.hospitalId;
+        if (req.user.hospitalId) {
+            try {
+                hospitalFilter.hospitalId = new mongoose.Types.ObjectId(req.user.hospitalId);
+            } catch (e) {
+                hospitalFilter.hospitalId = req.user.hospitalId;
+            }
+        }
 
         // Fetch all orders for the dashboard
         const orders = await PharmacyOrder.find(hospitalFilter);
 
         let todayCollection = 0;
+        let todayCash = 0;
+        let todayOnline = 0;
         let overallCollection = 0;
+        let overallCash = 0;
+        let overallOnline = 0;
         let pendingCollection = 0;
         let doctorGuaranteedAmount = 0;
 
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
+        const getISTDateString = (d) => new Date(d || Date.now()).toLocaleDateString("en-US", { timeZone: "Asia/Kolkata" });
+        const todayIST = getISTDateString();
 
         orders.forEach(order => {
             let amount = parseFloat(order.totalAmount) || 0;
@@ -245,20 +255,29 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
                 amount = calcSubtotal + calcTax;
             }
 
-            if (order.orderStatus === 'Completed') {
-                if (order.paymentStatus === 'Paid' || order.paymentStatus === 'PAID') {
+            const oStatus = (order.orderStatus || '').toLowerCase();
+            const pStatus = (order.paymentStatus || '').toLowerCase();
+
+            if (oStatus === 'completed') {
+                if (pStatus === 'paid') {
                     overallCollection += amount;
-                    // Fix: Use updatedAt instead of createdAt for accurate collection date
-                    if (new Date(order.updatedAt) >= startOfToday) {
+                    const mode = (order.paymentMode || 'cash').toLowerCase();
+                    if (mode === 'cash') overallCash += amount;
+                    else overallOnline += amount;
+
+                    // Fix: Use updatedAt instead of createdAt for accurate collection date and compare using local IST string to bypass UTC midnight drift on cloud servers
+                    if (getISTDateString(order.updatedAt || order.createdAt) === todayIST) {
                         todayCollection += amount;
+                        if (mode === 'cash') todayCash += amount;
+                        else todayOnline += amount;
                     }
-                } else if (order.paymentStatus === 'PAID_BY_DOCTOR') {
+                } else if (pStatus === 'paid_by_doctor') {
                     pendingCollection += amount;
                     doctorGuaranteedAmount += amount;
                 } else {
                     pendingCollection += amount;
                 }
-            } else if (order.orderStatus === 'Pending' || order.orderStatus === 'Upcoming') {
+            } else if (oStatus === 'pending' || oStatus === 'upcoming') {
                 // optionally include in pending if desired
             }
         });
@@ -267,7 +286,11 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
             success: true,
             data: {
                 todayCollection,
+                todayCash,
+                todayOnline,
                 overallCollection,
+                overallCash,
+                overallOnline,
                 pendingCollection,
                 doctorGuaranteedAmount
             }
@@ -283,12 +306,42 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
 router.patch('/:id/complete', verifyToken, async (req, res) => {
     try {
         console.log("\n🚀 [BACKEND CHECKOUT] Received req.body:", JSON.stringify(req.body, null, 2));
-        const { purchasedIndices, paymentMode, paymentStatus, authorizedByDoctor, authorizedDoctorName, authorizationNote, frontendTotals } = req.body;
+        const {
+            purchasedIndices = [],
+            updatedItems = [],
+            paymentMode = 'CASH',
+            paymentStatus = 'Paid',
+            authorizedByDoctor = false,
+            authorizedDoctorName = '',
+            authorizationNote = '',
+            discountPercent: reqDiscountPercent = 0,
+            discountAmount: reqDiscountAmount = 0,
+            frontendTotals = {}
+        } = req.body || {};
         // HARD ISOLATION: Only allow completing orders from your hospital
         const findQuery = { _id: req.params.id };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
         const order = await PharmacyOrder.findOne(findQuery);
         if (!order) return res.status(404).json({ success: false, message: "Order not found or unauthorized" });
+
+        // Validate order items array
+        if (!order.items || !Array.isArray(order.items)) {
+            return res.status(400).json({ success: false, message: "Order items are missing or invalid." });
+        }
+
+        // Apply updated quantities if provided
+        if (updatedItems && Array.isArray(updatedItems)) {
+            for (let i = 0; i < order.items.length; i++) {
+                if (updatedItems[i]) {
+                    const newQty = updatedItems[i].qty ?? updatedItems[i].quantity;
+                    if (newQty !== undefined) {
+                        order.items[i].quantity = Number(newQty);
+                        order.items[i].qty = Number(newQty);
+                        order.items[i].totalReqd = Number(newQty);
+                    }
+                }
+            }
+        }
 
         // Determine which items are purchased
         const purchasedSet = new Set(
@@ -468,16 +521,16 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
         order.markModified('items');
 
         // Finalize pricing: Preserve frontend calculations to prevent liquid bill inflation
-        if (discountAmount !== undefined) order.discountAmount = discountAmount;
-        if (discountPercent !== undefined) order.discountPercent = discountPercent;
+        order.discountAmount = Number(reqDiscountAmount) || 0;
+        order.discountPercent = Number(reqDiscountPercent) || 0;
         
-        const finalDiscount = Number(discountAmount) || 0;
+        const finalDiscount = order.discountAmount;
 
-        if (frontendTotals) {
-            order.taxableAmount = frontendTotals.taxableAmount || taxableAmount;
-            order.cgstAmount = frontendTotals.cgstAmount || cgstAmount;
-            order.sgstAmount = frontendTotals.sgstAmount || sgstAmount;
-            order.totalAmount = frontendTotals.totalAmount || (totalAmount - finalDiscount);
+        if (frontendTotals && typeof frontendTotals === 'object') {
+            order.taxableAmount = parseFloat(frontendTotals.taxableAmount) || taxableAmount;
+            order.cgstAmount = parseFloat(frontendTotals.cgstAmount) || cgstAmount;
+            order.sgstAmount = parseFloat(frontendTotals.sgstAmount) || sgstAmount;
+            order.totalAmount = parseFloat(frontendTotals.totalAmount) || Math.max(0, totalAmount - finalDiscount);
         } else {
             order.taxableAmount = taxableAmount;
             order.cgstAmount = cgstAmount;
@@ -526,14 +579,15 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
 
         res.json({ success: true, message: 'Order completed successfully', order });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error("🔥 [Pharmacy Order Complete Error]:", error);
+        res.status(500).json({ success: false, message: error.message || 'An internal error occurred during checkout' });
     }
 });
 
 // Create Walk-in / Outside Patient Bill
 router.post('/outside-patient-bill', verifyToken, async (req, res) => {
     try {
-        const { patientName, patientPhone, doctorName, items, totalAmount, taxableAmount, cgstAmount, sgstAmount, discountAmount } = req.body;
+        const { patientName, patientPhone, doctorName, items, totalAmount, taxableAmount, cgstAmount, sgstAmount, discountAmount, paymentMode } = req.body;
         
         let hospitalId = req.user.hospitalId || req.body.hospitalId;
 
@@ -566,6 +620,7 @@ router.post('/outside-patient-bill', verifyToken, async (req, res) => {
             sgstAmount,
             discountAmount: discountAmount || 0,
             paymentStatus: 'Paid', // Assuming Walk-in bills are paid immediately over the counter
+            paymentMode: paymentMode || 'CASH',
             orderStatus: 'Completed',
             hospitalId
         });

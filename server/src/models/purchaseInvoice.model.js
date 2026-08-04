@@ -13,6 +13,14 @@ const purchaseInvoiceSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  vendorAddress: {
+    type: String,
+    default: ''
+  },
+  vendorDL: {
+    type: String,
+    default: ''
+  },
   invoiceDate: {
     type: Date,
     default: null
