@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { billingAPI, admissionAPI } from '../../utils/api';
 import './PatientBillingProfile.css';
 
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -219,7 +219,7 @@ const PatientBillingProfile = () => {
             return;
         }
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: 70,
             head: [['Category', 'Details', 'Amount']],
             body: tableBody,
