@@ -38,9 +38,7 @@ const isAllowedOrigin = (origin) => {
     if (origin === 'https://freebieshub.in') return true;
     if (origin === 'https://www.freebieshub.in') return true;
     if (/^https:\/\/[\w-]+\.freebieshub\.in$/.test(origin)) return true;
-    if (origin === 'https://krisnaivfgroup5.com') return true;
-    if (origin === 'https://www.krisnaivfgroup5.com') return true;
-    if (/^https:\/\/[\w-]+\.krisnaivfgroup5\.com$/.test(origin)) return true;
+
     return false;
 };
 

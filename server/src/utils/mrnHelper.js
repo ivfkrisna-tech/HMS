@@ -110,7 +110,7 @@ async function generateNextMRN(hospitalId) {
     // Determine subdomain prefix
     let subdomainPrefix = '';
     if (hospital.customDomain) {
-        // e.g. apollohospital.krisnaivfgroup5.com -> apollohospital
+        // e.g. apollohospital.yourdomain.com -> apollohospital
         subdomainPrefix = hospital.customDomain.split('.')[0];
     } else if (hospital.slug) {
         subdomainPrefix = hospital.slug;
