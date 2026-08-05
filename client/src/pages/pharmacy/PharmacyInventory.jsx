@@ -271,7 +271,7 @@ const PharmacyInventory = () => {
         let price = Number(newMedicine.buyingPrice) || 0;
         let selling = Number(newMedicine.sellingPrice) || 0;
 
-        if (newMedicine.unit === 'Strip' && newMedicine.unitsPerStrip) {
+        if (['Strip', 'Sachets', 'Powder'].includes(newMedicine.unit) && newMedicine.unitsPerStrip) {
             const ups = Number(newMedicine.unitsPerStrip) || 1;
             totalStock = totalStock * ups;
             price = price / ups;
@@ -622,23 +622,25 @@ const PharmacyInventory = () => {
                                 }} placeholder="e.g. 2" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                             </div>
                             <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK {newMedicine.unit === 'Strip' ? '(UNITS)' : ''}</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK {['Strip', 'Sachets', 'Powder'].includes(newMedicine.unit) ? '(UNITS)' : ''}</label>
                                 <input readOnly type="number" value={
-                                    newMedicine.unit === 'Strip' ? ((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1) : (Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)
+                                    ['Strip', 'Sachets', 'Powder'].includes(newMedicine.unit) ? ((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1) : (Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)
                                 } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 'bold' }} />
                             </div>
                             <div className="form-group">
                                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>UNIT</label>
                                 <select value={newMedicine.unit} onChange={(e) => setNewMedicine({ ...newMedicine, unit: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
-                                    {['Tablets', 'Capsules', 'Strip', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
+                                    {['Tablets', 'Capsules', 'Strip', 'Sachets', 'Powder', 'Number', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
                             </div>
-                            {newMedicine.unit === 'Strip' && (
+                            {['Strip', 'Sachets', 'Powder'].includes(newMedicine.unit) && (
                                 <div className="form-group">
-                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>UNITS PER STRIP</label>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>
+                                        {newMedicine.unit === 'Strip' ? 'UNITS PER STRIP' : 'UNITS PER PACK/BOX'}
+                                    </label>
                                     <input type="number" min="1" value={newMedicine.unitsPerStrip} onChange={(e) => {
                                         setNewMedicine({ ...newMedicine, unitsPerStrip: e.target.value });
-                                    }} placeholder="e.g. 10 or 15" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                    }} placeholder={newMedicine.unit === 'Strip' ? "e.g. 10 or 15" : "e.g. 10"} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                                 </div>
                             )}
                         </div>
