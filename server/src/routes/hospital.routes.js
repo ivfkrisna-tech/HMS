@@ -939,9 +939,9 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
  */
 router.get('/:id/branding', async (req, res) => {
     try {
-        const hospital = await Hospital.findById(req.params.id, 'name branding logo slug city').lean();
+        const hospital = await Hospital.findById(req.params.id, 'name branding logo slug city loginBackground').lean();
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
-        res.json({ success: true, branding: hospital.branding || {}, hospitalName: hospital.name, logo: hospital.logo });
+        res.json({ success: true, branding: hospital.branding || {}, hospitalName: hospital.name, logo: hospital.logo, loginBackground: hospital.loginBackground || '' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

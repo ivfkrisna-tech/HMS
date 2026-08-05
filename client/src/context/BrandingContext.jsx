@@ -176,12 +176,14 @@ export const BrandingProvider = ({ children }) => {
                 setBranding(merged);
                 setHospitalName(res.hospitalName || 'Hospital Portal');
                 setHospitalId(hId);
+                setLoginBackground(res.loginBackground || '');
                 setIsCustomBranded(true);
                 applyBrandingToCSS(merged);
                 // Persist so page refresh retains branding
                 localStorage.setItem('hospitalBranding', JSON.stringify(merged));
                 localStorage.setItem('hospitalBrandingName', res.hospitalName || '');
                 localStorage.setItem('hospitalBrandingId', hId);
+                localStorage.setItem('hospitalLoginBackground', res.loginBackground || '');
             }
         } catch (err) {
             console.warn('[Branding] Could not load hospital branding:', err?.message);
