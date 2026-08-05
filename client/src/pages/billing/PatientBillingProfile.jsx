@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { billingAPI, admissionAPI } from '../../utils/api';
+import { billingAPI, admissionAPI, financeAPI } from '../../utils/api';
 import './PatientBillingProfile.css';
+
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -27,6 +30,68 @@ const PatientBillingProfile = () => {
     // Edit Facility Charge State
     const [editingCharge, setEditingCharge] = useState(null);
     const [editChargeForm, setEditChargeForm] = useState({ pricePerDay: '', days: '', facilityName: '' });
+
+    // Financial Stats Dashboard State
+    const [stats, setStats] = useState(null);
+    const [statsLoading, setStatsLoading] = useState(false);
+    const [datePreset, setDatePreset] = useState('today');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
+
+    const fetchStats = async (preset = datePreset, start = customStartDate, end = customEndDate) => {
+        try {
+            setStatsLoading(true);
+            let queryStart = '';
+            let queryEnd = '';
+
+            if (preset !== 'all' && preset !== 'custom') {
+                const now = new Date();
+                const endD = new Date(now);
+                const startD = new Date(now);
+
+                if (preset === 'today') {
+                    startD.setHours(0, 0, 0, 0);
+                    endD.setHours(23, 59, 59, 999);
+                } else if (preset === '30') {
+                    startD.setDate(startD.getDate() - 30);
+                } else if (preset === '60') {
+                    startD.setDate(startD.getDate() - 60);
+                } else if (preset === '90') {
+                    startD.setDate(startD.getDate() - 90);
+                }
+
+                queryStart = startD.toISOString();
+                queryEnd = endD.toISOString();
+            } else if (preset === 'custom') {
+                if (start) queryStart = new Date(start).toISOString();
+                if (end) queryEnd = new Date(end).toISOString();
+            }
+
+            const res = await financeAPI.getDashboardStats(queryStart, queryEnd);
+            if (res.success) {
+                setStats(res.data);
+            }
+        } catch (err) {
+            console.error('Error fetching financial statistics', err);
+        } finally {
+            setStatsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchStats('today');
+    }, []);
+
+    const handleDatePresetChange = (preset) => {
+        setDatePreset(preset);
+        if (preset !== 'custom') {
+            fetchStats(preset, customStartDate, customEndDate);
+        }
+    };
+
+    const handleApplyCustomDate = () => {
+        fetchStats('custom', customStartDate, customEndDate);
+    };
 
     const handleSearchChange = async (e) => {
         const val = e.target.value;
@@ -169,6 +234,72 @@ const PatientBillingProfile = () => {
         return t;
     };
 
+    const downloadReceipt = (itemsObj, isFull = false) => {
+        if (!patient || !billing) return;
+        const doc = new jsPDF();
+        doc.setFontSize(20);
+        doc.text("Payment Receipt", 105, 20, { align: "center" });
+        
+        doc.setFontSize(12);
+        doc.text(`Patient Name: ${patient.name}`, 14, 40);
+        doc.text(`MRN: ${patient.mrn || patient.patientId || 'N/A'}`, 14, 48);
+        doc.text(`Phone: ${patient.phone || 'N/A'}`, 14, 56);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`, 140, 40);
+
+        const tableBody = [];
+        let totalAmt = 0;
+
+        // Appointments
+        (billing.appointments || []).forEach(a => {
+            if (isFull ? isPaid(a.paymentStatus) : (itemsObj && itemsObj.appointments.includes(a._id))) {
+                tableBody.push(['Consultation', `${fmtDate(a.appointmentDate)} - ${a.doctorName || 'N/A'}`, fmt(a.amount)]);
+                totalAmt += (a.amount || 0);
+            }
+        });
+
+        // Packages
+        (billing.packages || []).forEach(p => {
+            if (isFull ? isPaid(p.paymentStatus) : (itemsObj && itemsObj.packages.includes(p._id))) {
+                tableBody.push(['Package', p.packageName, fmt(p.finalAmount || p.totalAmount)]);
+                totalAmt += (p.finalAmount || p.totalAmount || 0);
+            }
+        });
+
+        // Lab Reports
+        (billing.labReports || []).forEach(l => {
+            if (isFull ? isPaid(l.paymentStatus) : (itemsObj && itemsObj.labReports.includes(l._id))) {
+                const amt = (l.amount || l.price || 0) + (l.sgst || 0) + (l.cgst || 0);
+                const lDiscount = isFull ? (l.discount || 0) : (Number(labDiscounts[l._id]) || 0);
+                const finalAmt = Math.max(0, amt - lDiscount);
+                tableBody.push(['Lab Test', Array.isArray(l.testNames) ? l.testNames.join(', ') : (l.testName || 'N/A'), fmt(finalAmt)]);
+                totalAmt += finalAmt;
+            }
+        });
+
+        if (tableBody.length === 0) {
+            if (isFull) alert("No paid bills available to download.");
+            return;
+        }
+
+        autoTable(doc, {
+            startY: 70,
+            head: [['Category', 'Details', 'Amount']],
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [20, 184, 166] }
+        });
+
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(14);
+        doc.text(`Total Paid: ${fmt(totalAmt)}`, 14, finalY);
+        
+        if (!isFull) {
+            doc.text(`Payment Mode: ${paymentMode}`, 14, finalY + 8);
+        }
+
+        doc.save(`${patient.name.replace(/\s+/g, '_')}_Receipt.pdf`);
+    };
+
     const handlePay = async () => {
         const total = totalSelected();
         if (total === 0) return alert('Select at least one pending item to pay.');
@@ -183,6 +314,7 @@ const PatientBillingProfile = () => {
                 paymentMode
             });
             setSuccessMsg(`Payment of ${fmt(total)} processed successfully via ${paymentMode}.`);
+
             const res = await billingAPI.getPatientBills(patient._id);
             if (res.success) {
                 const ea = enrichAdmissions(res.billing.admissions || []);
@@ -257,6 +389,59 @@ const PatientBillingProfile = () => {
                 <button className="btn-back" onClick={() => navigate(-1)}>Back</button>
             </div>
 
+            {/* Financial Summary Dashboard */}
+            <div className="billing-section" style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', marginBottom: '24px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                    <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', color: '#1e293b' }}>
+                        📊 Financial Summary
+                    </h3>
+                    <div className="date-filter-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div className="preset-buttons" style={{ display: 'flex', gap: '4px' }}>
+                            <button className={datePreset === 'all' ? 'preset-btn active' : 'preset-btn'} onClick={() => handleDatePresetChange('all')}>All Time</button>
+                            <button className={datePreset === 'today' ? 'preset-btn active' : 'preset-btn'} onClick={() => handleDatePresetChange('today')}>Today</button>
+                            <button className={datePreset === '30' ? 'preset-btn active' : 'preset-btn'} onClick={() => handleDatePresetChange('30')}>Last 30 Days</button>
+                        </div>
+                        <div className="custom-date-inputs" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <input type="date" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} value={customStartDate} onChange={(e) => { setDatePreset('custom'); setCustomStartDate(e.target.value); }} />
+                            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>to</span>
+                            <input type="date" style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} value={customEndDate} onChange={(e) => { setDatePreset('custom'); setCustomEndDate(e.target.value); }} />
+                            <button onClick={handleApplyCustomDate} style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.85rem', cursor: 'pointer' }}>Apply</button>
+                        </div>
+                    </div>
+                </div>
+
+                {statsLoading ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>⏳ Loading financial data...</div>
+                ) : stats ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                        <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', padding: '16px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '4px' }}>Total Revenue</div>
+                            <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{fmt(stats.totalRevenue)}</div>
+                        </div>
+                        <div style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', padding: '16px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '4px' }}>Consultations</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{fmt(stats.consultations?.revenue || 0)}</div>
+                            <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px' }}>{stats.consultations?.count || 0} Appointments</div>
+                        </div>
+                        <div style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', padding: '16px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '4px' }}>Packages</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{fmt(stats.packages?.revenue || 0)}</div>
+                            <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px' }}>{stats.packages?.count || 0} Paid</div>
+                        </div>
+                        <div style={{ background: 'linear-gradient(135deg, #ec4899, #db2777)', color: 'white', padding: '16px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '4px' }}>Lab Tests</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{fmt(stats.labTests?.revenue || 0)}</div>
+                            <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px' }}>{stats.labTests?.count || 0} Reports</div>
+                        </div>
+                        <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: 'white', padding: '16px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '4px' }}>Pharmacy</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{fmt(stats.medicines?.revenue || 0)}</div>
+                            <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '4px' }}>{stats.medicines?.count || 0} Orders</div>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+
             {/* Search */}
             <div style={{ position: 'relative' }}>
                 <form className="billing-search-bar" onSubmit={handleSearch}>
@@ -314,7 +499,7 @@ const PatientBillingProfile = () => {
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Grand Total Bill</div>
                                     <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{fmt(pendingTotal() + paidTotal())}</div>
                                 </div>
-                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                     <div style={{ fontSize: '0.78rem' }}>
                                         <span style={{ opacity: 0.75 }}>Paid: </span>
                                         <span style={{ color: '#86efac', fontWeight: 700 }}>{fmt(paidTotal())}</span>
@@ -323,6 +508,15 @@ const PatientBillingProfile = () => {
                                         <span style={{ opacity: 0.75 }}>Balance: </span>
                                         <span style={{ color: '#fca5a5', fontWeight: 700 }}>{fmt(pendingTotal())}</span>
                                     </div>
+                                    {paidTotal() > 0 && (
+                                        <button 
+                                            onClick={() => downloadReceipt(null, true)} 
+                                            style={{ marginLeft: '12px', padding: '6px 12px', fontSize: '0.8rem', background: '#2dd4bf', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                            Download Receipt
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

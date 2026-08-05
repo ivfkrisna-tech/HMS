@@ -242,6 +242,13 @@ const AccountantDashboard = () => {
                             <div className="acc-kpi-label">Admissions</div>
                             <div className="acc-kpi-sub">{stats.admissions?.count || 0} Settled Stays</div>
                         </div>
+
+                        <div className="acc-kpi-card" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+                            <div className="acc-kpi-icon">📦</div>
+                            <div className="acc-kpi-value">{formatCurrency(stats.packages?.revenue || 0)}</div>
+                            <div className="acc-kpi-label">Treatment Packages</div>
+                            <div className="acc-kpi-sub">{stats.packages?.count || 0} Paid Packages</div>
+                        </div>
                     </div>
                 </>
             ) : null}
