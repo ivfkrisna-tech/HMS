@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { adminAPI, uploadAPI, hospitalAPI, hospitalAdminAPI, questionLibraryAPI, simpleClinicAPI, revenueAPI } from '../../utils/api';
 import HospitalBrandingEditor from '../../components/HospitalBrandingEditor';
 import { getHospitalUrl } from '../../utils/subdomain';
+import { useBranding } from '../../context/BrandingContext';
 import '../administration/SuperAdmin.css';
 import './CentralAdminDashboard.css';
 
@@ -18,7 +19,7 @@ const CentralAdminDashboard = () => {
     const [hospitals, setHospitals] = useState([]);
     const [loadingHospitals, setLoadingHospitals] = useState(false);
     const [showHospitalForm, setShowHospitalForm] = useState(false);
-    const [hospitalForm, setHospitalForm] = useState({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '' });
+    const [hospitalForm, setHospitalForm] = useState({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '', loginBackgroundFile: null });
     const [editHospital, setEditHospital] = useState(null);
     const [savingHospital, setSavingHospital] = useState(false);
     const [deleteHospitalConfirm, setDeleteHospitalConfirm] = useState(null);
@@ -96,6 +97,7 @@ const CentralAdminDashboard = () => {
 
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     const location = useLocation();
+    const { resetBranding } = useBranding();
 
     const getBaseHost = () => {
         let host = window.location.host;
@@ -114,7 +116,10 @@ const CentralAdminDashboard = () => {
         const role = currentUser?.role;
         // Only redirect if user is logged in but has the wrong role (not during logout)
         if (role && role !== 'centraladmin' && role !== 'superadmin') navigate('/login');
-    }, [navigate]);
+        
+        // Ensure Central Admin is never stuck in a hospital's theme preview
+        resetBranding();
+    }, [navigate, resetBranding]);
 
     useEffect(() => {
         fetchHospitals();
@@ -465,12 +470,24 @@ const CentralAdminDashboard = () => {
         e.preventDefault();
         setSavingHospital(true); setError(''); setSuccess('');
         try {
+            let finalForm = { ...hospitalForm };
+
+            if (hospitalForm.loginBackgroundFile) {
+                const formData = new FormData();
+                formData.append('images', hospitalForm.loginBackgroundFile);
+                const uploadRes = await uploadAPI.uploadImages(formData);
+                if (uploadRes.success && uploadRes.files?.length > 0) {
+                    finalForm.loginBackground = uploadRes.files[0].url;
+                }
+                delete finalForm.loginBackgroundFile;
+            }
+
             if (editHospital) {
-                const res = await hospitalAPI.updateHospital(editHospital._id, hospitalForm);
+                const res = await hospitalAPI.updateHospital(editHospital._id, finalForm);
                 if (res.success) { setSuccess('Hospital updated!'); setEditHospital(null); setShowHospitalForm(false); fetchHospitals(); }
             } else {
-                const res = await hospitalAPI.createHospital(hospitalForm);
-                if (res.success) { setSuccess('Hospital created!'); setShowHospitalForm(false); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '' }); fetchHospitals(); }
+                const res = await hospitalAPI.createHospital(finalForm);
+                if (res.success) { setSuccess('Hospital created!'); setShowHospitalForm(false); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '', loginBackgroundFile: null }); fetchHospitals(); }
             }
         } catch (err) { setError(err.response?.data?.message || 'Error saving hospital.'); }
         finally { setSavingHospital(false); }
@@ -491,7 +508,7 @@ const CentralAdminDashboard = () => {
 
     const openEditHospital = (h) => {
         setEditHospital(h);
-        setHospitalForm({ name: h.name, slug: h.slug || '', address: h.address || '', city: h.city || '', state: h.state || '', phone: h.phone || '', email: h.email || '', website: h.website || '', departments: ['IVF'], whiteLabelEnabled: h.whiteLabelEnabled || false, customDomain: h.customDomain || '', loginBackground: h.loginBackground || '' });
+        setHospitalForm({ name: h.name, slug: h.slug || '', address: h.address || '', city: h.city || '', state: h.state || '', phone: h.phone || '', email: h.email || '', website: h.website || '', departments: ['IVF'], whiteLabelEnabled: h.whiteLabelEnabled || false, customDomain: h.customDomain || '', loginBackground: h.loginBackground || '', loginBackgroundFile: null });
         setShowHospitalAdminForm(false);
         setShowHospitalForm(true);
         setTimeout(() => hospitalFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -1001,7 +1018,7 @@ const CentralAdminDashboard = () => {
                                         {showHospitalAdminForm ? 'Cancel' : '👤 Add Hospital Admin'}
                                     </button>
                                     <button className={showHospitalForm ? 'btn-cancel' : 'btn-save'} style={{ padding: '10px 18px' }}
-                                        onClick={() => { setShowHospitalForm(!showHospitalForm); setShowHospitalAdminForm(false); setEditHospital(null); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '' }); }}>
+                                        onClick={() => { setShowHospitalForm(!showHospitalForm); setShowHospitalAdminForm(false); setEditHospital(null); setHospitalForm({ name: '', slug: '', address: '', city: '', state: '', phone: '', email: '', website: '', departments: ['IVF'], whiteLabelEnabled: false, customDomain: '', loginBackground: '', loginBackgroundFile: null }); }}>
                                         {showHospitalForm ? 'Cancel' : '+ Add Hospital'}
                                     </button>
                                 </div>
@@ -1144,13 +1161,18 @@ const CentralAdminDashboard = () => {
                                                         />
                                                     </div>
                                                     <div className="form-group" style={{ marginBottom: 0 }}>
-                                                        <label className="staff-label">Login Background Image URL (Optional)</label>
+                                                        <label className="staff-label">Login Background Image (Optional)</label>
+                                                        {hospitalForm.loginBackground && !hospitalForm.loginBackgroundFile && (
+                                                            <div style={{ marginBottom: '8px' }}>
+                                                                <img src={hospitalForm.loginBackground} alt="Current Background" style={{ height: '60px', borderRadius: '4px', border: '1px solid #ccc', objectFit: 'cover' }} />
+                                                            </div>
+                                                        )}
                                                         <input 
-                                                            type="text" 
-                                                            className="staff-input" 
-                                                            placeholder="https://example.com/hospital-bg.jpg"
-                                                            value={hospitalForm.loginBackground} 
-                                                            onChange={e => setHospitalForm({ ...hospitalForm, loginBackground: e.target.value })}
+                                                            type="file" 
+                                                            accept="image/*"
+                                                            className="staff-input"
+                                                            style={{ padding: '8px' }}
+                                                            onChange={e => setHospitalForm({ ...hospitalForm, loginBackgroundFile: e.target.files[0] })}
                                                         />
                                                     </div>
                                                     <div style={{ fontSize: '0.85rem', color: '#64748b', background: '#e0f2fe', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
