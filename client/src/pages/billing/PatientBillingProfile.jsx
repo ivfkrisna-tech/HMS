@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { billingAPI, admissionAPI } from '../../utils/api';
 import './PatientBillingProfile.css';
 
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(n || 0);
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const isPaid = (status) => (status || '').toLowerCase() === 'paid';
@@ -169,6 +172,72 @@ const PatientBillingProfile = () => {
         return t;
     };
 
+    const downloadReceipt = (itemsObj, isFull = false) => {
+        if (!patient || !billing) return;
+        const doc = new jsPDF();
+        doc.setFontSize(20);
+        doc.text("Payment Receipt", 105, 20, { align: "center" });
+        
+        doc.setFontSize(12);
+        doc.text(`Patient Name: ${patient.name}`, 14, 40);
+        doc.text(`MRN: ${patient.mrn || patient.patientId || 'N/A'}`, 14, 48);
+        doc.text(`Phone: ${patient.phone || 'N/A'}`, 14, 56);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`, 140, 40);
+
+        const tableBody = [];
+        let totalAmt = 0;
+
+        // Appointments
+        (billing.appointments || []).forEach(a => {
+            if (isFull ? isPaid(a.paymentStatus) : (itemsObj && itemsObj.appointments.includes(a._id))) {
+                tableBody.push(['Consultation', `${fmtDate(a.appointmentDate)} - ${a.doctorName || 'N/A'}`, fmt(a.amount)]);
+                totalAmt += (a.amount || 0);
+            }
+        });
+
+        // Packages
+        (billing.packages || []).forEach(p => {
+            if (isFull ? isPaid(p.paymentStatus) : (itemsObj && itemsObj.packages.includes(p._id))) {
+                tableBody.push(['Package', p.packageName, fmt(p.finalAmount || p.totalAmount)]);
+                totalAmt += (p.finalAmount || p.totalAmount || 0);
+            }
+        });
+
+        // Lab Reports
+        (billing.labReports || []).forEach(l => {
+            if (isFull ? isPaid(l.paymentStatus) : (itemsObj && itemsObj.labReports.includes(l._id))) {
+                const amt = (l.amount || l.price || 0) + (l.sgst || 0) + (l.cgst || 0);
+                const lDiscount = isFull ? (l.discount || 0) : (Number(labDiscounts[l._id]) || 0);
+                const finalAmt = Math.max(0, amt - lDiscount);
+                tableBody.push(['Lab Test', Array.isArray(l.testNames) ? l.testNames.join(', ') : (l.testName || 'N/A'), fmt(finalAmt)]);
+                totalAmt += finalAmt;
+            }
+        });
+
+        if (tableBody.length === 0) {
+            if (isFull) alert("No paid bills available to download.");
+            return;
+        }
+
+        doc.autoTable({
+            startY: 70,
+            head: [['Category', 'Details', 'Amount']],
+            body: tableBody,
+            theme: 'grid',
+            headStyles: { fillColor: [20, 184, 166] }
+        });
+
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(14);
+        doc.text(`Total Paid: ${fmt(totalAmt)}`, 14, finalY);
+        
+        if (!isFull) {
+            doc.text(`Payment Mode: ${paymentMode}`, 14, finalY + 8);
+        }
+
+        doc.save(`${patient.name.replace(/\s+/g, '_')}_Receipt.pdf`);
+    };
+
     const handlePay = async () => {
         const total = totalSelected();
         if (total === 0) return alert('Select at least one pending item to pay.');
@@ -183,6 +252,7 @@ const PatientBillingProfile = () => {
                 paymentMode
             });
             setSuccessMsg(`Payment of ${fmt(total)} processed successfully via ${paymentMode}.`);
+
             const res = await billingAPI.getPatientBills(patient._id);
             if (res.success) {
                 const ea = enrichAdmissions(res.billing.admissions || []);
@@ -314,7 +384,7 @@ const PatientBillingProfile = () => {
                                     <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Grand Total Bill</div>
                                     <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{fmt(pendingTotal() + paidTotal())}</div>
                                 </div>
-                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                     <div style={{ fontSize: '0.78rem' }}>
                                         <span style={{ opacity: 0.75 }}>Paid: </span>
                                         <span style={{ color: '#86efac', fontWeight: 700 }}>{fmt(paidTotal())}</span>
@@ -323,6 +393,15 @@ const PatientBillingProfile = () => {
                                         <span style={{ opacity: 0.75 }}>Balance: </span>
                                         <span style={{ color: '#fca5a5', fontWeight: 700 }}>{fmt(pendingTotal())}</span>
                                     </div>
+                                    {paidTotal() > 0 && (
+                                        <button 
+                                            onClick={() => downloadReceipt(null, true)} 
+                                            style={{ marginLeft: '12px', padding: '6px 12px', fontSize: '0.8rem', background: '#2dd4bf', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                            Download Receipt
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
