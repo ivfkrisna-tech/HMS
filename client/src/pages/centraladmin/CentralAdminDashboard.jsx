@@ -804,10 +804,10 @@ const CentralAdminDashboard = () => {
                                     The hospital adds ONE record pointing their subdomain to the HMS server.<br />
                                     Type: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>CNAME</code> &nbsp;
                                     Name: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>portal</code> &nbsp;
-                                    Value: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>admin.{getBaseHost()}</code><br />
+                                    Value: <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px' }}>admin.krisnaivfgroup5.com</code><br />
                                     <span style={{ color: '#94a3b8' }}>
                                         This points <em>portal.apex.com</em> to the same server that runs
-                                        <em> admin.{getBaseHost()}</em>. SSL is handled automatically by Caddy.
+                                        <em> admin.krisnaivfgroup5.com</em>. SSL is handled automatically by Caddy.
                                         The root domain <em>apex.com</em> is untouched.
                                     </span>
                                 </div>
@@ -845,7 +845,7 @@ const CentralAdminDashboard = () => {
                                             { label: 'Address', value: h.address },
                                             { label: 'Admin', value: h.adminName || 'Not assigned' },
                                             { label: 'Admin Email', value: h.adminEmail },
-                                            { label: 'Staff Login URL', value: h.slug && `${getHospitalUrl(h)}/login`, isLink: true },
+                                            { label: 'Staff Login URL', value: h.slug && `${window.location.protocol}//${h.slug}.${getBaseHost()}/login`, isLink: true },
                                             { label: 'Appointment Fee', value: h.appointmentFee !== undefined && h.appointmentFee !== null ? formatCurrency(h.appointmentFee) : formatCurrency(500) },
                                         ].map((item, i) => item.value && (
                                             <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '8px', fontSize: '14px' }}>
@@ -1144,45 +1144,14 @@ const CentralAdminDashboard = () => {
                                                         />
                                                     </div>
                                                     <div className="form-group" style={{ marginBottom: 0 }}>
-                                                        <label className="staff-label">Login Background Image (Optional)</label>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                            <label style={{
-                                                                background: '#f8fafc', border: '1px dashed #cbd5e1', padding: '10px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'center'
-                                                            }}>
-                                                                <input 
-                                                                    type="file" 
-                                                                    accept="image/*"
-                                                                    style={{ display: 'none' }}
-                                                                    onChange={async (e) => {
-                                                                        const file = e.target.files[0];
-                                                                        if (!file) return;
-                                                                        const originalBg = hospitalForm.loginBackground;
-                                                                        setHospitalForm({ ...hospitalForm, loginBackground: 'Uploading...' });
-                                                                        try {
-                                                                            const fd = new FormData();
-                                                                            fd.append('images', file);
-                                                                            const res = await uploadAPI.uploadImages(fd);
-                                                                            if (res.success && res.files?.length > 0) {
-                                                                                setHospitalForm({ ...hospitalForm, loginBackground: res.files[0].url });
-                                                                            } else {
-                                                                                setHospitalForm({ ...hospitalForm, loginBackground: originalBg });
-                                                                                alert('Upload failed');
-                                                                            }
-                                                                        } catch (err) {
-                                                                            setHospitalForm({ ...hospitalForm, loginBackground: originalBg });
-                                                                            alert('Upload failed');
-                                                                        }
-                                                                    }}
-                                                                />
-                                                                {hospitalForm.loginBackground === 'Uploading...' ? '⏳ Uploading...' : '📁 Click to Browse Image'}
-                                                            </label>
-                                                            {hospitalForm.loginBackground && hospitalForm.loginBackground !== 'Uploading...' && (
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                    <img src={hospitalForm.loginBackground} alt="Preview" style={{ height: '40px', width: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #e2e8f0' }} />
-                                                                    <button type="button" onClick={() => setHospitalForm({ ...hospitalForm, loginBackground: '' })} style={{ background: '#fee2e2', color: '#ef4444', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}>✕ Remove</button>
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        <label className="staff-label">Login Background Image URL (Optional)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            className="staff-input" 
+                                                            placeholder="https://example.com/hospital-bg.jpg"
+                                                            value={hospitalForm.loginBackground} 
+                                                            onChange={e => setHospitalForm({ ...hospitalForm, loginBackground: e.target.value })}
+                                                        />
                                                     </div>
                                                     <div style={{ fontSize: '0.85rem', color: '#64748b', background: '#e0f2fe', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
                                                         <strong>ℹ️ DNS Required:</strong> Ensure a CNAME record points <code>{hospitalForm.customDomain || 'yourdomain.com'}</code> to <code>{getBaseHost()}</code>.

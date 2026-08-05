@@ -18,8 +18,6 @@ const App = () => {
       // Apply branding only for hospital-scoped users (not central admins)
       if (hospitalId && !['centraladmin', 'superadmin'].includes(role)) {
         loadBranding(hospitalId);
-      } else if (['centraladmin', 'superadmin'].includes(role)) {
-        resetBranding();
       }
     } else {
       resetBranding();

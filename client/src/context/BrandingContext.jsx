@@ -10,7 +10,7 @@
  * White-Label Flow:
  *   On mount (before login), the context auto-detects:
  *     1. Custom domain (crm.krishnaivf.com) → fetches branding by domain
- *     2. Subdomain (krishna-ivf.yourdomain.com) → fetches branding by slug
+ *     2. Subdomain (krishna-ivf.krisnaivfgroup5.com) → fetches branding by slug
  *   This ensures the login screen is fully branded before any user interaction.
  */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -227,7 +227,7 @@ export const BrandingProvider = ({ children }) => {
                     // Custom domain: crm.krishnaivf.com → resolve by hostname
                     params = { domain: window.location.hostname };
                 } else {
-                    // Subdomain: krishna-ivf.yourdomain.com → resolve by slug
+                    // Subdomain: krishna-ivf.krisnaivfgroup5.com → resolve by slug
                     const slug = getSubdomain();
                     if (slug && !RESERVED_SUBDOMAINS.includes(slug)) {
                         params = { slug };
