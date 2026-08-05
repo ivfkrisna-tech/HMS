@@ -214,7 +214,7 @@ const HospitalLogin = () => {
                                             <input type="checkbox" />
                                             <span>Remember me</span>
                                         </label>
-                                        <a href="#" className="forgot-link">Forgot password?</a>
+                                        <a href="#" className="forgot-link"></a>
                                     </div>
 
                                     <button className="btn-primary btn-block" type="submit" disabled={loading}>
