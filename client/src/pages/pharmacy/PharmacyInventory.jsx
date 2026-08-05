@@ -270,12 +270,22 @@ const PharmacyInventory = () => {
         let totalStock = pQty + fQty;
         let price = Number(newMedicine.buyingPrice) || 0;
         let selling = Number(newMedicine.sellingPrice) || 0;
+        let ups = Number(newMedicine.unitsPerStrip) || 1;
 
-        if (['Strip', 'Sachets', 'Powder'].includes(newMedicine.unit) && newMedicine.unitsPerStrip) {
-            const ups = Number(newMedicine.unitsPerStrip) || 1;
+        if (['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit)) {
             totalStock = totalStock * ups;
             price = price / ups;
             selling = selling / ups;
+        } else if (['Number', 'Sachets', 'Powder', 'Ointment', 'Others'].includes(newMedicine.unit)) {
+            ups = 1;
+        } else if (['Syrup', 'Injection'].includes(newMedicine.unit)) {
+            ups = 1;
+        } else {
+            if (ups > 1) {
+                totalStock = totalStock * ups;
+                price = price / ups;
+                selling = selling / ups;
+            }
         }
         
         let baseTotal = pQty * (Number(newMedicine.buyingPrice) || 0);
@@ -296,6 +306,7 @@ const PharmacyInventory = () => {
             ...newMedicine,
             salt: newMedicine.salt || '',
             stock: totalStock, // STRICT ENFORCEMENT: Computed based on unit logic
+            unitsPerStrip: ups, // EXACT SYNCHRONIZATION
             minStockAlertLevel: Number(newMedicine.minStockAlertLevel) || 50,
             buyingPrice: price,
             sellingPrice: selling,
@@ -622,9 +633,11 @@ const PharmacyInventory = () => {
                                 }} placeholder="e.g. 2" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                             </div>
                             <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK {['Strip', 'Sachets', 'Powder'].includes(newMedicine.unit) ? '(UNITS)' : ''}</label>
-                                <input readOnly type="number" value={
-                                    ['Strip', 'Sachets', 'Powder'].includes(newMedicine.unit) ? ((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1) : (Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) ? '(UNITS)' : ''}</label>
+                                <input readOnly type="text" value={
+                                    ['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) 
+                                        ? `${(((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1)).toLocaleString()} Units (${(Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)} Packs)`
+                                        : `${((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)).toLocaleString()}`
                                 } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 'bold' }} />
                             </div>
                             <div className="form-group">
@@ -633,10 +646,10 @@ const PharmacyInventory = () => {
                                     {['Tablets', 'Capsules', 'Strip', 'Sachets', 'Powder', 'Number', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
                             </div>
-                            {['Strip', 'Sachets', 'Powder'].includes(newMedicine.unit) && (
+                            {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) && (
                                 <div className="form-group">
                                     <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>
-                                        {newMedicine.unit === 'Strip' ? 'UNITS PER STRIP' : 'UNITS PER PACK/BOX'}
+                                        {newMedicine.unit === 'Strip' ? 'UNITS PER STRIP' : 'UNITS PER PACK / BOX'}
                                     </label>
                                     <input type="number" min="1" value={newMedicine.unitsPerStrip} onChange={(e) => {
                                         setNewMedicine({ ...newMedicine, unitsPerStrip: e.target.value });
@@ -800,7 +813,13 @@ const PharmacyInventory = () => {
                                                 )}
                                             </div>
                                         ) : (
-                                            <div className={med.stock < (med.minStockAlertLevel || 50) ? 'low-stock' : 'good-stock'}>{med.stock} {med.unit}</div>
+                                            <div className={med.stock < (med.minStockAlertLevel || 50) ? 'low-stock' : 'good-stock'}>
+                                                {['Strip', 'Capsules', 'Tablets'].includes(med.unit) && (Number(med.unitsPerStrip) || 1) > 1 ? (
+                                                    <span>{med.stock.toLocaleString()} Units <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 'normal' }}>({Math.floor(med.stock / (Number(med.unitsPerStrip) || 1))} {med.unit === 'Strip' ? 'Strips' : 'Packs'})</span></span>
+                                                ) : (
+                                                    <span>{med.stock.toLocaleString()} {med.unit}</span>
+                                                )}
+                                            </div>
                                         )}
                                     </td>
                                     <td>₹{med.buyingPrice}</td>
@@ -921,18 +940,27 @@ const PharmacyInventory = () => {
                                         }} placeholder="0" />
                                     </div>
                                     <div className="form-group">
-                                        <label>Total Stock</label>
-                                        <input readOnly type="number" value={newMedicine.stock} style={{ background: '#f1f5f9', fontWeight: 'bold' }} />
+                                        <label>Total Stock {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) ? '(UNITS)' : ''}</label>
+                                        <input readOnly type="text" value={
+                                            ['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) 
+                                                ? `${(((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1)).toLocaleString()} Units (${(Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)} Packs)`
+                                                : `${((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)).toLocaleString()}`
+                                        } style={{ background: '#f1f5f9', fontWeight: 'bold' }} />
                                     </div>
                                     <div className="form-group">
                                         <label>Unit</label>
                                         <select value={newMedicine.unit} onChange={(e) => setNewMedicine({ ...newMedicine, unit: e.target.value })}>
-                                            <option value="Tablets">Tablets</option>
-                                            <option value="Capsules">Capsules</option>
-                                            <option value="Bottles">Bottles</option>
-                                            <option value="Strips">Strips</option>
+                                            {['Tablets', 'Capsules', 'Strip', 'Sachets', 'Powder', 'Number', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
                                         </select>
                                     </div>
+                                    {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) && (
+                                        <div className="form-group">
+                                            <label>{newMedicine.unit === 'Strip' ? 'Units Per Strip' : 'Units Per Pack'}</label>
+                                            <input type="number" min="1" value={newMedicine.unitsPerStrip} onChange={(e) => {
+                                                setNewMedicine({ ...newMedicine, unitsPerStrip: e.target.value });
+                                            }} placeholder="e.g. 10" />
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
@@ -1179,7 +1207,13 @@ const PharmacyInventory = () => {
                                                         <tr key={med._id} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: med._id === selectedMedicine._id ? '#fefce8' : 'transparent' }}>
                                                             <td style={{ padding: '10px', fontWeight: 'bold', color: '#0f172a' }}>{med.name} {med._id === selectedMedicine._id ? '(Selected)' : ''}</td>
                                                             <td style={{ padding: '10px' }}>{med.batchNumber || 'N/A'}</td>
-                                                            <td style={{ padding: '10px', fontWeight: 'bold', color: med.stock < (med.minStockAlertLevel || 50) ? '#dc2626' : '#059669' }}>{med.stock} {med.unit || 'Tabs'}</td>
+                                                            <td style={{ padding: '10px', fontWeight: 'bold', color: med.stock < (med.minStockAlertLevel || 50) ? '#dc2626' : '#059669' }}>
+                                                                {['Strip', 'Capsules', 'Tablets'].includes(med.unit) && (Number(med.unitsPerStrip) || 1) > 1 ? (
+                                                                    <span>{med.stock.toLocaleString()} Units <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 'normal' }}>({Math.floor(med.stock / (Number(med.unitsPerStrip) || 1))} {med.unit === 'Strip' ? 'Strips' : 'Packs'})</span></span>
+                                                                ) : (
+                                                                    <span>{med.stock.toLocaleString()} {med.unit || 'Tabs'}</span>
+                                                                )}
+                                                            </td>
                                                             <td style={{ padding: '10px' }}>₹{med.buyingPrice || 0} <span style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>(+{med.cgstPercent || 0}% CGST, +{med.sgstPercent || 0}% SGST)</span></td>
                                                             <td style={{ padding: '10px', color: '#059669', fontWeight: 'bold' }}>₹{med.sellingPrice || 0}</td>
                                                             <td style={{ padding: '10px', fontWeight: 'bold' }}>₹{totalFinalCost.toFixed(2)}</td>

@@ -341,7 +341,7 @@ const PharmacyOrders = () => {
     const openPaymentModal = (order) => {
         setPaymentFlowOrder(order);
         setPaymentSource('Patient');
-        setPaymentMode('Cash');
+        setPaymentMode('CASH');
         setAuthorizedByDoctor('');
         setAuthorizationNote('');
         setDiscountPercent(order.discountPercent || 0);
@@ -556,46 +556,99 @@ const PharmacyOrders = () => {
                 }
             }
 
+            const invMatch = (inventory || []).find(inv => {
+                if (!inv || !inv.name) return false;
+                const invName = inv.name.trim().toLowerCase();
+                return (item.inventoryId && (inv._id === item.inventoryId || inv.id === item.inventoryId)) ||
+                       (item.medicineId && (inv._id === item.medicineId || inv.id === item.medicineId)) ||
+                       invName === rawName || rawName.includes(invName) || invName.includes(rawName);
+            });
+
             // 3. Isolated Pricing & Type Check
-            let sellingPrice = Number(item.sellingPrice || item.price || item.unitRate || 0);
-            let volumePerUnit = Number(item.volumePerUnit || item.packSize || item.capacity || 0);
+            let sellingPrice = invMatch ? Number(invMatch.sellingPrice || invMatch.price || 0) : Number(item.sellingPrice || item.price || item.unitRate || 0);
+            let buyingPrice = invMatch ? Number(invMatch.buyingPrice || invMatch.costPrice || 0) : Number(item.buyingPrice || item.costPrice || 0);
+            let volumePerUnit = invMatch ? Number(invMatch.packVolume || invMatch.unitsPerStrip || 1) : Number(item.volumePerUnit || item.packSize || item.capacity || 0);
+
+            let unitLabel = 'units';
+            if (invMatch && invMatch.unit) {
+                unitLabel = String(invMatch.unit).toLowerCase();
+            } else if (item.unit) {
+                unitLabel = String(item.unit).toLowerCase();
+            } else {
+                unitLabel = isLiquidOrInj ? 'ml' : 'tabs';
+            }
+            if (unitLabel === 'tablets' || unitLabel === 'strip') unitLabel = 'tabs';
+            if (unitLabel === 'capsules') unitLabel = 'caps';
+            if (unitLabel === 'number') unitLabel = 'nos';
+
+            const isReallyLiquidOrInj = isLiquidOrInj || ['injection', 'syrup', 'ml', 'vial', 'vials'].includes(unitLabel);
+            const isWholePackUnit = ['strip', 'caps', 'tabs', 'sachets', 'powder', 'syrup', 'vial', 'vials', 'bottles'].includes(unitLabel) || (invMatch && ['Strip', 'Capsules', 'Tablets', 'Sachets', 'Powder', 'Syrup', 'Injection'].includes(invMatch.unit));
 
             if (sellingPrice === 0) {
-                sellingPrice = isLiquidOrInj ? 120 : 15;
+                sellingPrice = isReallyLiquidOrInj ? 120 : 15;
             }
-            // Prevent cross-contamination between tablet and injection prices
-            if (!isLiquidOrInj && sellingPrice >= 120) {
+            if (buyingPrice === 0) {
+                buyingPrice = sellingPrice * 0.7; // Fallback cost
+            }
+            
+            // Prevent cross-contamination ONLY for legacy unmatched items to protect extremely old dirty data
+            if (!invMatch && !isReallyLiquidOrInj && sellingPrice >= 120) {
                 sellingPrice = 15;
+                buyingPrice = 10;
+            }
+
+            // SMART PACK ROUNDING LOGIC (Ceil Logic for whole units)
+            if (isWholePackUnit && volumePerUnit > 1 && (finalQty % volumePerUnit !== 0)) {
+                const requiredPacks = Math.ceil(finalQty / volumePerUnit);
+                finalQty = requiredPacks * volumePerUnit;
             }
 
             let effectiveRate = sellingPrice;
-            let unitLabel = isLiquidOrInj ? 'ml' : 'tabs';
+            let effectiveCostRate = buyingPrice;
 
-            if (isLiquidOrInj) {
-                if (volumePerUnit === 0) volumePerUnit = 10; // Default 10ml vial
+            if (invMatch && invMatch.isMultiDose && invMatch.billingType === 'PROPORTIONAL') {
+                if (volumePerUnit === 0) volumePerUnit = 10;
                 effectiveRate = sellingPrice / volumePerUnit;
+                effectiveCostRate = buyingPrice / volumePerUnit;
+            } else if (invMatch && invMatch.isMultiDose && invMatch.billingType === 'FULL_UNIT') {
+                effectiveRate = sellingPrice; 
+                effectiveCostRate = buyingPrice;
+            } else if (!invMatch && isReallyLiquidOrInj) {
+                if (volumePerUnit === 0) volumePerUnit = 10; 
+                effectiveRate = sellingPrice / volumePerUnit;
+                effectiveCostRate = buyingPrice / volumePerUnit;
+            } else if (invMatch && isReallyLiquidOrInj) {
+                effectiveRate = sellingPrice;
+                effectiveCostRate = buyingPrice;
             }
 
             // 4. Packaging breakdown string
             let packagingBreakdown = '';
-            if (isLiquidOrInj && volumePerUnit > 1 && finalQty >= volumePerUnit) {
+            if (isReallyLiquidOrInj && volumePerUnit > 1 && finalQty >= volumePerUnit) {
                 const fullPacks = Math.floor(finalQty / volumePerUnit);
                 const remQty = finalQty % volumePerUnit;
                 packagingBreakdown = `${fullPacks} Vial(s) (${volumePerUnit}ml each)`;
                 if (remQty > 0) packagingBreakdown += ` + ${remQty} ml loose`;
-            } else if (!isLiquidOrInj && volumePerUnit > 1 && finalQty >= volumePerUnit) {
+            } else if (!isReallyLiquidOrInj && volumePerUnit > 1 && finalQty >= volumePerUnit) {
                 const fullPacks = Math.floor(finalQty / volumePerUnit);
                 const remQty = finalQty % volumePerUnit;
-                packagingBreakdown = `${fullPacks} Strip(s) (${volumePerUnit} tabs each)`;
-                if (remQty > 0) packagingBreakdown += ` + ${remQty} tabs loose`;
+                const packName = (unitLabel === 'sachets' || unitLabel === 'powder') ? 'Pack(s)' : 'Strip(s)';
+                const subName = (unitLabel === 'sachets' || unitLabel === 'powder') ? unitLabel : 'tabs';
+                packagingBreakdown = `${fullPacks} ${packName} (${volumePerUnit} ${subName} each)`;
+                if (remQty > 0) packagingBreakdown += ` + ${remQty} ${subName} loose`;
             } else {
                 packagingBreakdown = `${finalQty} ${unitLabel}`;
             }
 
             // 5. Final calculation per item
             const itemBase = finalQty * effectiveRate;
+            const itemCostBase = finalQty * effectiveCostRate;
             const gstPercent = Number(item.gst || item.gstPercent || 12);
-            const itemTax = itemBase * (gstPercent / 100);
+            
+            // GST calculation cleanly mapped based on cost/purchase price layers
+            const itemTax = itemCostBase * (gstPercent / 100);
+            
+            // Patient bills strictly use Selling Price + Tax
             const itemTotal = itemBase + itemTax;
 
             totalSubtotal += itemBase;
@@ -789,7 +842,7 @@ const PharmacyOrders = () => {
                                     <div>DATE: <span style={{ color: '#0f172a' }}>{selectedOrder?.createdAt ? new Date(selectedOrder.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}</span></div>
                                     <div>
                                         STATUS: <span style={{ color: selectedOrder?.paymentStatus === 'Paid' ? '#059669' : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? '#d97706' : '#dc2626'), fontWeight: '900' }}>
-                                            {selectedOrder?.paymentStatus === 'Paid' ? `PAID ${selectedOrder?.paymentMode ? `(${selectedOrder.paymentMode})` : ''}` : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? `PENDING BY DR - ${selectedOrder?.authorizedDoctorName || selectedOrder?.doctorName || 'Unknown'}`.toUpperCase() : 'PENDING')}
+                                            {selectedOrder?.paymentStatus === 'Paid' ? `PAID ${selectedOrder?.paymentMode ? `(${String(selectedOrder.paymentMode).toUpperCase()})` : ''}` : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? `PENDING BY DR - ${selectedOrder?.authorizedDoctorName || selectedOrder?.doctorName || 'Unknown'}`.toUpperCase() : 'PENDING')}
                                         </span>
                                     </div>
                                 </div>
@@ -1013,7 +1066,8 @@ const PharmacyOrders = () => {
                                                             dosage: '',
                                                             unitRate: unitPrice,
                                                             gstPercent: gst,
-                                                            stock: item.stock
+                                                            stock: item.stock,
+                                                            unit: item.unit || 'units'
                                                         }]
                                                     };
                                                 });
@@ -1127,16 +1181,27 @@ const PharmacyOrders = () => {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px', alignItems: 'center' }}>
                                 <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <label style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', margin: 0 }}>Payment Mode:</label>
-                                    <select 
-                                        value={walkInForm.paymentMode} 
-                                        onChange={(e) => setWalkInForm({...walkInForm, paymentMode: e.target.value})}
-                                        style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none', fontWeight: 'bold' }}
-                                    >
-                                        <option value="CASH">Cash</option>
-                                        <option value="UPI">UPI</option>
-                                        <option value="CARD">Card</option>
-                                        <option value="NET_BANKING">Net Banking</option>
-                                    </select>
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                        {['CASH', 'UPI', 'CARD', 'ONLINE'].map(mode => (
+                                            <button
+                                                key={mode}
+                                                type="button"
+                                                onClick={() => setWalkInForm({...walkInForm, paymentMode: mode})}
+                                                style={{
+                                                    padding: '4px 12px',
+                                                    borderRadius: '16px',
+                                                    border: walkInForm.paymentMode === mode ? '2px solid #10b981' : '1px solid #cbd5e1',
+                                                    backgroundColor: walkInForm.paymentMode === mode ? '#ecfdf5' : '#ffffff',
+                                                    color: walkInForm.paymentMode === mode ? '#065f46' : '#64748b',
+                                                    fontSize: '11px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {mode}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                                 <button type="button" onClick={() => setShowWalkInModal(false)} style={{ padding: '8px 16px', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
                                 <button type="submit" disabled={walkInSaving || walkInForm.items.length === 0} style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -1462,16 +1527,28 @@ const PharmacyOrders = () => {
 
                             {paymentSource === 'Patient' && (
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
-                                    <label style={{ fontWeight: 'bold' }}>Payment Mode</label>
-                                    <select
-                                        value={paymentMode}
-                                        onChange={(e) => setPaymentMode(e.target.value)}
-                                        style={{ width: '100%', padding: '8px' }}
-                                    >
-                                        <option value="Cash">Cash</option>
-                                        <option value="UPI">UPI</option>
-                                        <option value="Card">Card</option>
-                                    </select>
+                                    <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>Payment Mode</label>
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                        {['CASH', 'UPI', 'CARD', 'ONLINE'].map(mode => (
+                                            <button
+                                                key={mode}
+                                                type="button"
+                                                onClick={() => setPaymentMode(mode)}
+                                                style={{
+                                                    padding: '8px 16px',
+                                                    borderRadius: '20px',
+                                                    border: String(paymentMode).toUpperCase() === mode ? '2px solid #10b981' : '1px solid #cbd5e1',
+                                                    backgroundColor: String(paymentMode).toUpperCase() === mode ? '#ecfdf5' : '#ffffff',
+                                                    color: String(paymentMode).toUpperCase() === mode ? '#065f46' : '#475569',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                {mode === 'ONLINE' ? 'Online / Net Banking' : mode}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
