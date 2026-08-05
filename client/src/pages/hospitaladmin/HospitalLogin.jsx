@@ -222,9 +222,7 @@ const HospitalLogin = () => {
                                     </button>
                                 </form>
 
-                                <div className="auth-footer-note" style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                                    <span>Safe &amp; Secure Industrial-Grade Clinical System</span>
-                                </div>
+                                
                             </div>
                         </div>
 
