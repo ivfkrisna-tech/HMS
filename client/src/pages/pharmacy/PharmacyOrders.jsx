@@ -976,7 +976,14 @@ const PharmacyOrders = () => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Doctor Name (Optional)</label>
-                                    <input type="text" value={walkInForm.doctorName} onChange={e => setWalkInForm({...walkInForm, doctorName: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+                                    <select value={walkInForm.doctorName} onChange={e => setWalkInForm({...walkInForm, doctorName: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#fff' }}>
+                                        <option value="">-- Select Doctor --</option>
+                                        {(doctors || []).map((doc, idx) => (
+                                            <option key={doc._id || idx} value={doc.name}>
+                                                Dr. {doc.name} {doc.department ? `(${doc.department})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
 
