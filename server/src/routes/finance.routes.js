@@ -78,8 +78,9 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
         const Inventory = require('../models/inventory.model');
         const MasterFacilityCharge = require('../models/facilityCharge.model');
         const MasterAdmission = require('../models/admission.model');
+        const MasterTreatmentPackage = require('../models/treatmentPackage.model');
 
-        let TAppointment, TLabReport, TPharmacyOrder, TFacilityCharge, TAdmission;
+        let TAppointment, TLabReport, TPharmacyOrder, TFacilityCharge, TAdmission, TTreatmentPackage;
         if (req.tenantDb) {
             const tenantModels = getTenantModels(req.tenantDb);
             TAppointment = tenantModels.Appointment;
@@ -87,6 +88,7 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
             TPharmacyOrder = tenantModels.PharmacyOrder;
             TFacilityCharge = tenantModels.FacilityCharge;
             TAdmission = tenantModels.Admission;
+            TTreatmentPackage = tenantModels.TreatmentPackage;
         }
 
         const queryObj = {
@@ -164,9 +166,17 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
         const admissions = [...masterAdmissions, ...tenantAdmissions];
         const totalAdmissionRevenue = admissions.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0);
 
+        // 6. Packages Revenue
+        const [masterPackages, tenantPackages] = await Promise.all([
+            MasterTreatmentPackage.find(queryObj).lean(),
+            TTreatmentPackage ? TTreatmentPackage.find(queryObj).lean() : Promise.resolve([])
+        ]);
+        const packages = [...masterPackages, ...tenantPackages];
+        const totalPackageRevenue = packages.reduce((acc, curr) => acc + (curr.finalAmount || curr.totalAmount || 0), 0);
+
         // Overall Totals
-        const totalRevenue = totalConsultationRevenue + totalLabRevenue + totalMedicineRevenue + totalFacilityRevenue + totalAdmissionRevenue;
-        const totalProfit = totalConsultationRevenue + totalLabRevenue + totalMedicineProfit + totalFacilityRevenue + totalAdmissionRevenue;
+        const totalRevenue = totalConsultationRevenue + totalLabRevenue + totalMedicineRevenue + totalFacilityRevenue + totalAdmissionRevenue + totalPackageRevenue;
+        const totalProfit = totalConsultationRevenue + totalLabRevenue + totalMedicineProfit + totalFacilityRevenue + totalAdmissionRevenue + totalPackageRevenue;
 
         res.json({
             success: true,
@@ -194,6 +204,10 @@ router.get('/dashboard', verifyFinanceAccess, resolveTenant, async (req, res) =>
                 admissions: {
                     count: admissions.length,
                     revenue: totalAdmissionRevenue
+                },
+                packages: {
+                    count: packages.length,
+                    revenue: totalPackageRevenue
                 }
             }
         });
