@@ -564,85 +564,55 @@ const PharmacyOrders = () => {
                        invName === rawName || rawName.includes(invName) || invName.includes(rawName);
             });
 
-            // 3. Isolated Pricing & Type Check
+            // 3. User Requested Calculation Logic
             let sellingPrice = invMatch ? Number(invMatch.sellingPrice || invMatch.price || 0) : Number(item.sellingPrice || item.price || item.unitRate || 0);
             let buyingPrice = invMatch ? Number(invMatch.buyingPrice || invMatch.costPrice || 0) : Number(item.buyingPrice || item.costPrice || 0);
-            let volumePerUnit = invMatch ? Number(invMatch.packVolume || invMatch.unitsPerStrip || 1) : Number(item.volumePerUnit || item.packSize || item.capacity || 0);
-
-            let unitLabel = 'units';
-            if (invMatch && invMatch.unit) {
-                unitLabel = String(invMatch.unit).toLowerCase();
-            } else if (item.unit) {
-                unitLabel = String(item.unit).toLowerCase();
-            } else {
-                unitLabel = isLiquidOrInj ? 'ml' : 'tabs';
-            }
-            if (unitLabel === 'tablets' || unitLabel === 'strip') unitLabel = 'tabs';
-            if (unitLabel === 'capsules') unitLabel = 'caps';
-            if (unitLabel === 'number') unitLabel = 'nos';
-
-            const isReallyLiquidOrInj = isLiquidOrInj || ['injection', 'syrup', 'ml', 'vial', 'vials'].includes(unitLabel);
-            const isWholePackUnit = ['strip', 'caps', 'tabs', 'sachets', 'powder', 'syrup', 'vial', 'vials', 'bottles'].includes(unitLabel) || (invMatch && ['Strip', 'Capsules', 'Tablets', 'Sachets', 'Powder', 'Syrup', 'Injection'].includes(invMatch.unit));
+            
+            const unit = (invMatch ? (invMatch.unit || '') : (item.unit || '')).toLowerCase();
+            const unitsPerStrip = invMatch ? Number(invMatch.unitsPerStrip) : 1; 
+            const volumePerUnit = invMatch ? (Number(invMatch.volumePerUnit) || Number(invMatch.packVolume)) : 1; 
 
             if (sellingPrice === 0) {
-                sellingPrice = isReallyLiquidOrInj ? 120 : 15;
+                sellingPrice = isLiquidOrInj ? 120 : 15;
             }
             if (buyingPrice === 0) {
                 buyingPrice = sellingPrice * 0.7; // Fallback cost
             }
             
             // Prevent cross-contamination ONLY for legacy unmatched items to protect extremely old dirty data
-            if (!invMatch && !isReallyLiquidOrInj && sellingPrice >= 120) {
+            if (!invMatch && !isLiquidOrInj && sellingPrice >= 120) {
                 sellingPrice = 15;
                 buyingPrice = 10;
             }
 
-            // SMART PACK ROUNDING LOGIC (Ceil Logic for whole units)
-            if (isWholePackUnit && volumePerUnit > 1 && (finalQty % volumePerUnit !== 0)) {
-                const requiredPacks = Math.ceil(finalQty / volumePerUnit);
-                finalQty = requiredPacks * volumePerUnit;
-            }
+            let billedQty = finalQty;
+            let displayUnit = unit || 'tabs';
 
-            let effectiveRate = sellingPrice;
-            let effectiveCostRate = buyingPrice;
-
-            if (invMatch && invMatch.isMultiDose && invMatch.billingType === 'PROPORTIONAL') {
-                if (volumePerUnit === 0) volumePerUnit = 10;
-                effectiveRate = sellingPrice / volumePerUnit;
-                effectiveCostRate = buyingPrice / volumePerUnit;
-            } else if (invMatch && invMatch.isMultiDose && invMatch.billingType === 'FULL_UNIT') {
-                effectiveRate = sellingPrice; 
-                effectiveCostRate = buyingPrice;
-            } else if (!invMatch && isReallyLiquidOrInj) {
-                if (volumePerUnit === 0) volumePerUnit = 10; 
-                effectiveRate = sellingPrice / volumePerUnit;
-                effectiveCostRate = buyingPrice / volumePerUnit;
-            } else if (invMatch && isReallyLiquidOrInj) {
-                effectiveRate = sellingPrice;
-                effectiveCostRate = buyingPrice;
+            if (['strip', 'capsules', 'tablets'].includes(unit)) {
+                // e.g., 15 tablets prescribed / 10 per strip = 1.5 -> Math.ceil = 2 Strips
+                const packCapacity = unitsPerStrip > 0 ? unitsPerStrip : 1;
+                billedQty = Math.ceil(finalQty / packCapacity);
+                displayUnit = 'strip(s)';
+            } else if (['syrup', 'injection', 'vial', 'drops', 'vials'].includes(unit) || isLiquidOrInj) {
+                // e.g., 75ml prescribed / 100ml bottle = 0.75 -> Math.ceil = 1 Bottle
+                // e.g., 20ml prescribed / 4ml vial = 5 -> Math.ceil = 5 Vials
+                const packCapacity = volumePerUnit > 0 ? volumePerUnit : 1;
+                billedQty = Math.ceil(finalQty / packCapacity);
+                displayUnit = (unit === 'syrup' || rawName.includes('syrup')) ? 'bottle(s)' : 'vial(s)';
+            } else {
+                // Sachet, Powder, Nos (Direct 1:1 billing)
+                billedQty = finalQty;
+                displayUnit = unit || 'units';
             }
 
             // 4. Packaging breakdown string
-            let packagingBreakdown = '';
-            if (isReallyLiquidOrInj && volumePerUnit > 1 && finalQty >= volumePerUnit) {
-                const fullPacks = Math.floor(finalQty / volumePerUnit);
-                const remQty = finalQty % volumePerUnit;
-                packagingBreakdown = `${fullPacks} Vial(s) (${volumePerUnit}ml each)`;
-                if (remQty > 0) packagingBreakdown += ` + ${remQty} ml loose`;
-            } else if (!isReallyLiquidOrInj && volumePerUnit > 1 && finalQty >= volumePerUnit) {
-                const fullPacks = Math.floor(finalQty / volumePerUnit);
-                const remQty = finalQty % volumePerUnit;
-                const packName = (unitLabel === 'sachets' || unitLabel === 'powder') ? 'Pack(s)' : 'Strip(s)';
-                const subName = (unitLabel === 'sachets' || unitLabel === 'powder') ? unitLabel : 'tabs';
-                packagingBreakdown = `${fullPacks} ${packName} (${volumePerUnit} ${subName} each)`;
-                if (remQty > 0) packagingBreakdown += ` + ${remQty} ${subName} loose`;
-            } else {
-                packagingBreakdown = `${finalQty} ${unitLabel}`;
-            }
+            let packagingBreakdown = `${billedQty} ${displayUnit}`;
+            const unitLabel = unit || 'units';
+            const effectiveRate = sellingPrice;
 
             // 5. Final calculation per item
-            const itemBase = finalQty * effectiveRate;
-            const itemCostBase = finalQty * effectiveCostRate;
+            const itemBase = billedQty * sellingPrice; 
+            const itemCostBase = billedQty * buyingPrice;
             const gstPercent = Number(item.gst || item.gstPercent || 12);
             
             // GST calculation cleanly mapped based on cost/purchase price layers
