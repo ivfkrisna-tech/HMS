@@ -341,7 +341,7 @@ const PharmacyOrders = () => {
     const openPaymentModal = (order) => {
         setPaymentFlowOrder(order);
         setPaymentSource('Patient');
-        setPaymentMode('Cash');
+        setPaymentMode('CASH');
         setAuthorizedByDoctor('');
         setAuthorizationNote('');
         setDiscountPercent(order.discountPercent || 0);
@@ -556,46 +556,80 @@ const PharmacyOrders = () => {
                 }
             }
 
-            // 3. Isolated Pricing & Type Check
-            let sellingPrice = Number(item.sellingPrice || item.price || item.unitRate || 0);
-            let volumePerUnit = Number(item.volumePerUnit || item.packSize || item.capacity || 0);
+            const invMatch = (inventory || []).find(inv => {
+                if (!inv || !inv.name) return false;
+                const invName = inv.name.trim().toLowerCase();
+                return (item.inventoryId && (inv._id === item.inventoryId || inv.id === item.inventoryId)) ||
+                       (item.medicineId && (inv._id === item.medicineId || inv.id === item.medicineId)) ||
+                       invName === rawName || rawName.includes(invName) || invName.includes(rawName);
+            });
+
+            // 3. User Requested Calculation Logic
+            let sellingPrice = invMatch ? Number(invMatch.sellingPrice || invMatch.price || 0) : Number(item.sellingPrice || item.price || item.unitRate || 0);
+            let buyingPrice = invMatch ? Number(invMatch.buyingPrice || invMatch.costPrice || 0) : Number(item.buyingPrice || item.costPrice || 0);
+            
+            const unit = (invMatch ? (invMatch.unit || '') : (item.unit || '')).toLowerCase();
+            const unitsPerStrip = invMatch ? Number(invMatch.unitsPerStrip) : 1; 
+            const volumePerUnit = invMatch ? (Number(invMatch.volumePerUnit) || Number(invMatch.packVolume)) : 1; 
 
             if (sellingPrice === 0) {
                 sellingPrice = isLiquidOrInj ? 120 : 15;
             }
-            // Prevent cross-contamination between tablet and injection prices
-            if (!isLiquidOrInj && sellingPrice >= 120) {
+            if (buyingPrice === 0) {
+                buyingPrice = sellingPrice * 0.7; // Fallback cost
+            }
+            
+            // Prevent cross-contamination ONLY for legacy unmatched items to protect extremely old dirty data
+            if (!invMatch && !isLiquidOrInj && sellingPrice >= 120) {
                 sellingPrice = 15;
+                buyingPrice = 10;
             }
 
-            let effectiveRate = sellingPrice;
-            let unitLabel = isLiquidOrInj ? 'ml' : 'tabs';
+            let billedQty = finalQty;
+            let displayUnit = unit || 'units';
 
-            if (isLiquidOrInj) {
-                if (volumePerUnit === 0) volumePerUnit = 10; // Default 10ml vial
-                effectiveRate = sellingPrice / volumePerUnit;
+            if (['strip', 'strips'].includes(unit) || (!isLiquidOrInj && unitsPerStrip > 1)) {
+                // If it's strictly a strip, or inventory enforces strips (unitsPerStrip > 1)
+                const packCapacity = unitsPerStrip > 1 ? unitsPerStrip : 10; // Fallback to 10/strip if missing
+                billedQty = Math.ceil(finalQty / packCapacity);
+                displayUnit = 'strip(s)';
+            } else if (['capsule', 'capsules', 'tablet', 'tablets', 'tabs'].includes(unit)) {
+                // If prescribed as tablets/capsules but inventory doesn't strictly enforce strips
+                if (unitsPerStrip > 1) {
+                    billedQty = Math.ceil(finalQty / unitsPerStrip);
+                    displayUnit = 'strip(s)';
+                } else {
+                    // Direct loose tablet billing
+                    billedQty = finalQty;
+                    displayUnit = 'tabs';
+                }
+            } else if (['syrup', 'injection', 'vial', 'drops', 'vials'].includes(unit) || isLiquidOrInj) {
+                // Liquids: e.g. 50ml total dose. Bottle size = 100ml -> 1 Bottle
+                // If packVolume is missing (<= 1), fallback to 100ml for syrup, 10ml for vials
+                const fallbackVolume = rawName.includes('syrup') ? 100 : 10;
+                const packCapacity = volumePerUnit > 1 ? volumePerUnit : fallbackVolume;
+                billedQty = Math.ceil(finalQty / packCapacity);
+                displayUnit = (unit === 'syrup' || rawName.includes('syrup')) ? 'bottle(s)' : 'vial(s)';
+            } else {
+                // Sachet, Powder, Nos (Direct 1:1 billing)
+                billedQty = finalQty;
+                displayUnit = unit || 'units';
             }
 
             // 4. Packaging breakdown string
-            let packagingBreakdown = '';
-            if (isLiquidOrInj && volumePerUnit > 1 && finalQty >= volumePerUnit) {
-                const fullPacks = Math.floor(finalQty / volumePerUnit);
-                const remQty = finalQty % volumePerUnit;
-                packagingBreakdown = `${fullPacks} Vial(s) (${volumePerUnit}ml each)`;
-                if (remQty > 0) packagingBreakdown += ` + ${remQty} ml loose`;
-            } else if (!isLiquidOrInj && volumePerUnit > 1 && finalQty >= volumePerUnit) {
-                const fullPacks = Math.floor(finalQty / volumePerUnit);
-                const remQty = finalQty % volumePerUnit;
-                packagingBreakdown = `${fullPacks} Strip(s) (${volumePerUnit} tabs each)`;
-                if (remQty > 0) packagingBreakdown += ` + ${remQty} tabs loose`;
-            } else {
-                packagingBreakdown = `${finalQty} ${unitLabel}`;
-            }
+            let packagingBreakdown = `${billedQty} ${displayUnit}`;
+            const unitLabel = unit || 'units';
+            const effectiveRate = sellingPrice;
 
             // 5. Final calculation per item
-            const itemBase = finalQty * effectiveRate;
+            const itemBase = billedQty * sellingPrice; 
+            const itemCostBase = billedQty * buyingPrice;
             const gstPercent = Number(item.gst || item.gstPercent || 12);
-            const itemTax = itemBase * (gstPercent / 100);
+            
+            // GST calculation cleanly mapped based on cost/purchase price layers
+            const itemTax = itemCostBase * (gstPercent / 100);
+            
+            // Patient bills strictly use Selling Price + Tax
             const itemTotal = itemBase + itemTax;
 
             totalSubtotal += itemBase;
@@ -789,7 +823,7 @@ const PharmacyOrders = () => {
                                     <div>DATE: <span style={{ color: '#0f172a' }}>{selectedOrder?.createdAt ? new Date(selectedOrder.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}</span></div>
                                     <div>
                                         STATUS: <span style={{ color: selectedOrder?.paymentStatus === 'Paid' ? '#059669' : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? '#d97706' : '#dc2626'), fontWeight: '900' }}>
-                                            {selectedOrder?.paymentStatus === 'Paid' ? `PAID ${selectedOrder?.paymentMode ? `(${selectedOrder.paymentMode})` : ''}` : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? `PENDING BY DR - ${selectedOrder?.authorizedDoctorName || selectedOrder?.doctorName || 'Unknown'}`.toUpperCase() : 'PENDING')}
+                                            {selectedOrder?.paymentStatus === 'Paid' ? `PAID ${selectedOrder?.paymentMode ? `(${String(selectedOrder.paymentMode).toUpperCase()})` : ''}` : (selectedOrder?.paymentStatus === 'PAID_BY_DOCTOR' ? `PENDING BY DR - ${selectedOrder?.authorizedDoctorName || selectedOrder?.doctorName || 'Unknown'}`.toUpperCase() : 'PENDING')}
                                         </span>
                                     </div>
                                 </div>
@@ -976,7 +1010,14 @@ const PharmacyOrders = () => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Doctor Name (Optional)</label>
-                                    <input type="text" value={walkInForm.doctorName} onChange={e => setWalkInForm({...walkInForm, doctorName: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+                                    <select value={walkInForm.doctorName} onChange={e => setWalkInForm({...walkInForm, doctorName: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#fff' }}>
+                                        <option value="">-- Select Doctor --</option>
+                                        {(doctors || []).map((doc, idx) => (
+                                            <option key={doc._id || idx} value={doc.name}>
+                                                Dr. {doc.name} {doc.department ? `(${doc.department})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
 
@@ -1006,7 +1047,8 @@ const PharmacyOrders = () => {
                                                             dosage: '',
                                                             unitRate: unitPrice,
                                                             gstPercent: gst,
-                                                            stock: item.stock
+                                                            stock: item.stock,
+                                                            unit: item.unit || 'units'
                                                         }]
                                                     };
                                                 });
@@ -1120,16 +1162,27 @@ const PharmacyOrders = () => {
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px', alignItems: 'center' }}>
                                 <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <label style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold', margin: 0 }}>Payment Mode:</label>
-                                    <select 
-                                        value={walkInForm.paymentMode} 
-                                        onChange={(e) => setWalkInForm({...walkInForm, paymentMode: e.target.value})}
-                                        style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none', fontWeight: 'bold' }}
-                                    >
-                                        <option value="CASH">Cash</option>
-                                        <option value="UPI">UPI</option>
-                                        <option value="CARD">Card</option>
-                                        <option value="NET_BANKING">Net Banking</option>
-                                    </select>
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                        {['CASH', 'UPI', 'CARD', 'ONLINE'].map(mode => (
+                                            <button
+                                                key={mode}
+                                                type="button"
+                                                onClick={() => setWalkInForm({...walkInForm, paymentMode: mode})}
+                                                style={{
+                                                    padding: '4px 12px',
+                                                    borderRadius: '16px',
+                                                    border: walkInForm.paymentMode === mode ? '2px solid #10b981' : '1px solid #cbd5e1',
+                                                    backgroundColor: walkInForm.paymentMode === mode ? '#ecfdf5' : '#ffffff',
+                                                    color: walkInForm.paymentMode === mode ? '#065f46' : '#64748b',
+                                                    fontSize: '11px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {mode}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                                 <button type="button" onClick={() => setShowWalkInModal(false)} style={{ padding: '8px 16px', background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
                                 <button type="submit" disabled={walkInSaving || walkInForm.items.length === 0} style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -1158,18 +1211,18 @@ const PharmacyOrders = () => {
             <div className="pb-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #10b981' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Today's Collection</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.todayCollection.toFixed(2)}</h2>
-                    <small style={{ color: '#059669', fontWeight: 'bold' }}>Cash: ₹{calculatedStats.todayCash.toFixed(2)} | Online: ₹{calculatedStats.todayOnline.toFixed(2)}</small>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{(Number(calculatedStats?.todayCollection) || 0).toFixed(2)}</h2>
+                    <small style={{ color: '#059669', fontWeight: 'bold' }}>Cash: ₹{(Number(calculatedStats?.todayCash) || 0).toFixed(2)} | Online: ₹{(Number(calculatedStats?.todayOnline) || 0).toFixed(2)}</small>
                 </div>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #3b82f6' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Overall Collection</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.overallCollection.toFixed(2)}</h2>
-                    <small style={{ color: '#2563eb', fontWeight: 'bold' }}>Cash: ₹{calculatedStats.overallCash.toFixed(2)} | Online: ₹{calculatedStats.overallOnline.toFixed(2)}</small>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{(Number(calculatedStats?.overallCollection) || 0).toFixed(2)}</h2>
+                    <small style={{ color: '#2563eb', fontWeight: 'bold' }}>Cash: ₹{(Number(calculatedStats?.overallCash) || 0).toFixed(2)} | Online: ₹{(Number(calculatedStats?.overallOnline) || 0).toFixed(2)}</small>
                 </div>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #f59e0b' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Pending / Dr Guaranteed</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.pendingCollection.toFixed(2)}</h2>
-                    <small style={{ color: '#8b5cf6' }}>Dr Auth: ₹{calculatedStats.doctorGuaranteedAmount.toFixed(2)}</small>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{(Number(calculatedStats?.pendingCollection) || 0).toFixed(2)}</h2>
+                    <small style={{ color: '#8b5cf6' }}>Dr Auth: ₹{(Number(calculatedStats?.doctorGuaranteedAmount) || 0).toFixed(2)}</small>
                 </div>
             </div>
 
@@ -1455,16 +1508,28 @@ const PharmacyOrders = () => {
 
                             {paymentSource === 'Patient' && (
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
-                                    <label style={{ fontWeight: 'bold' }}>Payment Mode</label>
-                                    <select
-                                        value={paymentMode}
-                                        onChange={(e) => setPaymentMode(e.target.value)}
-                                        style={{ width: '100%', padding: '8px' }}
-                                    >
-                                        <option value="Cash">Cash</option>
-                                        <option value="UPI">UPI</option>
-                                        <option value="Card">Card</option>
-                                    </select>
+                                    <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>Payment Mode</label>
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                        {['CASH', 'UPI', 'CARD', 'ONLINE'].map(mode => (
+                                            <button
+                                                key={mode}
+                                                type="button"
+                                                onClick={() => setPaymentMode(mode)}
+                                                style={{
+                                                    padding: '8px 16px',
+                                                    borderRadius: '20px',
+                                                    border: String(paymentMode).toUpperCase() === mode ? '2px solid #10b981' : '1px solid #cbd5e1',
+                                                    backgroundColor: String(paymentMode).toUpperCase() === mode ? '#ecfdf5' : '#ffffff',
+                                                    color: String(paymentMode).toUpperCase() === mode ? '#065f46' : '#475569',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                {mode === 'ONLINE' ? 'Online / Net Banking' : mode}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
