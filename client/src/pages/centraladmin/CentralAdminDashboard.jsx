@@ -862,7 +862,7 @@ const CentralAdminDashboard = () => {
                                             { label: 'Address', value: h.address },
                                             { label: 'Admin', value: h.adminName || 'Not assigned' },
                                             { label: 'Admin Email', value: h.adminEmail },
-                                            { label: 'Staff Login URL', value: h.slug && `${window.location.protocol}//${h.slug}.${getBaseHost()}/login`, isLink: true },
+                                            { label: 'Staff Login URL', value: h.customDomain ? `https://${h.customDomain}/login` : (h.slug && `${window.location.protocol}//${h.slug}.${getBaseHost()}/login`), isLink: true },
                                             { label: 'Appointment Fee', value: h.appointmentFee !== undefined && h.appointmentFee !== null ? formatCurrency(h.appointmentFee) : formatCurrency(500) },
                                         ].map((item, i) => item.value && (
                                             <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '8px', fontSize: '14px' }}>
