@@ -72,6 +72,10 @@ const pharmacyOrderSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    discountPercent: {
+        type: Number,
+        default: 0
+    },
     cgstAmount: {
         type: Number,
         default: 0
