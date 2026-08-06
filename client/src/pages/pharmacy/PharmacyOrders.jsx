@@ -586,17 +586,28 @@ const PharmacyOrders = () => {
             }
 
             let billedQty = finalQty;
-            let displayUnit = unit || 'tabs';
+            let displayUnit = unit || 'units';
 
-            if (['strip', 'capsules', 'tablets'].includes(unit)) {
-                // e.g., 15 tablets prescribed / 10 per strip = 1.5 -> Math.ceil = 2 Strips
-                const packCapacity = unitsPerStrip > 0 ? unitsPerStrip : 1;
+            if (['strip', 'strips'].includes(unit) || (!isLiquidOrInj && unitsPerStrip > 1)) {
+                // If it's strictly a strip, or inventory enforces strips (unitsPerStrip > 1)
+                const packCapacity = unitsPerStrip > 1 ? unitsPerStrip : 10; // Fallback to 10/strip if missing
                 billedQty = Math.ceil(finalQty / packCapacity);
                 displayUnit = 'strip(s)';
+            } else if (['capsule', 'capsules', 'tablet', 'tablets', 'tabs'].includes(unit)) {
+                // If prescribed as tablets/capsules but inventory doesn't strictly enforce strips
+                if (unitsPerStrip > 1) {
+                    billedQty = Math.ceil(finalQty / unitsPerStrip);
+                    displayUnit = 'strip(s)';
+                } else {
+                    // Direct loose tablet billing
+                    billedQty = finalQty;
+                    displayUnit = 'tabs';
+                }
             } else if (['syrup', 'injection', 'vial', 'drops', 'vials'].includes(unit) || isLiquidOrInj) {
-                // e.g., 75ml prescribed / 100ml bottle = 0.75 -> Math.ceil = 1 Bottle
-                // e.g., 20ml prescribed / 4ml vial = 5 -> Math.ceil = 5 Vials
-                const packCapacity = volumePerUnit > 0 ? volumePerUnit : 1;
+                // Liquids: e.g. 50ml total dose. Bottle size = 100ml -> 1 Bottle
+                // If packVolume is missing (<= 1), fallback to 100ml for syrup, 10ml for vials
+                const fallbackVolume = rawName.includes('syrup') ? 100 : 10;
+                const packCapacity = volumePerUnit > 1 ? volumePerUnit : fallbackVolume;
                 billedQty = Math.ceil(finalQty / packCapacity);
                 displayUnit = (unit === 'syrup' || rawName.includes('syrup')) ? 'bottle(s)' : 'vial(s)';
             } else {
@@ -1200,18 +1211,18 @@ const PharmacyOrders = () => {
             <div className="pb-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #10b981' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Today's Collection</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.todayCollection.toFixed(2)}</h2>
-                    <small style={{ color: '#059669', fontWeight: 'bold' }}>Cash: ₹{calculatedStats.todayCash.toFixed(2)} | Online: ₹{calculatedStats.todayOnline.toFixed(2)}</small>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{(Number(calculatedStats?.todayCollection) || 0).toFixed(2)}</h2>
+                    <small style={{ color: '#059669', fontWeight: 'bold' }}>Cash: ₹{(Number(calculatedStats?.todayCash) || 0).toFixed(2)} | Online: ₹{(Number(calculatedStats?.todayOnline) || 0).toFixed(2)}</small>
                 </div>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #3b82f6' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Overall Collection</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.overallCollection.toFixed(2)}</h2>
-                    <small style={{ color: '#2563eb', fontWeight: 'bold' }}>Cash: ₹{calculatedStats.overallCash.toFixed(2)} | Online: ₹{calculatedStats.overallOnline.toFixed(2)}</small>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{(Number(calculatedStats?.overallCollection) || 0).toFixed(2)}</h2>
+                    <small style={{ color: '#2563eb', fontWeight: 'bold' }}>Cash: ₹{(Number(calculatedStats?.overallCash) || 0).toFixed(2)} | Online: ₹{(Number(calculatedStats?.overallOnline) || 0).toFixed(2)}</small>
                 </div>
                 <div className="kpi-card" style={{ background: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: '4px solid #f59e0b' }}>
                     <h4 style={{ margin: '0 0 5px', color: '#64748b', fontSize: '0.85rem' }}>Pending / Dr Guaranteed</h4>
-                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{calculatedStats.pendingCollection.toFixed(2)}</h2>
-                    <small style={{ color: '#8b5cf6' }}>Dr Auth: ₹{calculatedStats.doctorGuaranteedAmount.toFixed(2)}</small>
+                    <h2 style={{ margin: 0, color: '#0f172a' }}>₹{(Number(calculatedStats?.pendingCollection) || 0).toFixed(2)}</h2>
+                    <small style={{ color: '#8b5cf6' }}>Dr Auth: ₹{(Number(calculatedStats?.doctorGuaranteedAmount) || 0).toFixed(2)}</small>
                 </div>
             </div>
 
