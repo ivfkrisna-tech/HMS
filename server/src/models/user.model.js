@@ -18,7 +18,15 @@ const userSchema = new mongoose.Schema({
     // centraladmin: null (manages all hospitals)
     // hospitaladmin: points to their hospital
     // staff: points to the hospital they belong to
-    hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', default: null },
+    hospitalId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Hospital', 
+        default: null,
+        index: true,
+        required: function() {
+            return !['superadmin', 'centraladmin'].includes(this.role);
+        }
+    },
 
     // Patient ID for clinical tracking
     patientId: { type: String, unique: true, sparse: true },

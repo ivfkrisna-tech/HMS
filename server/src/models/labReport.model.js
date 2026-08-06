@@ -24,7 +24,8 @@ const labReportSchema = new mongoose.Schema({
   hospitalId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Hospital',
-    index: true
+    index: true,
+    required: true
   },
   labId: {
     type: mongoose.Schema.Types.ObjectId,

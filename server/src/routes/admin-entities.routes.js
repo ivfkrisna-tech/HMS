@@ -24,7 +24,7 @@ function getHospitalFilter(req) {
     return qhid ? { hospitalId: qhid } : {};
   }
   const hid = req.user && req.user.hospitalId;
-  return hid ? { hospitalId: hid } : { hospitalId: null };
+  return hid ? { hospitalId: hid } : { hospitalId: 'UNASSIGNED_HOSPITAL_ID' };
 }
 
 function getHospitalId(req) {

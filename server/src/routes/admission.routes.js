@@ -82,11 +82,12 @@ router.post('/', verifyAdmissionAccess, async (req, res) => {
 // GET /api/admissions/active — All currently admitted patients
 router.get('/active', verifyAdmissionAccess, async (req, res) => {
     try {
+        const isCentral = ['centraladmin', 'superadmin'].includes(req.user.role) || ['centraladmin', 'superadmin'].includes(req.user._roleData?.name);
+        const filter = { status: 'Admitted' };
+        if (req.user.hospitalId && !isCentral) filter.hospitalId = req.user.hospitalId;
+
         const Admission = getAdmission(req);
-        const admissions = await Admission.find({
-            status: 'Admitted',
-            hospitalId: req.hospitalId || req.user.hospitalId,
-        }).populate('patientId', 'name phone patientId mrn').lean();
+        const admissions = await Admission.find(filter).populate('patientId', 'name phone patientId mrn').lean();
 
         res.json({ success: true, admissions });
     } catch (err) {
@@ -97,11 +98,12 @@ router.get('/active', verifyAdmissionAccess, async (req, res) => {
 // GET /api/admissions/patient/:patientId — Admission history for a patient
 router.get('/patient/:patientId', verifyAdmissionAccess, async (req, res) => {
     try {
+        const isCentral = ['centraladmin', 'superadmin'].includes(req.user.role) || ['centraladmin', 'superadmin'].includes(req.user._roleData?.name);
+        const filter = { patientId: req.params.patientId };
+        if (req.user.hospitalId && !isCentral) filter.hospitalId = req.user.hospitalId;
+
         const Admission = getAdmission(req);
-        const admissions = await Admission.find({
-            patientId: req.params.patientId,
-            hospitalId: req.hospitalId || req.user.hospitalId,
-        }).sort({ admissionDate: -1 }).lean();
+        const admissions = await Admission.find(filter).sort({ admissionDate: -1 }).lean();
 
         res.json({ success: true, admissions });
     } catch (err) {

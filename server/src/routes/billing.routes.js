@@ -57,7 +57,12 @@ router.get('/search-patients', verifyBillingAccess, async (req, res) => {
         if (!query) return res.json({ success: true, patients: [] });
 
         const regex = new RegExp(query, 'i');
-        const searchFilter = {
+        const role = req.user.role || '';
+        const roleIdStr = typeof role === 'string' ? role.toLowerCase() : String(role);
+        const roleData = req.user._roleData;
+        const roleName = roleData?.name ? roleData.name.toLowerCase() : '';
+
+        const baseSearch = {
             $or: [
                 { name: regex },
                 { phone: regex },
@@ -65,6 +70,13 @@ router.get('/search-patients', verifyBillingAccess, async (req, res) => {
                 { patientId: regex }
             ]
         };
+
+        const isCentral = ['centraladmin', 'superadmin'].includes(roleIdStr) || ['centraladmin', 'superadmin'].includes(roleName);
+
+        const searchFilter = (req.user.hospitalId && !isCentral)
+            ? { ...baseSearch, hospitalId: req.user.hospitalId }
+            : baseSearch;
+
 
         let patients = await MasterUser.find(searchFilter)
             .select('name phone mrn patientId dob gender').limit(10).lean();
@@ -130,8 +142,8 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             ]
         };
 
-        const patientSearchQuery = (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(roleIdStr) && !['centraladmin', 'superadmin'].includes(roleName))
-            ? { $and: [baseQuery, { $or: [{ hospitalId: req.user.hospitalId }, { hospitalId: { $exists: false } }, { hospitalId: null }] }] }
+        const patientSearchQuery = (req.user.hospitalId && !isCentral)
+            ? { ...baseQuery, hospitalId: req.user.hospitalId }
             : baseQuery;
 
         console.log(`Unified Patient Search Query:`, JSON.stringify(patientSearchQuery, null, 2));

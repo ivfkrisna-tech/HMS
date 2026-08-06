@@ -673,7 +673,8 @@ const PharmacyOrders = () => {
             const discountedCostBase = item.itemCostBase * (1 - discountRatio);
             const itemTax = discountedCostBase * (item.gstPercent / 100);
             
-            const itemTotal = item.itemBase + itemTax; // Patient bill uses Selling Price base + Tax
+            // Tax is now inclusive. The item Total is simply the base price.
+            const itemTotal = item.itemBase; 
             totalTax += itemTax;
             
             return {
@@ -683,7 +684,8 @@ const PharmacyOrders = () => {
             };
         });
 
-        const grandTotal = Math.max(0, totalSubtotal - finalDiscountAmount + totalTax);
+        // Grand Total does NOT include separate tax additions (GST Inclusive Billing)
+        const grandTotal = Math.max(0, totalSubtotal - finalDiscountAmount);
         const halfTax = totalTax / 2;
 
         return {
@@ -976,21 +978,22 @@ const PharmacyOrders = () => {
                                                 <span style={{ fontWeight: 'bold' }}>-₹{invoiceData.discountAmount}</span>
                                             </div>
                                         )}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                            <span>CGST ({invoiceData.processedItems[0]?.gstPercent / 2 || 6}%):</span>
-                                            <span style={{ fontWeight: 'bold' }}>₹{invoiceData.cgst}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                            <span>SGST ({invoiceData.processedItems[0]?.gstPercent / 2 || 6}%):</span>
-                                            <span style={{ fontWeight: 'bold' }}>₹{invoiceData.sgst}</span>
-                                        </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid #cbd5e1', fontSize: '13px', fontWeight: '900' }}>
                                             <span>Grand Total:</span>
                                             <span style={{ color: '#0f766e' }}>₹{invoiceData.grandTotal}</span>
                                         </div>
+                                        <div style={{ textAlign: 'right', color: '#64748b', fontSize: '9px', marginTop: '2px' }}>
+                                            (Inclusive of all taxes)
+                                        </div>
                                     </div>
                                 </div>
 
+                            </div>
+
+                            {/* Return Policy Note */}
+                            <div style={{ marginTop: '20px', paddingTop: '10px', borderTop: '1px dashed #ccc', textAlign: 'center', fontSize: '11px', color: '#666' }}>
+                                * Note: If you need to return any medicines, please bring the original bill along with you.<br/>
+                                (Medicines will only be accepted for return along with the original invoice.)
                             </div>
 
                             {/* Footer Buttons */}

@@ -94,7 +94,7 @@ function getHospitalFilter(req) {
 
     // Hospital admin or staff — always scoped
     const hid = req.user.hospitalId;
-    return hid ? { hospitalId: hid } : { hospitalId: null };
+    return hid ? { hospitalId: hid } : { hospitalId: 'UNASSIGNED_HOSPITAL_ID' };
 }
 
 // ==========================================
