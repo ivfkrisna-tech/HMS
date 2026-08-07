@@ -18,7 +18,7 @@ const PatientBillingProfile = () => {
     const [error, setError] = useState('');
     const [patient, setPatient] = useState(null);
     const [billing, setBilling] = useState(null);
-    const [selected, setSelected] = useState({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [], packages: [] });
+    const [selected, setSelected] = useState({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [], packages: [], packageInstallments: [] });
     const [paymentMode, setPaymentMode] = useState('Cash');
     const [labDiscounts, setLabDiscounts] = useState({});
     const [paying, setPaying] = useState(false);
@@ -153,7 +153,7 @@ const PatientBillingProfile = () => {
         setError('');
         setPatient(null);
         setBilling(null);
-        setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [], packages: [] });
+        setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [], packages: [], packageInstallments: [] });
         setSuccessMsg('');
         try {
             const res = await billingAPI.getPatientBills(identifier);
@@ -208,7 +208,13 @@ const PatientBillingProfile = () => {
         let t = 0;
         (billing.appointments || []).filter(a => isPending(a.paymentStatus)).forEach(a => t += (a.amount || 0));
         (billing.labReports || []).filter(l => isPending(l.paymentStatus)).forEach(l => t += ((l.amount || l.price || 0) + (l.sgst || 0) + (l.cgst || 0)));
-        (billing.packages || []).filter(p => isPending(p.paymentStatus)).forEach(p => t += (p.finalAmount || p.totalAmount || 0));
+        (billing.packages || []).forEach(p => {
+            if (p.paymentSchedule && p.paymentSchedule.length > 0) {
+                p.paymentSchedule.filter(s => isPending(s.status)).forEach(s => t += (Number(s.amount) || 0));
+            } else if (isPending(p.paymentStatus)) {
+                t += (p.finalAmount || p.totalAmount || 0);
+            }
+        });
         return t;
     };
 
@@ -217,7 +223,13 @@ const PatientBillingProfile = () => {
         let t = 0;
         (billing.appointments || []).filter(a => isPaid(a.paymentStatus)).forEach(a => t += (a.amount || 0));
         (billing.labReports || []).filter(l => isPaid(l.paymentStatus)).forEach(l => t += ((l.amount || l.price || 0) + (l.sgst || 0) + (l.cgst || 0)));
-        (billing.packages || []).filter(p => isPaid(p.paymentStatus)).forEach(p => t += (p.finalAmount || p.totalAmount || 0));
+        (billing.packages || []).forEach(p => {
+            if (p.paymentSchedule && p.paymentSchedule.length > 0) {
+                p.paymentSchedule.filter(s => isPaid(s.status)).forEach(s => t += (Number(s.amount) || 0));
+            } else if (isPaid(p.paymentStatus)) {
+                t += (p.finalAmount || p.totalAmount || 0);
+            }
+        });
         return t;
     };
 
@@ -230,7 +242,18 @@ const PatientBillingProfile = () => {
             const discount = Number(labDiscounts[l._id]) || 0;
             t += Math.max(0, amount - discount);
         });
-        (billing.packages || []).filter(p => selected.packages.includes(p._id)).forEach(p => t += (p.finalAmount || p.totalAmount || 0));
+        (billing.packages || []).forEach(p => {
+            if (p.paymentSchedule && p.paymentSchedule.length > 0) {
+                p.paymentSchedule.forEach(s => {
+                    const instId = `${p._id}|${s._id}`;
+                    if (selected.packageInstallments.includes(instId)) {
+                        t += (Number(s.amount) || 0);
+                    }
+                });
+            } else {
+                if (selected.packages.includes(p._id)) t += (p.finalAmount || p.totalAmount || 0);
+            }
+        });
         return t;
     };
 
@@ -311,6 +334,7 @@ const PatientBillingProfile = () => {
                 labReportIds: selected.labReports,
                 labDiscounts,
                 packageIds: selected.packages,
+                packageInstallmentIds: selected.packageInstallments,
                 paymentMode
             });
             setSuccessMsg(`Payment of ${fmt(total)} processed successfully via ${paymentMode}.`);
@@ -320,7 +344,7 @@ const PatientBillingProfile = () => {
                 const ea = enrichAdmissions(res.billing.admissions || []);
                 setBilling({ ...res.billing, admissions: ea, facilityCharges: enrichFacilityCharges(res.billing.facilityCharges || [], ea) });
             }
-            setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [], packages: [] });
+            setSelected({ appointments: [], labReports: [], pharmacyOrders: [], facilityCharges: [], admissions: [], packages: [], packageInstallments: [] });
         } catch (err) {
             alert(err.response?.data?.message || 'Payment failed');
         } finally {
@@ -540,40 +564,84 @@ const PatientBillingProfile = () => {
                                     </button>
                                 )}
                             </div>
-                            {billing.packages.map(pkg => (
-                                <div key={pkg._id} style={{ ...(isPaid(pkg.paymentStatus) ? { background: '#f0fdf4' } : selected.packages.includes(pkg._id) ? { background: '#eff6ff' } : { background: '#f8fafc' }), border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                            {billing.packages.map(pkg => {
+                                const hasInstallments = pkg.paymentSchedule && pkg.paymentSchedule.length > 0;
+                                const isPkgPaid = isPaid(pkg.paymentStatus);
+                                const isPkgSelected = selected.packages.includes(pkg._id);
+                                const bgStyle = isPkgPaid ? { background: '#f0fdf4' } : isPkgSelected ? { background: '#eff6ff' } : { background: '#f8fafc' };
+
+                                return (
+                                <div key={pkg._id} style={{ ...bgStyle, border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '12px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            {isPaid(pkg.paymentStatus) ? (
+                                            {isPkgPaid ? (
                                                 <span className="badge badge-paid">PAID</span>
                                             ) : (
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selected.packages.includes(pkg._id)}
-                                                    onChange={() => toggle('packages', pkg._id)}
-                                                    className="bill-checkbox"
-                                                />
+                                                !hasInstallments && (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isPkgSelected}
+                                                        onChange={() => toggle('packages', pkg._id)}
+                                                        className="bill-checkbox"
+                                                    />
+                                                )
                                             )}
                                             <h4 style={{ margin: 0, color: '#0f172a' }}>{pkg.packageName}</h4>
                                         </div>
                                         <span style={{ fontWeight: 'bold', color: '#334155' }}>Total: {fmt(pkg.finalAmount || pkg.totalAmount)}</span>
                                     </div>
-                                    <table className="billing-table" style={{ margin: 0, boxShadow: 'none' }}>
-                                        <thead><tr><th>Included Service</th><th>Original Price</th></tr></thead>
-                                        <tbody>
-                                            {pkg.selectedServices && pkg.selectedServices.map(srv => (
-                                                <tr key={srv.serviceId || srv._id || Math.random()}>
-                                                    <td>{srv.serviceName}</td>
-                                                    <td>{fmt(srv.price)}</td>
-                                                </tr>
-                                            ))}
-                                            {(!pkg.selectedServices || pkg.selectedServices.length === 0) && (
-                                                <tr><td colSpan="2" style={{ textAlign: 'center', color: '#64748b' }}>No specific services listed</td></tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+
+                                    {hasInstallments ? (
+                                        <div style={{ marginTop: '12px' }}>
+                                            <h5 style={{ margin: '0 0 8px 0', color: '#475569' }}>Payment Installments</h5>
+                                            <table className="billing-table" style={{ margin: 0, boxShadow: 'none' }}>
+                                                <thead><tr><th>Status</th><th>Date</th><th>Amount</th></tr></thead>
+                                                <tbody>
+                                                    {pkg.paymentSchedule.map((inst, idx) => {
+                                                        const instIdStr = `${pkg._id}|${inst._id}`;
+                                                        const isInstPaid = isPaid(inst.status);
+                                                        const isInstSelected = selected.packageInstallments.includes(instIdStr);
+                                                        return (
+                                                            <tr key={inst._id || idx} style={isInstSelected ? { background: '#e0e7ff' } : {}}>
+                                                                <td>
+                                                                    {isInstPaid ? (
+                                                                        <span className="badge badge-paid" style={{ padding: '2px 6px', fontSize: '0.7rem' }}>PAID</span>
+                                                                    ) : (
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isInstSelected}
+                                                                            onChange={() => toggle('packageInstallments', instIdStr)}
+                                                                            className="bill-checkbox"
+                                                                        />
+                                                                    )}
+                                                                </td>
+                                                                <td>{inst.date ? new Date(inst.date).toLocaleDateString() : 'N/A'}</td>
+                                                                <td style={{ fontWeight: 600 }}>{fmt(inst.amount)}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <table className="billing-table" style={{ margin: 0, boxShadow: 'none' }}>
+                                            <thead><tr><th>Included Service</th><th>Original Price</th></tr></thead>
+                                            <tbody>
+                                                {pkg.selectedServices && pkg.selectedServices.map(srv => (
+                                                    <tr key={srv.serviceId || srv._id || Math.random()}>
+                                                        <td>{srv.serviceName}</td>
+                                                        <td>{fmt(srv.price)}</td>
+                                                    </tr>
+                                                ))}
+                                                {(!pkg.selectedServices || pkg.selectedServices.length === 0) && (
+                                                    <tr><td colSpan="2" style={{ textAlign: 'center', color: '#64748b' }}>No specific services listed</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    )}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 

@@ -162,6 +162,18 @@ const CashierDashboard = () => {
         const pharmacyOrderIds = (billingData.pharmacyOrders || []).filter(p => isPending(p.paymentStatus)).map(p => p._id);
         const facilityChargeIds = (billingData.facilityCharges || []).filter(f => isPending(f.paymentStatus)).map(f => f._id);
         const admissionIds = (billingData.admissions || []).filter(a => isPending(a.paymentStatus)).map(a => a._id);
+        const packageIds = (billingData.packages || []).filter(p => isPending(p.paymentStatus) && (!p.paymentSchedule || p.paymentSchedule.length === 0)).map(p => p._id);
+        
+        let packageInstallmentIds = [];
+        (billingData.packages || []).forEach(p => {
+            if (p.paymentSchedule && p.paymentSchedule.length > 0) {
+                p.paymentSchedule.forEach(inst => {
+                    if (isPending(inst.status)) {
+                        packageInstallmentIds.push(`${p._id}|${inst._id}`);
+                    }
+                });
+            }
+        });
 
         try {
             const res = await billingAPI.processPayment({
@@ -170,6 +182,8 @@ const CashierDashboard = () => {
                 pharmacyOrderIds,
                 facilityChargeIds,
                 admissionIds,
+                packageIds,
+                packageInstallmentIds,
                 paymentMode
             });
             if (res.success) {
@@ -193,7 +207,19 @@ const CashierDashboard = () => {
     const totalPharmacy = pendingOnly(billingData.pharmacyOrders).reduce((sum, p) => sum + (p.totalAmount || 0), 0);
     const totalFacilities = pendingOnly(billingData.facilityCharges).reduce((sum, f) => sum + (f.totalAmount || 0), 0);
     const totalAdmissions = pendingOnly(billingData.admissions).reduce((sum, a) => sum + (a.totalAmount || 0), 0);
-    const grandTotal = totalAppointments + totalLab + totalPharmacy + totalFacilities + totalAdmissions;
+    
+    let totalPackages = 0;
+    (billingData.packages || []).forEach(p => {
+        if (!p.paymentSchedule || p.paymentSchedule.length === 0) {
+            if ((p.paymentStatus || '').toLowerCase() !== 'paid') totalPackages += (p.finalAmount || p.totalAmount || 0);
+        } else {
+            p.paymentSchedule.forEach(inst => {
+                if ((inst.status || '').toLowerCase() !== 'paid') totalPackages += (inst.amount || 0);
+            });
+        }
+    });
+
+    const grandTotal = totalAppointments + totalLab + totalPharmacy + totalFacilities + totalAdmissions + totalPackages;
 
     const hasBills = grandTotal > 0;
 
@@ -401,6 +427,10 @@ const CashierDashboard = () => {
                                 <div className="summary-row" style={{ color: '#166534', fontWeight: '500' }}>
                                     <span>Facilities & Rooms:</span>
                                     <span>{formatCurrency(totalFacilities)}</span>
+                                </div>
+                                <div className="summary-row">
+                                    <span>Treatment Packages:</span>
+                                    <span>{formatCurrency(totalPackages)}</span>
                                 </div>
 
                                 <div className="summary-row summary-total">

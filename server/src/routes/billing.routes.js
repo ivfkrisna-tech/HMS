@@ -107,7 +107,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
 
         const mongoose = require('mongoose');
         const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
-        
+
         const searchQuery = {
             $or: [
                 ...(isObjectId ? [{ _id: identifier }] : []),
@@ -117,10 +117,11 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 { name: { $regex: identifier, $options: 'i' } }
             ]
         };
-        
+
         const roleIdStr = String(req.user.role || '').toLowerCase();
         const roleName = String(req.user._roleData?.name || '').toLowerCase();
-        if (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(roleIdStr) && !['centraladmin', 'superadmin'].includes(roleName)) {
+        const isCentral = ['centraladmin', 'superadmin'].includes(roleIdStr) || ['centraladmin', 'superadmin'].includes(roleName);
+        if (req.user.hospitalId && !isCentral) {
             searchQuery.hospitalId = req.user.hospitalId;
         }
 
@@ -132,9 +133,9 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             patient = await TenantUser.findOne(searchQuery);
         }
 
-        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });        const baseQuery = { 
+        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' }); const baseQuery = {
             $or: [
-                { patientId: patient._id }, 
+                { patientId: patient._id },
                 { userId: patient._id },
                 { patient: patient._id },
                 ...(patient.mrn ? [{ mrn: patient.mrn }] : []),
@@ -229,7 +230,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         });
 
         console.log(`Raw Admissions Results (${admissions.length} found):`, JSON.stringify(admissions, null, 2));
-        
+
         const payload = {
             success: true,
             patient: {
@@ -246,7 +247,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         };
         console.log(`Final Response Keys:`, Object.keys(payload));
         console.log(`Billing Payload Keys:`, Object.keys(payload.billing));
-        
+
         res.json(payload);
 
     } catch (error) {
@@ -286,10 +287,10 @@ router.put('/facility-charge/:id', verifyBillingAccess, async (req, res) => {
     try {
         const { pricePerDay, days, facilityName } = req.body;
         const FacilityCharge = MasterFacilityCharge;
-        
+
         const charge = await FacilityCharge.findById(req.params.id);
         if (!charge) return res.status(404).json({ success: false, message: 'Charge not found' });
-        
+
         if (charge.paymentStatus === 'Paid') {
             return res.status(400).json({ success: false, message: 'Cannot edit a paid charge' });
         }
@@ -297,10 +298,10 @@ router.put('/facility-charge/:id', verifyBillingAccess, async (req, res) => {
         if (pricePerDay !== undefined) charge.pricePerDay = Number(pricePerDay);
         if (days !== undefined) charge.days = Number(days);
         if (facilityName !== undefined) charge.facilityName = facilityName;
-        
+
         charge.totalAmount = charge.pricePerDay * charge.days;
         await charge.save();
-        
+
         res.json({ success: true, message: 'Charge updated successfully', charge });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -317,6 +318,7 @@ router.put('/pay', verifyBillingAccess, async (req, res) => {
             facilityChargeIds = [],
             admissionIds = [],
             packageIds = [],
+            packageInstallmentIds = [],
             paymentMode = 'Cash'
         } = req.body;
 
@@ -335,19 +337,76 @@ router.put('/pay', verifyBillingAccess, async (req, res) => {
             }),
             pharmacyOrderIds.length > 0 && PharmacyOrder.updateMany({ _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             pharmacyOrderIds.length > 0 && MasterPharmacyOrder.updateMany({ _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            
+
             facilityChargeIds.length > 0 && FacilityCharge.updateMany({ _id: { $in: facilityChargeIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             facilityChargeIds.length > 0 && MasterFacilityCharge.updateMany({ _id: { $in: facilityChargeIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            
+
             admissionIds.length > 0 && Admission.updateMany({ _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             admissionIds.length > 0 && MasterAdmission.updateMany({ _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            
+
             packageIds.length > 0 && TreatmentPackage.updateMany({ _id: { $in: packageIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             packageIds.length > 0 && MasterTreatmentPackage.updateMany({ _id: { $in: packageIds } }, { $set: { paymentStatus: 'Paid', paymentMode } })
         ].filter(Boolean));
 
+        if (packageInstallmentIds && packageInstallmentIds.length > 0) {
+            for (const item of packageInstallmentIds) {
+                let pkgId, instId;
+
+                // Universal Parser: Handle both String ("pkgId|instId") and Object ({ packageId, installmentId }) formats safely
+                if (typeof item === 'string') {
+                    const parts = item.split('|');
+                    pkgId = parts[0];
+                    instId = parts[1];
+                } else if (typeof item === 'object' && item !== null) {
+                    pkgId = item.packageId || item.pkgId;
+                    instId = item.installmentId || item.instId;
+                }
+
+                if (pkgId && instId) {
+                    let pkg = await TreatmentPackage.findById(pkgId);
+                    let isMaster = false;
+
+                    if (!pkg) {
+                        pkg = await MasterTreatmentPackage.findById(pkgId);
+                        isMaster = true;
+                    }
+
+                    if (pkg && pkg.paymentSchedule) {
+                        let inst = pkg.paymentSchedule.id(instId);
+                        if (!inst) {
+                            inst = pkg.paymentSchedule.find(s => s._id.toString() === String(instId));
+                        }
+
+                        if (inst) {
+                            inst.status = 'Paid';
+                            inst.paidDate = new Date();
+                        }
+
+                        pkg.markModified('paymentSchedule');
+
+                        const allPaid = pkg.paymentSchedule.every(s => s.status === 'Paid');
+                        if (allPaid) {
+                            pkg.paymentStatus = 'Paid';
+                            pkg.paymentMode = paymentMode || pkg.paymentMode;
+                        }
+
+                        if (isMaster) {
+                            await MasterTreatmentPackage.findByIdAndUpdate(pkgId, {
+                                paymentSchedule: pkg.paymentSchedule,
+                                paymentStatus: pkg.paymentStatus,
+                                paymentMode: pkg.paymentMode
+                            });
+                        } else {
+                            await pkg.save();
+                        }
+                    }
+                }
+            }
+        }
+
         res.json({ success: true, message: 'Billing settled successfully' });
     } catch (error) {
+        console.error("Billing Save Error:", error); // Console error print hoga agar koi aur issue hoga
         res.status(500).json({ success: false, message: error.message });
     }
 });

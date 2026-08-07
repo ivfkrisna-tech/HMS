@@ -194,6 +194,11 @@ const treatmentPackageSchema = new mongoose.Schema({
     status: { type: String, enum: ['Active', 'Completed', 'Cancelled'], default: 'Active' },
     paymentStatus: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
     paymentMode: { type: String, default: 'Cash' },
+    paymentSchedule: [{
+        date: { type: String, required: true },
+        amount: { type: Number, required: true },
+        status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' }
+    }],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // Future ready extensible structure
     medicines: [{ type: mongoose.Schema.Types.Mixed }],
