@@ -687,6 +687,7 @@ const HospitalAdminPackages = () => {
                                 <input
                                     type="number"
                                     min="0"
+                                    step="any"
                                     placeholder="0"
                                     value={sgst}
                                     onChange={(e) => setSgst(e.target.value)}
@@ -698,6 +699,7 @@ const HospitalAdminPackages = () => {
                                 <input
                                     type="number"
                                     min="0"
+                                    step="any"
                                     placeholder="0"
                                     value={cgst}
                                     onChange={(e) => setCgst(e.target.value)}
@@ -738,6 +740,7 @@ const HospitalAdminPackages = () => {
                                                 <input 
                                                     type="number"
                                                     min="0"
+                                                    step="any"
                                                     placeholder="e.g. 50000"
                                                     value={inst.amount}
                                                     onChange={(e) => {
