@@ -514,7 +514,7 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
             return res.status(403).json({ success: false, message: 'Only hospital admins manage their department fees this way' });
         }
 
-        const { departmentFees, consultationValidityDays } = req.body;
+        const { departmentFees, consultationValidityDays, gstin } = req.body;
         if (!departmentFees || typeof departmentFees !== 'object') {
             return res.status(400).json({ success: false, message: 'Department fees data required' });
         }
@@ -525,6 +525,9 @@ router.put('/my-hospital/department-fees', verifyHospitalAdmin, async (req, res)
         hospital.departmentFees = departmentFees;
         if (consultationValidityDays !== undefined) {
             hospital.consultationValidityDays = Number(consultationValidityDays);
+        }
+        if (gstin !== undefined) {
+            hospital.gstin = gstin.trim();
         }
 
         // Sync the main appointmentFee with the first department fee value

@@ -816,9 +816,10 @@ const HospitalAdminDashboard = () => {
                                         setError('');
                                         await hospitalAPI.updateDepartmentFees({ 
                                             departmentFees: hospitalInfo.departmentFees,
-                                            consultationValidityDays: hospitalInfo.consultationValidityDays
+                                            consultationValidityDays: hospitalInfo.consultationValidityDays,
+                                            gstin: hospitalInfo.gstin
                                         });
-                                        setSuccess('Consultation settings saved!');
+                                        setSuccess('Settings saved successfully!');
                                         setTimeout(() => setSuccess(''), 3000);
                                     } catch (err) {
                                         setError('Error saving settings');
@@ -877,6 +878,24 @@ const HospitalAdminDashboard = () => {
                                                 <span style={{ color: '#64748b' }}>days</span>
                                             </div>
                                         </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ color: '#64748b', width: '90px' }}>GSTIN No.</span>
+                                                <input
+                                                    type="text"
+                                                    className="staff-input"
+                                                    style={{ width: '180px', padding: '8px 12px' }}
+                                                    placeholder="e.g. 29ABCDE1234F2Z5"
+                                                    value={hospitalInfo?.gstin || ''}
+                                                    onChange={(e) => {
+                                                        setHospitalInfo(prev => ({ ...prev, gstin: e.target.value.toUpperCase() }));
+                                                    }}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td></td>
                                     </tr>
                                 </tbody>
                             </table>

@@ -38,6 +38,7 @@ const userSchema = new mongoose.Schema({
 
     // Static Demographics
     dob: String,
+    age: { type: mongoose.Schema.Types.Mixed, default: null },
     marriageDate: { type: String, default: null },
     gender: String,
     bloodGroup: String,
