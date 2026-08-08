@@ -51,6 +51,7 @@ const patientLocalRoutes = require('./routes/patientLocal.routes');
 const revenueRoutes     = require('./routes/revenue.routes');
 const sourceRoutes      = require('./routes/source.routes');
 const packageServicesRoutes = require('./routes/packageServices.routes');
+const consentRoutes         = require('./routes/consent.routes');
 
 const app = express();
 
@@ -184,6 +185,7 @@ app.use('/api/simple-clinics', simpleClinicRoutes);
 app.use('/api/clinic', clinicRoutes);
 app.use('/api/sources', sourceRoutes);
 app.use('/api/package-services', packageServicesRoutes);
+app.use('/api/consent', consentRoutes);
 
 // Revenue & Billing — Central Admin system analytics
 app.use('/api/revenue', revenueRoutes);

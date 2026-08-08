@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminAPI, uploadAPI } from '../../utils/api';
+import { adminAPI, uploadAPI, hospitalAPI } from '../../utils/api';
 import './SuperAdmin.css';
 
 const SuperAdmin = () => {
@@ -10,10 +10,11 @@ const SuperAdmin = () => {
     const [users, setUsers] = useState([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [roles, setRoles] = useState([]);
+    const [hospitals, setHospitals] = useState([]);
 
     const [editModal, setEditModal] = useState(false);
     const [editForm, setEditForm] = useState({
-        id: '', name: '', email: '', phone: '', roleId: '', currentAvatar: '', newAvatarFile: null, specialty: ''
+        id: '', name: '', email: '', phone: '', roleId: '', hospitalId: '', currentAvatar: '', newAvatarFile: null, specialty: ''
     });
     const [updating, setUpdating] = useState(false);
 
@@ -22,7 +23,7 @@ const SuperAdmin = () => {
     // Create Staff Form state
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [createForm, setCreateForm] = useState({
-        name: '', email: '', password: '', phone: '', roleId: '', file: null
+        name: '', email: '', password: '', phone: '', roleId: '', hospitalId: '', file: null
     });
     const [creating, setCreating] = useState(false);
 
@@ -37,7 +38,19 @@ const SuperAdmin = () => {
     useEffect(() => {
         fetchUsers();
         fetchRoles();
+        fetchHospitals();
     }, []);
+
+    const fetchHospitals = async () => {
+        try {
+            const response = await hospitalAPI.getHospitals();
+            if (response.success) {
+                setHospitals(response.data);
+            }
+        } catch (err) {
+            console.error('Error fetching hospitals:', err);
+        }
+    };
 
     const fetchUsers = async () => {
         try {
@@ -73,6 +86,7 @@ const SuperAdmin = () => {
             email: userItem.email,
             phone: userItem.phone || '',
             roleId: userItem.roleId || userItem.role, // Assuming roleId is available or can be derived from role name
+            hospitalId: userItem.hospitalId || userItem.hospital || '',
             currentAvatar: userItem.avatar,
             newAvatarFile: null,
             specialty: userItem.specialty || ''
@@ -108,6 +122,7 @@ const SuperAdmin = () => {
                 email: editForm.email,
                 phone: editForm.phone,
                 roleId: editForm.roleId,
+                hospitalId: editForm.hospitalId,
                 avatar: avatarUrl,
                 specialty: editForm.specialty
             };
@@ -146,8 +161,8 @@ const SuperAdmin = () => {
         setError('');
         setSuccess('');
 
-        if (!createForm.name || !createForm.email || !createForm.password || !createForm.roleId) {
-            setError('Name, email, password, and role are all required.');
+        if (!createForm.name || !createForm.email || !createForm.password || !createForm.roleId || !createForm.hospitalId) {
+            setError('Name, email, password, role, and hospital are all required.');
             setCreating(false);
             return;
         }
@@ -176,7 +191,7 @@ const SuperAdmin = () => {
             const response = await adminAPI.createUser(userData);
             if (response.success) {
                 setSuccess(`✅ ${response.user?.role || 'Staff'} account created! They can now log in with: ${createForm.email}`);
-                setCreateForm({ name: '', email: '', password: '', phone: '', roleId: '', file: null });
+                setCreateForm({ name: '', email: '', password: '', phone: '', roleId: '', hospitalId: '', file: null });
                 setShowCreateForm(false);
                 fetchUsers();
             }
@@ -295,6 +310,15 @@ const SuperAdmin = () => {
                                             <option key={role._id} value={role._id}>
                                                 {role.name} {role.description ? `— ${role.description}` : ''}
                                             </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="staff-label">Assign Hospital *</label>
+                                    <select value={createForm.hospitalId} onChange={e => setCreateForm({ ...createForm, hospitalId: e.target.value })} required className="staff-input">
+                                        <option value="">-- Select a Hospital --</option>
+                                        {hospitals.map(h => (
+                                            <option key={h._id} value={h._id}>{h.name}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -421,6 +445,21 @@ const SuperAdmin = () => {
                                                 <option key={role._id} value={role._id}>{role.name}</option>
                                             ))}
                                         </select>
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="staff-label">Hospital</label>
+                                        <select value={editForm.hospitalId} onChange={e => setEditForm({ ...editForm, hospitalId: e.target.value })} required className="staff-input">
+                                            <option value="">-- Select a Hospital --</option>
+                                            {hospitals.map(h => (
+                                                <option key={h._id} value={h._id}>{h.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        {/* Placeholder for future alignment */}
                                     </div>
                                 </div>
 

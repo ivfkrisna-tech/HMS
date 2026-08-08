@@ -591,4 +591,37 @@ export const nurseAPI = {
     addNote: async (patientId, data) => (await apiClient.post(`/api/nurse/notes/${patientId}`, data)).data,
 };
 
+export const consentAPI = {
+    // Dashboard stats
+    getStats: async () => (await apiClient.get('/api/consent/stats')).data,
+    // Categories
+    getCategories: async () => (await apiClient.get('/api/consent/categories')).data,
+    createCategory: async (data) => (await apiClient.post('/api/consent/categories', data)).data,
+    updateCategory: async (id, data) => (await apiClient.put(`/api/consent/categories/${id}`, data)).data,
+    deleteCategory: async (id) => (await apiClient.delete(`/api/consent/categories/${id}`)).data,
+    toggleCategory: async (id) => (await apiClient.patch(`/api/consent/categories/${id}/toggle`)).data,
+    // Templates
+    getTemplates: async (params = {}) => (await apiClient.get('/api/consent/templates', { params })).data,
+    getTemplate: async (id) => (await apiClient.get(`/api/consent/templates/${id}`)).data,
+    createTemplate: async (formData) => (await apiClient.post('/api/consent/templates', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    })).data,
+    updateTemplate: async (id, formData) => (await apiClient.put(`/api/consent/templates/${id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    })).data,
+    deleteTemplate: async (id) => (await apiClient.delete(`/api/consent/templates/${id}`)).data,
+    getDownloadUrl: (id) => {
+        const base = apiClient.defaults.baseURL || '';
+        return `${base}/api/consent/templates/${id}/download`;
+    },
+    getGenerateUrl: (id, patientId) => {
+        const base = apiClient.defaults.baseURL || '';
+        return `${base}/api/consent/templates/${id}/generate?patientId=${patientId}`;
+    },
+    getGeneratePdfUrl: (id, patientId) => {
+        const base = apiClient.defaults.baseURL || '';
+        return `${base}/api/consent/templates/${id}/generate-pdf?patientId=${patientId}`;
+    },
+};
+
 export default apiClient;

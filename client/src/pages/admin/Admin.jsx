@@ -11,10 +11,11 @@ const Admin = () => {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [roles, setRoles] = useState([]);
     const [hospital, setHospital] = useState(null);
+    const [hospitals, setHospitals] = useState([]);
 
     const [editModal, setEditModal] = useState(false);
     const [editForm, setEditForm] = useState({
-        id: '', name: '', email: '', phone: '', roleId: '', currentAvatar: '', newAvatarFile: null, specialty: '', department: ''
+        id: '', name: '', email: '', phone: '', roleId: '', hospitalId: '', currentAvatar: '', newAvatarFile: null, specialty: '', department: ''
     });
     const [updating, setUpdating] = useState(false);
 
@@ -23,7 +24,7 @@ const Admin = () => {
     // Create Staff Form state
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [createForm, setCreateForm] = useState({
-        name: '', email: '', password: '', phone: '', roleId: '', file: null, department: ''
+        name: '', email: '', password: '', phone: '', roleId: '', hospitalId: '', file: null, department: ''
     });
     const [creating, setCreating] = useState(false);
 
@@ -46,9 +47,15 @@ const Admin = () => {
 
     const fetchHospital = async () => {
         try {
-            const res = await hospitalAPI.getMyHospital();
-            if (res.success && res.hospital) {
-                setHospital(res.hospital);
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (user.role === 'superadmin' || user.role === 'centraladmin') {
+                const res = await hospitalAPI.getHospitals();
+                if (res.success) setHospitals(res.hospitals || []);
+            } else {
+                const res = await hospitalAPI.getMyHospital();
+                if (res.success && res.hospital) {
+                    setHospital(res.hospital);
+                }
             }
         } catch(err) {
             console.error('Error fetching hospital:', err);
@@ -95,6 +102,7 @@ const Admin = () => {
             email: userItem.email,
             phone: userItem.phone || '',
             roleId: userItem.roleId || userItem.role, // role might be name or ID depending on populate
+            hospitalId: userItem.hospitalId || userItem.hospital || '',
             currentAvatar: userItem.avatar,
             newAvatarFile: null,
             specialty: '', // Ideally fetch specific doctor details if needed, but basic update is fine
@@ -131,6 +139,7 @@ const Admin = () => {
                 email: editForm.email,
                 phone: editForm.phone,
                 roleId: editForm.roleId,
+                hospitalId: editForm.hospitalId,
                 avatar: avatarUrl,
                 specialty: editForm.specialty,
                 departments: ['IVF']
@@ -170,8 +179,17 @@ const Admin = () => {
         setError('');
         setSuccess('');
 
+        const loggedInUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const isCentral = loggedInUser.role === 'superadmin' || loggedInUser.role === 'centraladmin';
+
         if (!createForm.name || !createForm.email || !createForm.password || !createForm.roleId) {
             setError('Name, email, password, and role are all required.');
+            setCreating(false);
+            return;
+        }
+
+        if (isCentral && !createForm.hospitalId) {
+            setError('Please assign a hospital for this staff member.');
             setCreating(false);
             return;
         }
@@ -201,7 +219,7 @@ const Admin = () => {
             const response = await adminAPI.createUser(userData);
             if (response.success) {
                 setSuccess(`✅ ${response.user?.role || 'Staff'} account created! They can log in with: ${createForm.email}`);
-                setCreateForm({ name: '', email: '', password: '', phone: '', roleId: '', file: null, department: '' });
+                setCreateForm({ name: '', email: '', password: '', phone: '', roleId: '', hospitalId: '', file: null, department: '' });
                 setShowCreateForm(false);
                 fetchUsers();
             }
@@ -313,7 +331,22 @@ const Admin = () => {
                                 </div>
                             </div>
                             
-
+                            {(user.role === 'superadmin' || user.role === 'centraladmin') && (
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label className="staff-label">Assign Hospital *</label>
+                                        <select value={createForm.hospitalId} onChange={e => setCreateForm({ ...createForm, hospitalId: e.target.value })} required className="staff-input">
+                                            <option value="">-- Select a Hospital --</option>
+                                            {hospitals.map(h => (
+                                                <option key={h._id} value={h._id}>{h.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        {/* Placeholder for future alignment */}
+                                    </div>
+                                </div>
+                            )}
 
                             <button type="submit" disabled={creating} className="submit-button" style={{ marginTop: '20px' }}>
                                 {creating ? 'Creating Account...' : '✅ Create Staff Account'}
@@ -435,14 +468,29 @@ const Admin = () => {
                                     <div className="form-group">
                                         <label className="staff-label">Role</label>
                                         <select value={editForm.roleId} onChange={e => setEditForm({ ...editForm, roleId: e.target.value })} required className="staff-input">
-                                            {roles.filter(r => !['patient', 'user'].includes(r.name.toLowerCase())).map(role => (
+                                            {roles.map(role => (
                                                 <option key={role._id} value={role._id}>{role.name}</option>
                                             ))}
                                         </select>
                                     </div>
                                 </div>
 
-                                
+                                {(user.role === 'superadmin' || user.role === 'centraladmin') && (
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label className="staff-label">Hospital</label>
+                                            <select value={editForm.hospitalId} onChange={e => setEditForm({ ...editForm, hospitalId: e.target.value })} required className="staff-input">
+                                                <option value="">-- Select a Hospital --</option>
+                                                {hospitals.map(h => (
+                                                    <option key={h._id} value={h._id}>{h.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="form-group">
+                                            {/* Placeholder for future alignment */}
+                                        </div>
+                                    </div>
+                                )}
 
 
                                 <div className="modal-buttons" style={{ marginTop: '20px' }}>
