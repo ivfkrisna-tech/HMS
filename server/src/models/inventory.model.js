@@ -17,6 +17,7 @@ const inventorySchema = new mongoose.Schema({
     category: { type: String, default: 'General' },
     stock: { type: Number, default: 0 },
     unit: { type: String, default: 'Tablets' },
+    unitsPerStrip: { type: Number, default: 10 },
     buyingPrice: { type: Number, default: 0 },
     sellingPrice: { type: Number, default: 0 },
     sgst: { type: Number, default: 0 },

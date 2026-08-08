@@ -878,8 +878,7 @@ const PharmacyOrders = () => {
                                                 <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>Medicine Name</th>
                                                 <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>Batch / Exp</th>
                                                 <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>Qty & Schedule</th>
-                                                <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>Rate (₹)</th>
-                                                <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>GST</th>
+                                                <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>MRP (₹)</th>
                                                 <th style={{ padding: '8px', textAlign: 'right' }}>Total (₹)</th>
                                             </tr>
                                         </thead>
@@ -930,14 +929,13 @@ const PharmacyOrders = () => {
                                                                 </div>
                                                             </td>
                                                             <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>₹{item.unitRate.toFixed(2)} /{item.unitLabel}</td>
-                                                            <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right', color: '#64748b' }}>{item.gstPercent}%</td>
                                                             <td style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>₹{item.itemTotal.toFixed(2)}</td>
                                                         </tr>
                                                     );
                                                 })
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="7" style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No medicines listed.</td>
+                                                    <td colSpan="6" style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No medicines listed.</td>
                                                 </tr>
                                             )}
                                         </tbody>
@@ -1108,14 +1106,13 @@ const PharmacyOrders = () => {
                                                 <th style={{ padding: '8px' }}>Qty</th>
                                                 <th style={{ padding: '8px' }}>Dosage</th>
                                                 <th style={{ padding: '8px' }}>Rate (₹)</th>
-                                                <th style={{ padding: '8px' }}>GST (%)</th>
                                                 <th style={{ padding: '8px' }}>Total (₹)</th>
                                                 <th style={{ padding: '8px' }}>Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {walkInForm.items.map((item, idx) => {
-                                                const total = item.quantity * item.unitRate * (1 + item.gstPercent/100);
+                                                const total = item.quantity * item.unitRate;
                                                 return (
                                                     <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                                         <td style={{ padding: '8px', fontWeight: 'bold' }}>{item.medicineName} <span style={{fontSize:'9px', color:'#64748b'}}>(Stk: {item.stock})</span></td>
@@ -1134,7 +1131,6 @@ const PharmacyOrders = () => {
                                                             }} style={{ width: '70px', padding: '4px' }} placeholder="BD, TDS..." />
                                                         </td>
                                                         <td style={{ padding: '8px' }}>{item.unitRate}</td>
-                                                        <td style={{ padding: '8px' }}>{item.gstPercent}%</td>
                                                         <td style={{ padding: '8px' }}>{total.toFixed(2)}</td>
                                                         <td style={{ padding: '8px' }}>
                                                             <button type="button" onClick={() => {
@@ -1152,29 +1148,25 @@ const PharmacyOrders = () => {
 
                             {/* Calculations (Auto-updating) */}
                             {(() => {
-                                let sub = 0;
-                                let tax = 0;
+                                let total = 0;
                                 walkInForm.items.forEach(it => {
-                                    const base = it.quantity * it.unitRate;
-                                    sub += base;
-                                    tax += base * (it.gstPercent/100);
+                                    total += (it.quantity * it.unitRate);
                                 });
-                                const discAmt = (sub + tax) * (walkInForm.discountPercent / 100);
-                                const grand = (sub + tax) - discAmt;
+                                const discAmt = total * (walkInForm.discountPercent / 100);
+                                const grand = total - discAmt;
                                 
                                 // Silently update state if needed, though we can just calc on submit
-                                walkInForm.subtotal = sub;
-                                walkInForm.cgstAmount = tax / 2;
-                                walkInForm.sgstAmount = tax / 2;
-                                walkInForm.totalAmount = sub + tax;
+                                walkInForm.subtotal = total;
+                                walkInForm.cgstAmount = 0;
+                                walkInForm.sgstAmount = 0;
+                                walkInForm.totalAmount = total;
                                 walkInForm.discountAmount = discAmt;
                                 walkInForm.grandTotal = grand;
 
                                 return (
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
                                         <div style={{ width: '250px', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span>Subtotal:</span> <strong>₹{sub.toFixed(2)}</strong></div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span>Tax (GST):</span> <strong>₹{tax.toFixed(2)}</strong></div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span>Subtotal:</span> <strong>₹{total.toFixed(2)}</strong></div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
                                                 <span>Discount (%):</span> 
                                                 <input type="number" min="0" max="100" value={walkInForm.discountPercent} onChange={e => setWalkInForm({...walkInForm, discountPercent: Number(e.target.value)||0})} style={{ width: '60px', padding: '2px 4px', textAlign: 'right' }} />

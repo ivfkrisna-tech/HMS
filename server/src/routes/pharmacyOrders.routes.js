@@ -511,7 +511,11 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                     } else {
                         // Standard deduction
                         if (invItem.stock > 0) {
-                            invItem.stock = Math.max(0, invItem.stock - billedQty);
+                            let qtyToDeduct = billedQty;
+                            if (['Strip', 'Capsules', 'Tablets'].includes(invItem.unit)) {
+                                qtyToDeduct = qtyToDeduct * (Number(invItem.unitsPerStrip) || 1);
+                            }
+                            invItem.stock = Math.max(0, invItem.stock - qtyToDeduct);
                             await invItem.save();
                         }
                     }
@@ -601,7 +605,10 @@ router.post('/outside-patient-bill', verifyToken, async (req, res) => {
             const invItem = await Inventory.findById(item.inventoryId);
             if (invItem) {
                 // simple deduction for walk-in
-                const qtyToDeduct = Number(item.quantity) || 1;
+                let qtyToDeduct = Number(item.quantity) || 1;
+                if (['Strip', 'Capsules', 'Tablets'].includes(invItem.unit)) {
+                    qtyToDeduct = qtyToDeduct * (Number(invItem.unitsPerStrip) || 1);
+                }
                 invItem.stock = Math.max(0, (invItem.stock || 0) - qtyToDeduct);
                 await invItem.save();
             }
