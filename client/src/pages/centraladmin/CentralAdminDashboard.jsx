@@ -6,6 +6,7 @@ import { getHospitalUrl } from '../../utils/subdomain';
 import { useBranding } from '../../context/BrandingContext';
 import '../administration/SuperAdmin.css';
 import './CentralAdminDashboard.css';
+import ConsentManagement from './ConsentManagement';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -588,6 +589,7 @@ const CentralAdminDashboard = () => {
         { id: 'hospitals', label: '🏥 Hospitals', desc: 'Manage hospitals' },
         { id: 'staff', label: '👥 All Staff', desc: 'Global staff management' },
         { id: 'configurations', label: '⚙️ Configurations', desc: 'Roles, tests, questions' },
+        { id: 'consent', label: '📄 Consent Management', desc: 'Manage consent templates' },
     ];
 
     // ==========================================
@@ -2183,6 +2185,11 @@ const CentralAdminDashboard = () => {
                             ))}
                         </div>
                     </div>
+                )}
+
+                {/* ========== CONSENT MANAGEMENT TAB ========== */}
+                {activeTab === 'consent' && (
+                    <ConsentManagement />
                 )}
 
                 {/* Delete Hospital Confirm */}

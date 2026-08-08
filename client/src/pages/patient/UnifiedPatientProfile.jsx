@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { patientAPI, admissionAPI, uploadAPI, receptionAPI, packageServicesAPI } from '../../utils/api';
+import { patientAPI, admissionAPI, uploadAPI, receptionAPI, packageServicesAPI, consentAPI } from '../../utils/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useAuth } from '../../store/hooks';
@@ -22,6 +22,98 @@ const UnifiedPatientProfile = () => {
 
     const [consentForm, setConsentForm] = useState({ name: '', file: null });
     const [uploadingConsent, setUploadingConsent] = useState(false);
+
+    // --- Consent Selection State ---
+    const [showConsentModal, setShowConsentModal] = useState(false);
+    const [consentView, setConsentView] = useState('categories'); // 'categories', 'templates', 'preview'
+    const [consentCategories, setConsentCategories] = useState([]);
+    const [consentTemplates, setConsentTemplates] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [selectedTemplate, setSelectedTemplate] = useState(null);
+    const [loadingConsent, setLoadingConsent] = useState(false);
+
+    const handleOpenConsentModal = async () => {
+        setShowConsentModal(true);
+        setConsentView('categories');
+        setLoadingConsent(true);
+        try {
+            const res = await consentAPI.getCategories();
+            if (res.success) setConsentCategories(res.categories.filter(c => c.isActive));
+        } catch (err) {
+            console.error('Error fetching categories:', err);
+        } finally {
+            setLoadingConsent(false);
+        }
+    };
+
+    const handleSelectCategory = async (cat) => {
+        setSelectedCategory(cat);
+        setConsentView('templates');
+        setLoadingConsent(true);
+        try {
+            const res = await consentAPI.getTemplates({ categoryId: cat._id, status: 'active' });
+            if (res.success) setConsentTemplates(res.templates);
+        } catch (err) {
+            console.error('Error fetching templates:', err);
+        } finally {
+            setLoadingConsent(false);
+        }
+    };
+
+    const handleSelectTemplate = (tmpl) => {
+        setSelectedTemplate(tmpl);
+        setConsentView('preview');
+    };
+
+    const handleDownloadTemplate = async () => {
+        if (!selectedTemplate) return;
+        try {
+            const token = localStorage.getItem('token');
+            const url = consentAPI.getDownloadUrl(selectedTemplate._id);
+            const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+            if (!response.ok) throw new Error('Download failed');
+            const blob = await response.blob();
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = selectedTemplate.originalFileName || 'consent-template.docx';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        } catch (err) {
+            alert('Failed to download template file');
+        }
+    };
+
+    const handleGenerateConsent = async () => {
+        if (!selectedTemplate || !patientData) return;
+        try {
+            const token = localStorage.getItem('token');
+            const url = consentAPI.getGeneratePdfUrl(selectedTemplate._id, patientData._id);
+            const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+            
+            if (!response.ok) {
+                let errorMsg = 'Failed to generate PDF';
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) errorMsg += `\n\nDetail: ${errorData.error}`;
+                    else if (errorData.message) errorMsg += `\n\nDetail: ${errorData.message}`;
+                } catch (e) {}
+                throw new Error(errorMsg);
+            }
+
+            const blob = await response.blob();
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = selectedTemplate.originalFileName ? selectedTemplate.originalFileName.replace(/\.docx?$/i, '.pdf') : 'Filled_Consent.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        } catch (err) {
+            alert(`Error:\n${err.message}`);
+        }
+    };
 
     const handleConsentFileChange = (e) => {
         setConsentForm(prev => ({ ...prev, file: e.target.files[0] }));
@@ -463,6 +555,9 @@ const UnifiedPatientProfile = () => {
                     <button className="upp-btn-download" onClick={generatePDF}>
                         📥 Download Full Profile
                     </button>
+                    <button className="upp-btn-consent" onClick={handleOpenConsentModal}>
+                        📄 Consent Forms
+                    </button>
                     {(currentUser && (
                         currentUser?._roleData?.name?.toLowerCase().includes('reception') ||
                         currentUser?._roleData?.name?.toLowerCase().includes('admin') ||
@@ -870,6 +965,123 @@ const UnifiedPatientProfile = () => {
                 </div>
 
             </div>
+
+            {/* CONSENT SELECTION MODAL */}
+            {showConsentModal && (
+                <div className="consent-modal-overlay">
+                    <div className="consent-modal-content">
+                        <div className="consent-modal-header">
+                            <div>
+                                <h3>
+                                    {consentView === 'categories' && '📁 Select Consent Category'}
+                                    {consentView === 'templates' && `📄 ${selectedCategory?.name} Templates`}
+                                    {consentView === 'preview' && '👁️ Preview Consent Template'}
+                                </h3>
+                                <p>
+                                    {consentView === 'categories' && 'Choose a category to find the relevant consent form for this patient.'}
+                                    {consentView === 'templates' && 'Select a template to preview or download.'}
+                                    {consentView === 'preview' && 'Preview the details and download the original template.'}
+                                </p>
+                            </div>
+                            <button className="consent-modal-close" onClick={() => setShowConsentModal(false)}>×</button>
+                        </div>
+                        
+                        <div className="consent-modal-body">
+                            {consentView === 'templates' && (
+                                <button className="consent-back-btn" onClick={() => setConsentView('categories')}>
+                                    &larr; Back to Categories
+                                </button>
+                            )}
+                            {consentView === 'preview' && (
+                                <button className="consent-back-btn" onClick={() => setConsentView('templates')}>
+                                    &larr; Back to Templates
+                                </button>
+                            )}
+
+                            {loadingConsent ? (
+                                <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>Loading...</div>
+                            ) : (
+                                <>
+                                    {/* View 1: Categories */}
+                                    {consentView === 'categories' && (
+                                        <div className="consent-category-grid">
+                                            {consentCategories.length === 0 ? (
+                                                <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#64748b' }}>No active categories found.</div>
+                                            ) : (
+                                                consentCategories.map(cat => (
+                                                    <div key={cat._id} className="consent-category-item" onClick={() => handleSelectCategory(cat)}>
+                                                        <span className="consent-category-title">{cat.name}</span>
+                                                        <span className="consent-category-desc">{cat.description || 'No description'}</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* View 2: Templates */}
+                                    {consentView === 'templates' && (
+                                        <div className="consent-template-list">
+                                            {consentTemplates.length === 0 ? (
+                                                <div style={{ textAlign: 'center', color: '#64748b', padding: '20px' }}>No active templates found in this category.</div>
+                                            ) : (
+                                                consentTemplates.map(tmpl => (
+                                                    <div key={tmpl._id} className="consent-template-item" onClick={() => handleSelectTemplate(tmpl)}>
+                                                        <div className="consent-template-item-content">
+                                                            <span className="consent-template-name">{tmpl.name}</span>
+                                                            <span className="consent-template-meta">
+                                                                <span className="consent-file-badge">.docx</span>
+                                                                {tmpl.originalFileName}
+                                                            </span>
+                                                        </div>
+                                                        <span style={{ color: '#94a3b8' }}>›</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* View 3: Preview */}
+                                    {consentView === 'preview' && selectedTemplate && (
+                                        <div className="consent-preview-card">
+                                            <div className="consent-preview-row">
+                                                <span className="consent-preview-label">Consent Name</span>
+                                                <span className="consent-preview-value">{selectedTemplate.name}</span>
+                                            </div>
+                                            <div className="consent-preview-row">
+                                                <span className="consent-preview-label">Category</span>
+                                                <span className="consent-preview-value">{selectedCategory?.name}</span>
+                                            </div>
+                                            <div className="consent-preview-row">
+                                                <span className="consent-preview-label">File</span>
+                                                <span className="consent-preview-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span className="consent-file-badge">.docx</span>
+                                                    {selectedTemplate.originalFileName}
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="consent-phase2-notice">
+                                                <span>ℹ️</span>
+                                                <span>
+                                                    <strong>Notice:</strong> Auto-filling patient details and generating signed PDFs will be available in the next phase. For now, you can download the original Word document and edit it manually.
+                                                </span>
+                                            </div>
+
+                                            <div className="consent-preview-actions">
+                                                <button className="consent-btn-download" onClick={handleDownloadTemplate}>
+                                                    ⬇️ Download Original Template
+                                                </button>
+                                                <button className="consent-btn-generate" onClick={handleGenerateConsent}>
+                                                    📄 Download PDF
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

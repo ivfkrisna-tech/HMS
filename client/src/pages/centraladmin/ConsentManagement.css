@@ -1,0 +1,327 @@
+/* =============================================
+   CONSENT MANAGEMENT - Styles
+   ============================================= */
+
+/* Stats Grid */
+.consent-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.consent-stat-card {
+    border-radius: 16px;
+    padding: 22px 24px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.consent-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.consent-stat-card::before {
+    content: '';
+    position: absolute;
+    top: -30px;
+    right: -30px;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.consent-stat-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.consent-stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.consent-stat-label {
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Section Tabs */
+.consent-section-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.consent-section-tab {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.65);
+    padding: 10px 24px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.consent-section-tab:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+}
+
+.consent-section-tab-active {
+    background: linear-gradient(135deg, #3b82f6, #6366f1) !important;
+    border-color: transparent !important;
+    color: white !important;
+    font-weight: 700;
+}
+
+/* Filter Bar */
+.consent-filter-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.consent-search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    color: #1e293b;
+    background: white;
+    transition: border-color 0.2s;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.consent-search-input:focus {
+    border-color: #3b82f6;
+}
+
+.consent-filter-select {
+    padding: 10px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    color: #1e293b;
+    background: white;
+    outline: none;
+    min-width: 160px;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.consent-filter-select:focus {
+    border-color: #3b82f6;
+}
+
+/* File info display */
+.consent-file-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #16a34a;
+    font-weight: 500;
+}
+
+.consent-file-reject {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #be123c;
+    font-weight: 500;
+}
+
+/* View modal content */
+.consent-view-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.consent-view-row {
+    display: flex;
+    gap: 12px;
+    font-size: 14px;
+}
+
+.consent-view-label {
+    min-width: 120px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.consent-view-value {
+    color: #1e293b;
+    font-weight: 500;
+}
+
+/* Category toggle button */
+.consent-toggle-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    border-radius: 6px;
+    transition: background 0.15s;
+    line-height: 1;
+}
+
+.consent-toggle-btn:hover {
+    background: #f1f5f9;
+}
+
+/* Action buttons row in tables */
+.consent-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.consent-actions button {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+    white-space: nowrap;
+}
+
+.consent-action-view {
+    background: #eff6ff;
+    color: #3b82f6;
+    border: 1px solid #bfdbfe !important;
+}
+
+.consent-action-view:hover {
+    background: #dbeafe;
+}
+
+.consent-action-edit {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0 !important;
+}
+
+.consent-action-edit:hover {
+    background: #dcfce7;
+}
+
+.consent-action-delete {
+    background: #fff1f2;
+    color: #e11d48;
+    border: 1px solid #fecdd3 !important;
+}
+
+.consent-action-delete:hover {
+    background: #ffe4e6;
+}
+
+.consent-action-download {
+    background: #f5f3ff;
+    color: #7c3aed;
+    border: 1px solid #ddd6fe !important;
+}
+
+.consent-action-download:hover {
+    background: #ede9fe;
+}
+
+/* Status toggle in template modal */
+.consent-status-group {
+    display: flex;
+    gap: 12px;
+}
+
+.consent-status-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    cursor: pointer;
+    border: 2px solid #e2e8f0;
+    transition: all 0.15s;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.consent-status-option.active-selected {
+    border-color: #22c55e;
+    background: #f0fdf4;
+    color: #16a34a;
+}
+
+.consent-status-option.inactive-selected {
+    border-color: #ef4444;
+    background: #fff1f2;
+    color: #dc2626;
+}
+
+/* Wide modal for forms */
+.consent-modal-wide {
+    max-width: 600px !important;
+    width: 95% !important;
+}
+
+/* Responsive */
+@media (max-width: 1000px) {
+    .consent-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .consent-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .consent-filter-bar {
+        flex-direction: column;
+    }
+
+    .consent-search-input,
+    .consent-filter-select {
+        width: 100%;
+    }
+
+    .consent-section-tabs {
+        flex-wrap: wrap;
+    }
+
+    .consent-status-group {
+        flex-direction: column;
+    }
+
+    .consent-actions {
+        flex-direction: column;
+    }
+}
