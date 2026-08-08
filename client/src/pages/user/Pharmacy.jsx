@@ -282,7 +282,7 @@ const Pharmacy = () => {
         {/* Filters and Search Section */}
         <section className="pharmacy-controls animate-on-scroll slide-up delay-100">
           <div className="search-box">
-            <span className="search-icon">🔍</span>
+            <span className="search-icon"></span>
             <input
               type="text"
               placeholder="Search by order ID, item name, or patient name..."
