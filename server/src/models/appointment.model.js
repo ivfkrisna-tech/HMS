@@ -43,7 +43,7 @@ const appointmentSchema = new mongoose.Schema({
         default: null
     },
     patientId: { type: String, required: false, index: true },
-    hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', index: true },
+    hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hospital', index: true, required: true },
 
     doctorId: {
         type: mongoose.Schema.Types.ObjectId,

@@ -51,6 +51,7 @@ const HospitalAdminPackages = () => {
     const [cgst, setCgst] = useState('0');
     const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [totalDuration, setTotalDuration] = useState('30');
+    const [paymentSchedule, setPaymentSchedule] = useState([]);
 
     const [editingPackageId, setEditingPackageId] = useState(null);
     const [packageError, setPackageError] = useState('');
@@ -266,6 +267,22 @@ const HospitalAdminPackages = () => {
             return;
         }
 
+        // Validate Payment Installments if any exist
+        if (paymentSchedule.length > 0) {
+            for (let idx = 0; idx < paymentSchedule.length; idx++) {
+                const s = paymentSchedule[idx];
+                if (!s.date || !s.amount) {
+                    setPackageError(`Installment #${idx + 1} is missing a date or amount.`);
+                    return;
+                }
+            }
+            const scheduleSum = paymentSchedule.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+            if (Math.abs(scheduleSum - finalPackagePrice) > 0.01) {
+                setPackageError(`The sum of installments (₹${scheduleSum}) must exactly match the Final Package Price (₹${finalPackagePrice}).`);
+                return;
+            }
+        }
+
         const payload = {
             hospitalId,
             patientId: selectedPatient._id || selectedPatient.patientId,
@@ -279,6 +296,7 @@ const HospitalAdminPackages = () => {
             sgst: Number(sgst) || 0,
             cgst: Number(cgst) || 0,
             finalAmount: finalPackagePrice,
+            paymentSchedule: paymentSchedule.map(s => ({ ...s, amount: Number(s.amount) })),
             startDate,
             totalDuration: Number(totalDuration) || 0,
             status: 'Active'
@@ -306,7 +324,7 @@ const HospitalAdminPackages = () => {
         }
     };
 
-    const handleEditPackage = (pkg) => {
+   const handleEditPackage = (pkg) => {
         setEditingPackageId(pkg._id);
         setSelectedPatient({
             _id: pkg.patientId,
@@ -321,8 +339,22 @@ const HospitalAdminPackages = () => {
         setDiscountPercent(pkg.discountPercent !== undefined ? String(pkg.discountPercent) : '');
         setSgst(pkg.sgst !== undefined ? String(pkg.sgst) : '0');
         setCgst(pkg.cgst !== undefined ? String(pkg.cgst) : '0');
-        setStartDate(pkg.startDate ? pkg.startDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+        setStartDate(pkg.startDate || new Date().toISOString().split('T')[0]);
         setTotalDuration(pkg.totalDuration !== undefined ? String(pkg.totalDuration) : '30');
+        
+        // CRITICAL FIX: Properly map and populate saved payment installments into edit form state
+        if (pkg.paymentSchedule && Array.isArray(pkg.paymentSchedule)) {
+            setPaymentSchedule(pkg.paymentSchedule.map(item => ({
+                _id: item._id,
+                date: item.date ? item.date.split('T')[0] : '',
+                amount: item.amount || '',
+                status: item.status || 'Pending',
+                paidDate: item.paidDate
+            })));
+        } else {
+            setPaymentSchedule([]);
+        }
+
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -347,6 +379,7 @@ const HospitalAdminPackages = () => {
         setDiscountPercent('');
         setSgst('0');
         setCgst('0');
+        setPaymentSchedule([]);
         setStartDate(new Date().toISOString().split('T')[0]);
         setTotalDuration('30');
         setPackageError('');
@@ -654,6 +687,7 @@ const HospitalAdminPackages = () => {
                                 <input
                                     type="number"
                                     min="0"
+                                    step="any"
                                     placeholder="0"
                                     value={sgst}
                                     onChange={(e) => setSgst(e.target.value)}
@@ -665,6 +699,7 @@ const HospitalAdminPackages = () => {
                                 <input
                                     type="number"
                                     min="0"
+                                    step="any"
                                     placeholder="0"
                                     value={cgst}
                                     onChange={(e) => setCgst(e.target.value)}
@@ -679,6 +714,67 @@ const HospitalAdminPackages = () => {
                                     value={`₹${finalPackagePrice.toLocaleString('en-IN')}`}
                                     readOnly
                                 />
+                            </div>
+
+                            {/* Payment Installments Row */}
+                            <div className="pkg-field-col full">
+                                <label className="sub-lbl">Payment Installments (Optional)</label>
+                                <div className="pkg-installments-wrapper" style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: '#f8fafc', marginBottom: '16px' }}>
+                                    {paymentSchedule.map((inst, index) => (
+                                        <div key={index} style={{ display: 'flex', gap: '16px', marginBottom: '12px', alignItems: 'flex-end' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <label style={{ fontSize: '0.8rem', color: '#64748b' }}>Installment #{index + 1} Date</label>
+                                                <input 
+                                                    type="date" 
+                                                    value={inst.date ? inst.date.split('T')[0] : ''}
+                                                    onChange={(e) => {
+                                                        const newSchedule = [...paymentSchedule];
+                                                        newSchedule[index].date = e.target.value;
+                                                        setPaymentSchedule(newSchedule);
+                                                    }}
+                                                    style={{ width: '100%' }}
+                                                />
+                                            </div>
+                                            <div style={{ flex: 1 }}>
+                                                <label style={{ fontSize: '0.8rem', color: '#64748b' }}>Amount (₹)</label>
+                                                <input 
+                                                    type="number"
+                                                    min="0"
+                                                    step="any"
+                                                    placeholder="e.g. 50000"
+                                                    value={inst.amount}
+                                                    onChange={(e) => {
+                                                        const newSchedule = [...paymentSchedule];
+                                                        newSchedule[index].amount = e.target.value;
+                                                        setPaymentSchedule(newSchedule);
+                                                    }}
+                                                    style={{ width: '100%' }}
+                                                />
+                                            </div>
+                                            <div style={{ paddingBottom: '8px' }}>
+                                                <button
+                                                    type="button"
+                                                    className="chip-remove-btn"
+                                                    style={{ background: '#fee2e2', color: '#ef4444', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}
+                                                    onClick={() => {
+                                                        const newSchedule = paymentSchedule.filter((_, i) => i !== index);
+                                                        setPaymentSchedule(newSchedule);
+                                                    }}
+                                                    title="Remove Installment"
+                                                >
+                                                    <FiX />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentSchedule([...paymentSchedule, { date: '', amount: '' }])}
+                                        style={{ background: '#e0e7ff', color: '#4f46e5', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    >
+                                        <FiPlus /> Add Installment
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Dates Row: Start Date | Total Duration */}
@@ -896,6 +992,34 @@ const HospitalAdminPackages = () => {
                                 <div className="p-row"><span>CGST:</span> <strong>{viewingPackage.cgst || 0}%</strong></div>
                                 <div className="p-row total"><span>Final Package Price:</span> <strong className="final-txt">₹{Number(viewingPackage.finalAmount || 0).toLocaleString('en-IN')}</strong></div>
                             </div>
+                            
+                            {viewingPackage.paymentSchedule && viewingPackage.paymentSchedule.length > 0 && (
+                                <div className="view-services-sec" style={{ marginTop: '20px' }}>
+                                    <h4>Payment Installments ({viewingPackage.paymentSchedule.length}):</h4>
+                                    <table className="pkg-data-table" style={{ marginTop: '10px' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Amount</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {viewingPackage.paymentSchedule.map((inst, idx) => (
+                                                <tr key={idx}>
+                                                    <td>{inst.date ? new Date(inst.date).toLocaleDateString() : 'N/A'}</td>
+                                                    <td><strong>₹{Number(inst.amount).toLocaleString('en-IN')}</strong></td>
+                                                    <td>
+                                                        <span className={`pkg-badge ${inst.status === 'Paid' ? 'success' : 'inactive'}`}>
+                                                            {inst.status || 'Pending'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
 
                         <div className="pkg-modal-actions">

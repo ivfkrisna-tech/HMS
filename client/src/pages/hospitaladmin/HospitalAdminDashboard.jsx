@@ -816,9 +816,10 @@ const HospitalAdminDashboard = () => {
                                         setError('');
                                         await hospitalAPI.updateDepartmentFees({ 
                                             departmentFees: hospitalInfo.departmentFees,
-                                            consultationValidityDays: hospitalInfo.consultationValidityDays
+                                            consultationValidityDays: hospitalInfo.consultationValidityDays,
+                                            gstin: hospitalInfo.gstin
                                         });
-                                        setSuccess('Consultation settings saved!');
+                                        setSuccess('Settings saved successfully!');
                                         setTimeout(() => setSuccess(''), 3000);
                                     } catch (err) {
                                         setError('Error saving settings');
@@ -877,6 +878,24 @@ const HospitalAdminDashboard = () => {
                                                 <span style={{ color: '#64748b' }}>days</span>
                                             </div>
                                         </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ color: '#64748b', width: '90px' }}>GSTIN No.</span>
+                                                <input
+                                                    type="text"
+                                                    className="staff-input"
+                                                    style={{ width: '180px', padding: '8px 12px' }}
+                                                    placeholder="e.g. 29ABCDE1234F2Z5"
+                                                    value={hospitalInfo?.gstin || ''}
+                                                    onChange={(e) => {
+                                                        setHospitalInfo(prev => ({ ...prev, gstin: e.target.value.toUpperCase() }));
+                                                    }}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1236,6 +1255,30 @@ const HospitalAdminDashboard = () => {
                                         <textarea className="staff-input" rows="2" placeholder="Optional instructions or notes"
                                             value={labTestForm.description} onChange={e => setLabTestForm(p => ({ ...p, description: e.target.value }))} />
                                     </div>
+
+                                    {/* Dynamic Price Calculation */}
+                                    {(() => {
+                                        const basePriceNum = Number(labTestForm.price) || 0;
+                                        const discountNum = Number(labTestForm.discount) || 0;
+                                        const sgstNum = Number(labTestForm.sgst) || 0;
+                                        const cgstNum = Number(labTestForm.cgst) || 0;
+
+                                        const discountAmount = (basePriceNum * discountNum) / 100;
+                                        const priceAfterDiscount = Math.max(0, basePriceNum - discountAmount);
+                                        const taxAmount = (priceAfterDiscount * (sgstNum + cgstNum)) / 100;
+                                        const finalLabPrice = priceAfterDiscount + taxAmount;
+
+                                        return (
+                                            <div style={{ marginBottom: '16px', padding: '12px', background: '#e0f2fe', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <strong style={{ color: '#0369a1', fontSize: '15px' }}>Final Computed Price:</strong>
+                                                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>
+                                                        ₹{finalLabPrice.toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                     <button type="submit" disabled={savingLabTest} className="submit-button" style={{ maxWidth: '180px' }}>
                                         {savingLabTest ? 'Saving...' : 'Save Lab Test'}
                                     </button>

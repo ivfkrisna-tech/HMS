@@ -401,12 +401,26 @@ router.put('/packages/:id', verifyToken, resolveTenant, verifyHospitalAdmin, asy
             totalDuration,
             status,
             sgst,
-            cgst
+            cgst,
+            paymentSchedule,
+            paymentStatus,
+            paymentMode
         } = req.body;
 
         const { TreatmentPackage } = getModels(req);
 
-        const pkg = await TreatmentPackage.findOne({ _id: id, hospitalId });
+        // Safe lookup with MasterTreatmentPackage fallback
+        let pkg = await TreatmentPackage.findOne({ _id: id, hospitalId });
+        if (!pkg) {
+            pkg = await MasterTreatmentPackage.findOne({ _id: id, hospitalId });
+            if (!pkg) {
+                pkg = await TreatmentPackage.findById(id);
+                if (!pkg) {
+                    pkg = await MasterTreatmentPackage.findById(id);
+                }
+            }
+        }
+
         if (!pkg) return res.status(404).json({ success: false, message: 'Treatment Package not found' });
 
         if (packageName) pkg.packageName = packageName.trim();
@@ -421,7 +435,15 @@ router.put('/packages/:id', verifyToken, resolveTenant, verifyHospitalAdmin, asy
         if (totalDuration !== undefined) pkg.totalDuration = Number(totalDuration) || 0;
         if (status) pkg.status = status;
 
-        await pkg.save();
+        // CRITICAL: Handle installments & payment status updates correctly
+        if (paymentSchedule !== undefined) {
+            pkg.paymentSchedule = paymentSchedule;
+            pkg.markModified('paymentSchedule');
+        }
+        if (paymentStatus !== undefined) pkg.paymentStatus = paymentStatus;
+        if (paymentMode !== undefined) pkg.paymentMode = paymentMode;
+
+        await pkg.save({ validateBeforeSave: false });
         res.json({ success: true, message: 'Treatment Package updated successfully', package: pkg });
     } catch (error) {
         console.error('Update package error:', error);

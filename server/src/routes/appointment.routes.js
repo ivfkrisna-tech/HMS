@@ -39,8 +39,11 @@ router.get('/reception/all', verifyToken, resolveTenant, async (req, res) => {
             return res.status(403).json({ success: false, message: 'Access denied. Requires Reception or Admin privileges.' });
         }
 
+        const isCentral = ['centraladmin', 'superadmin'].includes(req.user.role) || ['centraladmin', 'superadmin'].includes(req.user._roleData?.name);
+        const filter = (req.user.hospitalId && !isCentral) ? { hospitalId: req.user.hospitalId } : {};
+
         const { Appointment } = getModels(req);
-        const appointments = await Appointment.find({})
+        const appointments = await Appointment.find(filter)
             .sort({ appointmentDate: -1, appointmentTime: -1 })
             .lean();
 

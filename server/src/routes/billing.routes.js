@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const { verifyToken } = require('../middleware/auth.middleware');
 const { resolveTenant } = require('../middleware/tenantMiddleware');
 const { getTenantModels } = require('../db/tenantModels');
 
-// Master fallbacks
+// Master fallbacks & Models
 const MasterUser = require('../models/user.model');
 const MasterAppointment = require('../models/appointment.model');
 const MasterLabReport = require('../models/labReport.model');
@@ -12,8 +13,68 @@ const MasterPharmacyOrder = require('../models/pharmacyOrder.model');
 const MasterFacilityCharge = require('../models/facilityCharge.model');
 const MasterAdmission = require('../models/admission.model');
 const MasterTreatmentPackage = require('../models/treatmentPackage.model');
+const LabTest = require('../models/labTest.model');
 
-// Billing access middleware — receptionist also gets billing view
+// Dynamic Age Extraction (Safe null-checks for all age/DOB formats)
+const getPatientAge = (patient) => {
+    if (!patient) return 'N/A';
+
+    // 1. Direct or nested age fields check
+    const rawAge = patient.age 
+                ?? patient.ageYears 
+                ?? patient.age_years 
+                ?? patient.patientDetails?.age 
+                ?? patient.patientDetails?.ageYears 
+                ?? patient.kyc?.age;
+
+    if (rawAge !== undefined && rawAge !== null && rawAge !== '' && rawAge !== 'N/A') {
+        const parsed = parseInt(String(rawAge).replace(/\D/g, ''), 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+
+    // 2. Direct or nested DOB fields check
+    const dobVal = patient.dob 
+                || patient.dateOfBirth 
+                || patient.date_of_birth 
+                || patient.patientDetails?.dob 
+                || patient.patientDetails?.dateOfBirth 
+                || patient.fertilityProfile?.dob
+                || patient.kyc?.dob;
+
+    if (!dobVal) return 'N/A';
+
+    let birthDate;
+    if (dobVal instanceof Date) {
+        birthDate = dobVal;
+    } else if (typeof dobVal === 'string') {
+        if (dobVal.includes('/')) {
+            const parts = dobVal.split('/');
+            if (parts[2]?.length === 4) birthDate = new Date(parts[2], parts[1] - 1, parts[0]);
+            else if (parts[0]?.length === 4) birthDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        } else if (dobVal.includes('-')) {
+            const parts = dobVal.split('-');
+            if (parts[0]?.length === 4) birthDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            else if (parts[2]?.length === 4) birthDate = new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+        if (!birthDate || isNaN(birthDate.getTime())) {
+            birthDate = new Date(dobVal);
+        }
+    }
+
+    if (birthDate && !isNaN(birthDate.getTime())) {
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age >= 0 ? age : 'N/A';
+    }
+
+    return 'N/A';
+};
+
+// Billing access middleware
 const verifyBillingAccess = async (req, res, next) => {
     try {
         await verifyToken(req, res, async () => {
@@ -50,6 +111,17 @@ const getModels = (req) => {
     };
 };
 
+// Helper function to build ObjectId + String variant query array
+const getIdVariants = (idVal) => {
+    if (!idVal) return [];
+    const idStr = String(idVal);
+    const variants = [idStr];
+    if (mongoose.Types.ObjectId.isValid(idStr)) {
+        variants.push(new mongoose.Types.ObjectId(idStr));
+    }
+    return variants;
+};
+
 // Search patients for autocomplete dropdown
 router.get('/search-patients', verifyBillingAccess, async (req, res) => {
     try {
@@ -57,7 +129,12 @@ router.get('/search-patients', verifyBillingAccess, async (req, res) => {
         if (!query) return res.json({ success: true, patients: [] });
 
         const regex = new RegExp(query, 'i');
-        const searchFilter = {
+        const role = req.user.role || '';
+        const roleIdStr = typeof role === 'string' ? role.toLowerCase() : String(role);
+        const roleData = req.user._roleData;
+        const roleName = roleData?.name ? roleData.name.toLowerCase() : '';
+
+        const baseSearch = {
             $or: [
                 { name: regex },
                 { phone: regex },
@@ -66,77 +143,100 @@ router.get('/search-patients', verifyBillingAccess, async (req, res) => {
             ]
         };
 
-        let patients = await MasterUser.find(searchFilter)
-            .select('name phone mrn patientId dob gender').limit(10).lean();
+        const isCentral = ['centraladmin', 'superadmin'].includes(roleIdStr) || ['centraladmin', 'superadmin'].includes(roleName);
 
-        // Also search tenant DB if results are sparse
+        const searchFilter = (req.user.hospitalId && !isCentral)
+            ? { ...baseSearch, hospitalId: { $in: getIdVariants(req.user.hospitalId) } }
+            : baseSearch;
+
+        let patients = await MasterUser.find(searchFilter)
+            .select('name phone mrn patientId dob dateOfBirth gender age ageYears patientDetails kyc')
+            .limit(10).lean();
+
         if (patients.length < 10 && req.tenantDb) {
             const { User: TenantUser } = getModels(req);
             const tenantPatients = await TenantUser.find(searchFilter)
-                .select('name phone mrn patientId dob gender').limit(10 - patients.length).lean();
-            // Merge, avoiding duplicates by _id
+                .select('name phone mrn patientId dob dateOfBirth gender age ageYears patientDetails kyc')
+                .limit(10 - patients.length).lean();
+
             const existingIds = new Set(patients.map(p => String(p._id)));
             for (const p of tenantPatients) {
                 if (!existingIds.has(String(p._id))) patients.push(p);
             }
         }
 
-        res.json({ success: true, patients });
+        const formattedPatients = patients.map(p => ({
+            ...p,
+            age: getPatientAge(p)
+        }));
+
+        res.json({ success: true, patients: formattedPatients });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// 1. Search Patient & Fetch All Bills (pending + paid summary) — tenant-scoped
+// 1. Search Patient & Fetch All Bills
 router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
     try {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         const { identifier } = req.params;
-        const { User, Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission, TreatmentPackage } = getModels(req);
+        const { Appointment, LabReport, PharmacyOrder, FacilityCharge, Admission, TreatmentPackage } = getModels(req);
 
-        const mongoose = require('mongoose');
-        const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
-        
+        const identifierVariants = getIdVariants(identifier);
+
         const searchQuery = {
             $or: [
-                ...(isObjectId ? [{ _id: identifier }] : []),
+                { _id: { $in: identifierVariants } },
                 { mrn: identifier },
                 { patientId: identifier },
                 { phone: identifier },
                 { name: { $regex: identifier, $options: 'i' } }
             ]
         };
-        
+
         const roleIdStr = String(req.user.role || '').toLowerCase();
         const roleName = String(req.user._roleData?.name || '').toLowerCase();
-        if (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(roleIdStr) && !['centraladmin', 'superadmin'].includes(roleName)) {
-            searchQuery.hospitalId = req.user.hospitalId;
+        const isCentral = ['centraladmin', 'superadmin'].includes(roleIdStr) || ['centraladmin', 'superadmin'].includes(roleName);
+
+        if (req.user.hospitalId && !isCentral) {
+            searchQuery.hospitalId = { $in: getIdVariants(req.user.hospitalId) };
         }
 
-        let patient = await MasterUser.findOne(searchQuery);
+        let masterPatient = await MasterUser.findOne(searchQuery).lean();
+        let tenantPatient = null;
 
-        // If not found in master DB, try tenant DB (patients registered per-hospital)
-        if (!patient && req.tenantDb) {
+        if (req.tenantDb) {
             const { User: TenantUser } = getModels(req);
-            patient = await TenantUser.findOne(searchQuery);
+            tenantPatient = await TenantUser.findOne(searchQuery).lean();
         }
 
-        if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });        const baseQuery = { 
+        if (!masterPatient && !tenantPatient) {
+            return res.status(404).json({ success: false, message: 'Patient not found' });
+        }
+
+        const patient = {
+            ...(masterPatient || {}),
+            ...(tenantPatient || {})
+        };
+
+        const patientIdVariants = getIdVariants(patient._id);
+
+        const baseQuery = {
             $or: [
-                { patientId: patient._id }, 
-                { userId: patient._id },
-                { patient: patient._id },
+                { patientId: { $in: patientIdVariants } },
+                { userId: { $in: patientIdVariants } },
+                { patient: { $in: patientIdVariants } },
+                { _id: { $in: patientIdVariants } },
                 ...(patient.mrn ? [{ mrn: patient.mrn }] : []),
                 ...(patient.uhid ? [{ uhid: patient.uhid }] : [])
             ]
         };
 
-        const patientSearchQuery = (req.user.hospitalId && !['centraladmin', 'superadmin'].includes(roleIdStr) && !['centraladmin', 'superadmin'].includes(roleName))
-            ? { $and: [baseQuery, { $or: [{ hospitalId: req.user.hospitalId }, { hospitalId: { $exists: false } }, { hospitalId: null }] }] }
+        const patientSearchQuery = (req.user.hospitalId && !isCentral)
+            ? { ...baseQuery, hospitalId: { $in: getIdVariants(req.user.hospitalId) } }
             : baseQuery;
 
-        console.log(`Unified Patient Search Query:`, JSON.stringify(patientSearchQuery, null, 2));
-
-        // 1. Fetch from Tenant Database
         const [tenantAppointments, tenantLabReports, tenantPharmacyOrders, tenantFacilityCharges, tenantAdmissions, tenantPackages] = req.tenantDb ? await Promise.all([
             Appointment.find(patientSearchQuery)
                 .select('appointmentDate appointmentTime amount paymentStatus paymentMode serviceName doctorName status createdAt')
@@ -155,7 +255,6 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             TreatmentPackage.find(patientSearchQuery).sort({ createdAt: -1 }).lean()
         ]) : [[], [], [], [], [], []];
 
-        // 2. Fetch from Master Database (for legacy records)
         const [masterAppointments, masterLabReports, masterPharmacyOrders, masterFacilityCharges, masterAdmissions, masterPackages] = await Promise.all([
             MasterAppointment.find(patientSearchQuery)
                 .select('appointmentDate appointmentTime amount paymentStatus paymentMode serviceName doctorName status createdAt')
@@ -174,7 +273,6 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             MasterTreatmentPackage.find(patientSearchQuery).sort({ createdAt: -1 }).lean()
         ]);
 
-        // Merge helper to prevent duplicates
         const mergeDocs = (arr1, arr2) => {
             const map = new Map();
             [...(arr1 || []), ...(arr2 || [])].forEach(doc => map.set(String(doc._id), doc));
@@ -185,10 +283,9 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
         const labReports = mergeDocs(tenantLabReports, masterLabReports).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const pharmacyOrders = mergeDocs(tenantPharmacyOrders, masterPharmacyOrders).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const facilityCharges = mergeDocs(tenantFacilityCharges, masterFacilityCharges).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        const admissions = mergeDocs(tenantAdmissions, masterAdmissions).sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate));
+        const admissions = mergeDocs(tenantAdmissions, masterAdmissions).sort((a, b) => new Date(b.admissionDate || b.createdAt) - new Date(a.admissionDate || a.createdAt));
         const packages = mergeDocs(tenantPackages, masterPackages).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        const LabTest = require('../models/labTest.model');
         const allLabTests = await LabTest.find({}).lean();
         const hidStr = (req.user.hospitalId || '').toString();
 
@@ -216,8 +313,8 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
             return r;
         });
 
-        console.log(`Raw Admissions Results (${admissions.length} found):`, JSON.stringify(admissions, null, 2));
-        
+        const calculatedAge = getPatientAge(patient);
+
         const payload = {
             success: true,
             patient: {
@@ -227,14 +324,13 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
                 patientId: patient.patientId,
                 phone: patient.phone,
                 gender: patient.gender,
-                dob: patient.dob,
+                dob: patient.dob || patient.dateOfBirth || patient.patientDetails?.dob || patient.fertilityProfile?.dob,
+                age: calculatedAge,
                 avatar: patient.avatar || null,
             },
             billing: { appointments, labReports: finalLabReports, pharmacyOrders, facilityCharges, admissions, packages }
         };
-        console.log(`Final Response Keys:`, Object.keys(payload));
-        console.log(`Billing Payload Keys:`, Object.keys(payload.billing));
-        
+
         res.json(payload);
 
     } catch (error) {
@@ -242,7 +338,7 @@ router.get('/patient/:identifier', verifyBillingAccess, async (req, res) => {
     }
 });
 
-// 2. Add Facility Charge — saves to tenant DB
+// 2. Add Facility Charge
 router.post('/facility-charge', verifyBillingAccess, async (req, res) => {
     try {
         const { patientId, facilityName, pricePerDay, days } = req.body;
@@ -274,10 +370,10 @@ router.put('/facility-charge/:id', verifyBillingAccess, async (req, res) => {
     try {
         const { pricePerDay, days, facilityName } = req.body;
         const FacilityCharge = MasterFacilityCharge;
-        
+
         const charge = await FacilityCharge.findById(req.params.id);
         if (!charge) return res.status(404).json({ success: false, message: 'Charge not found' });
-        
+
         if (charge.paymentStatus === 'Paid') {
             return res.status(400).json({ success: false, message: 'Cannot edit a paid charge' });
         }
@@ -285,17 +381,17 @@ router.put('/facility-charge/:id', verifyBillingAccess, async (req, res) => {
         if (pricePerDay !== undefined) charge.pricePerDay = Number(pricePerDay);
         if (days !== undefined) charge.days = Number(days);
         if (facilityName !== undefined) charge.facilityName = facilityName;
-        
+
         charge.totalAmount = charge.pricePerDay * charge.days;
         await charge.save();
-        
+
         res.json({ success: true, message: 'Charge updated successfully', charge });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// 3. Mark items as paid — updates tenant DB
+// 3. Mark items as paid
 router.put('/pay', verifyBillingAccess, async (req, res) => {
     try {
         const {
@@ -305,6 +401,7 @@ router.put('/pay', verifyBillingAccess, async (req, res) => {
             facilityChargeIds = [],
             admissionIds = [],
             packageIds = [],
+            packageInstallmentIds = [],
             paymentMode = 'Cash'
         } = req.body;
 
@@ -323,19 +420,75 @@ router.put('/pay', verifyBillingAccess, async (req, res) => {
             }),
             pharmacyOrderIds.length > 0 && PharmacyOrder.updateMany({ _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             pharmacyOrderIds.length > 0 && MasterPharmacyOrder.updateMany({ _id: { $in: pharmacyOrderIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            
+
             facilityChargeIds.length > 0 && FacilityCharge.updateMany({ _id: { $in: facilityChargeIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             facilityChargeIds.length > 0 && MasterFacilityCharge.updateMany({ _id: { $in: facilityChargeIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            
+
             admissionIds.length > 0 && Admission.updateMany({ _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             admissionIds.length > 0 && MasterAdmission.updateMany({ _id: { $in: admissionIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
-            
+
             packageIds.length > 0 && TreatmentPackage.updateMany({ _id: { $in: packageIds } }, { $set: { paymentStatus: 'Paid', paymentMode } }),
             packageIds.length > 0 && MasterTreatmentPackage.updateMany({ _id: { $in: packageIds } }, { $set: { paymentStatus: 'Paid', paymentMode } })
         ].filter(Boolean));
 
+        if (packageInstallmentIds && packageInstallmentIds.length > 0) {
+            for (const item of packageInstallmentIds) {
+                let pkgId, instId;
+
+                if (typeof item === 'string') {
+                    const parts = item.split('|');
+                    pkgId = parts[0];
+                    instId = parts[1];
+                } else if (typeof item === 'object' && item !== null) {
+                    pkgId = item.packageId || item.pkgId;
+                    instId = item.installmentId || item.instId;
+                }
+
+                if (pkgId && instId) {
+                    let pkg = await TreatmentPackage.findById(pkgId);
+                    let isMaster = false;
+
+                    if (!pkg) {
+                        pkg = await MasterTreatmentPackage.findById(pkgId);
+                        isMaster = true;
+                    }
+
+                    if (pkg && pkg.paymentSchedule) {
+                        let inst = pkg.paymentSchedule.id(instId);
+                        if (!inst) {
+                            inst = pkg.paymentSchedule.find(s => s._id.toString() === String(instId));
+                        }
+
+                        if (inst) {
+                            inst.status = 'Paid';
+                            inst.paidDate = new Date();
+                        }
+
+                        pkg.markModified('paymentSchedule');
+
+                        const allPaid = pkg.paymentSchedule.every(s => s.status === 'Paid');
+                        if (allPaid) {
+                            pkg.paymentStatus = 'Paid';
+                            pkg.paymentMode = paymentMode || pkg.paymentMode;
+                        }
+
+                        if (isMaster) {
+                            await MasterTreatmentPackage.findByIdAndUpdate(pkgId, {
+                                paymentSchedule: pkg.paymentSchedule,
+                                paymentStatus: pkg.paymentStatus,
+                                paymentMode: pkg.paymentMode
+                            });
+                        } else {
+                            await pkg.save();
+                        }
+                    }
+                }
+            }
+        }
+
         res.json({ success: true, message: 'Billing settled successfully' });
     } catch (error) {
+        console.error("Billing Save Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

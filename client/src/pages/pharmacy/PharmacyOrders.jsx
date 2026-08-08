@@ -529,9 +529,9 @@ const PharmacyOrders = () => {
     const getInvoiceCalculations = (order, appliedDiscountPercent = null) => {
         const items = order?.prescribedItems || order?.items || [];
         let totalSubtotal = 0;
-        let totalTax = 0;
+        let processedItemsTemp = [];
 
-        const processedItems = items.map((item) => {
+        const tempItems = items.map((item) => {
             const rawName = String(item.medicineName || item.name || '').toLowerCase();
             const isLiquidOrInj = rawName.includes('injection') || rawName.includes('inj') || rawName.includes('syrup') || rawName.includes('ceftriaxone');
 
@@ -626,14 +626,13 @@ const PharmacyOrders = () => {
             const itemCostBase = billedQty * buyingPrice;
             const gstPercent = Number(item.gst || item.gstPercent || 12);
             
-            // GST calculation cleanly mapped based on cost/purchase price layers
-            const itemTax = itemCostBase * (gstPercent / 100);
-            
             // Patient bills strictly use Selling Price + Tax
-            const itemTotal = itemBase + itemTax;
+            // Tax will be calculated in the second pass after discount is applied
 
             totalSubtotal += itemBase;
-            totalTax += itemTax;
+            const tempItems = processedItemsTemp || [];
+            tempItems.push(item);
+            processedItemsTemp = tempItems;
 
             const freqText = itemFreqPerDay === 3 ? 'TDS (3 times/day)' : itemFreqPerDay === 2 ? 'BD (2 times/day)' : 'OD (Once daily)';
 
@@ -651,11 +650,13 @@ const PharmacyOrders = () => {
                 unitLabel,
                 finalQty,
                 itemBase,
-                itemTax,
-                itemTotal
+                itemCostBase, // we'll use this for tax calculation in the second pass
+                gstPercent,
+                isLiquidOrInj
             };
         });
 
+        // 6. Calculate total discount BEFORE tax
         const pct = appliedDiscountPercent !== null ? appliedDiscountPercent : Number(order?.discountPercent || order?.discountPercentage || 0);
         let finalDiscountAmount = 0;
         if (pct > 0) {
@@ -664,11 +665,31 @@ const PharmacyOrders = () => {
             finalDiscountAmount = Number(order?.discountAmount || order?.discount || order?.discountValue || 0);
         }
 
-        const grandTotal = Math.max(0, totalSubtotal + totalTax - finalDiscountAmount);
+        const discountRatio = totalSubtotal > 0 ? (finalDiscountAmount / totalSubtotal) : 0;
+
+        // 7. Second Pass: Calculate Tax accurately on the discounted base
+        let totalTax = 0;
+        const finalizedItems = tempItems.map(item => {
+            const discountedCostBase = item.itemCostBase * (1 - discountRatio);
+            const itemTax = discountedCostBase * (item.gstPercent / 100);
+            
+            // Tax is now inclusive. The item Total is simply the base price.
+            const itemTotal = item.itemBase; 
+            totalTax += itemTax;
+            
+            return {
+                ...item,
+                itemTax,
+                itemTotal
+            };
+        });
+
+        // Grand Total does NOT include separate tax additions (GST Inclusive Billing)
+        const grandTotal = Math.max(0, totalSubtotal - finalDiscountAmount);
         const halfTax = totalTax / 2;
 
         return {
-            processedItems,
+            processedItems: finalizedItems,
             subtotal: totalSubtotal.toFixed(2),
             cgst: halfTax.toFixed(2),
             sgst: halfTax.toFixed(2),
@@ -876,9 +897,9 @@ const PharmacyOrders = () => {
                                                                 <div style={{ fontSize: '9px' }}>{item.exp || '10/29/2029'}</div>
                                                             </td>
                                                             <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>
-                                                                <div style={{ fontWeight: 'bold' }}>
+                                                                <div style={{ fontWeight: 'bold', color: '#0f172a' }}>
                                                                     {selectedOrder?.orderStatus === 'Completed' ? (
-                                                                        <span>{item.qtyDisplay}</span>
+                                                                        <span>{item.packagingBreakdown ? `📦 ${item.packagingBreakdown}` : `${item.finalQty} ${item.unitLabel}`}</span>
                                                                     ) : (
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                                             <input
@@ -900,15 +921,13 @@ const PharmacyOrders = () => {
                                                                                 }}
                                                                                 style={{ width: '60px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center' }}
                                                                             />
-                                                                            <span>{item.unitLabel}</span>
+                                                                            <span style={{ fontSize: '11px', color: '#059669', marginLeft: '4px' }}>{item.packagingBreakdown ? `(📦 ${item.packagingBreakdown})` : item.unitLabel}</span>
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                {item.packagingBreakdown && (
-                                                                    <div style={{ fontSize: '11px', color: '#059669', marginTop: '4px', fontWeight: 'bold' }}>
-                                                                        📦 {item.packagingBreakdown}
-                                                                    </div>
-                                                                )}
+                                                                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
+                                                                    {item.dose} {item.isLiquidOrInj || ['syrup', 'injection', 'vial', 'vials', 'drops', 'ml'].includes(String(item.unitLabel).toLowerCase()) ? 'ml' : 'tab(s)'} • {item.freqText} • {item.durationDays} Days
+                                                                </div>
                                                             </td>
                                                             <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>₹{item.unitRate.toFixed(2)} /{item.unitLabel}</td>
                                                             <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right', color: '#64748b' }}>{item.gstPercent}%</td>
@@ -932,14 +951,6 @@ const PharmacyOrders = () => {
                                             <span>Subtotal:</span>
                                             <span style={{ fontWeight: 'bold' }}>₹{invoiceData.subtotal}</span>
                                         </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                            <span>CGST ({invoiceData.processedItems[0]?.gstPercent / 2 || 6}%):</span>
-                                            <span style={{ fontWeight: 'bold' }}>₹{invoiceData.cgst}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                            <span>SGST ({invoiceData.processedItems[0]?.gstPercent / 2 || 6}%):</span>
-                                            <span style={{ fontWeight: 'bold' }}>₹{invoiceData.sgst}</span>
-                                        </div>
                                         {selectedOrder?.orderStatus !== 'Completed' && (
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', alignItems: 'center' }}>
                                                 <span>Discount (%):</span>
@@ -947,14 +958,23 @@ const PharmacyOrders = () => {
                                                     type="number" 
                                                     min="0"
                                                     value={discountPercent} 
-                                                    onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)} 
+                                                    onChange={(e) => {
+                                                        const val = Number(e.target.value) || 0;
+                                                        setDiscountPercent(val);
+                                                        if (selectedOrder) {
+                                                            const updatedOrder = { ...selectedOrder, discountPercent: val };
+                                                            setSelectedOrder(updatedOrder);
+                                                            setOrders(prev => prev.map(o => o._id === updatedOrder._id ? updatedOrder : o));
+                                                            if (paymentFlowOrder?._id === updatedOrder._id) setPaymentFlowOrder(updatedOrder);
+                                                        }
+                                                    }} 
                                                     style={{ width: '60px', padding: '2px 4px', textAlign: 'right', border: '1px solid #cbd5e1', borderRadius: '4px' }}
                                                 />
                                             </div>
                                         )}
                                         {Number(invoiceData.discountAmount) > 0 && (
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#dc2626', background: '#fee2e2', padding: '4px 8px', borderRadius: '4px' }}>
-                                                <span>Discount Applied ({invoiceData.discountPercent > 0 ? `${invoiceData.discountPercent}%` : 'Flat'}):</span>
+                                                <span>Discount ({invoiceData.discountPercent > 0 ? `${invoiceData.discountPercent}%` : 'Flat'}):</span>
                                                 <span style={{ fontWeight: 'bold' }}>-₹{invoiceData.discountAmount}</span>
                                             </div>
                                         )}
@@ -962,9 +982,18 @@ const PharmacyOrders = () => {
                                             <span>Grand Total:</span>
                                             <span style={{ color: '#0f766e' }}>₹{invoiceData.grandTotal}</span>
                                         </div>
+                                        <div style={{ textAlign: 'right', color: '#64748b', fontSize: '9px', marginTop: '2px' }}>
+                                            (Inclusive of all taxes)
+                                        </div>
                                     </div>
                                 </div>
 
+                            </div>
+
+                            {/* Return Policy Note */}
+                            <div style={{ marginTop: '20px', paddingTop: '10px', borderTop: '1px dashed #ccc', textAlign: 'center', fontSize: '11px', color: '#666' }}>
+                                * Note: If you need to return any medicines, please bring the original bill along with you.<br/>
+                                (Medicines will only be accepted for return along with the original invoice.)
                             </div>
 
                             {/* Footer Buttons */}

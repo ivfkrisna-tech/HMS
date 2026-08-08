@@ -65,7 +65,7 @@ const verifyReception = (req, res, next) => {
 // 1. REGISTER (WALK-IN)
 router.post('/register', verifyToken, verifyReception, async (req, res) => {
     try {
-        let { name, email, phone, linkedPatientId, relationLabel } = req.body;
+        let { name, email, phone, dob, gender, linkedPatientId, relationLabel } = req.body;
 
         name = name ? String(name).trim() : undefined;
         phone = phone ? String(phone).trim() : undefined;
@@ -129,6 +129,8 @@ router.post('/register', verifyToken, verifyReception, async (req, res) => {
         };
 
         if (email) userData.email = email;
+        if (dob) userData.dob = dob;
+        if (gender) userData.gender = gender;
 
         const newUser = new User(userData);
         await newUser.save();
@@ -343,6 +345,9 @@ router.put('/intake/:userId', verifyToken, verifyReceptionOrDoctor, async (req, 
         if (updates.sourceInformation !== undefined) updateQuery.sourceInformation = updates.sourceInformation;
         if (updates.linkedAppointmentId !== undefined) updateQuery.linkedAppointmentId = updates.linkedAppointmentId;
         if (updates.marriageDate !== undefined) updateQuery.marriageDate = updates.marriageDate;
+        if (updates.dob !== undefined) updateQuery.dob = updates.dob;
+        if (updates.gender !== undefined) updateQuery.gender = updates.gender;
+        if (updates.age !== undefined) updateQuery.age = updates.age;
 
         const profileFields = [
             'title', 'firstName', 'middleName', 'lastName', 'dob', 'marriageDate', 'age', 'gender', 'maritalStatus', 'occupation',

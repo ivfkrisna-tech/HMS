@@ -27,7 +27,8 @@ const pharmacyOrderSchema = new mongoose.Schema({
     hospitalId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Hospital',
-        index: true
+        index: true,
+        required: true
     },
     items: [{
         medicineName: String,
@@ -69,6 +70,10 @@ const pharmacyOrderSchema = new mongoose.Schema({
         default: 0
     },
     taxableAmount: {
+        type: Number,
+        default: 0
+    },
+    discountPercent: {
         type: Number,
         default: 0
     },
