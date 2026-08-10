@@ -22,7 +22,7 @@ const PharmacyInventory = () => {
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
-                // Edit & View states
+    // Edit & View states
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState(null);
     const [selectedMedicine, setSelectedMedicine] = useState(null);
@@ -81,8 +81,8 @@ const PharmacyInventory = () => {
         }
     };
 
-    useEffect(() => { 
-        fetchInventory(); 
+    useEffect(() => {
+        fetchInventory();
         fetchVendors();
         checkPendingInvoice();
     }, []);
@@ -147,27 +147,27 @@ const PharmacyInventory = () => {
         try {
             const formData = new FormData();
             formData.append('invoice', file);
-            
+
             // Upload, Save to DB and Parse all in one step
             const uploadRes = await pharmacyAPI.uploadPurchaseInvoice(formData);
-            
+
             if (uploadRes.success && uploadRes.invoice && uploadRes.medicines?.length > 0) {
                 setImportLoadingState('Preparing Medicines...');
                 const meds = uploadRes.medicines;
                 const newInvoiceId = uploadRes.invoice._id;
-                
+
                 setExtractedMedicines(meds);
-                
+
                 // Store in local storage to persist
                 localStorage.setItem('pendingInvoiceMedicines_' + newInvoiceId, JSON.stringify(meds));
-                
+
                 setPendingInvoice(uploadRes.invoice);
                 setInvoiceStats({
                     total: uploadRes.invoice.totalMedicines || meds.length,
                     imported: 0,
                     remaining: meds.length
                 });
-                
+
                 showSuccessMsg('Invoice Uploaded Successfully');
             } else {
                 setPdfError('No medicines found.');
@@ -188,8 +188,8 @@ const PharmacyInventory = () => {
     const handleSelectExtracted = (medName, list = extractedMedicines) => {
         const med = list.find(m => m.medicineName === medName);
         if (!med) {
-             setNewMedicine(prev => ({ ...prev, name: medName }));
-             return;
+            setNewMedicine(prev => ({ ...prev, name: medName }));
+            return;
         }
         setNewMedicine(prev => ({
             ...prev,
@@ -211,7 +211,6 @@ const PharmacyInventory = () => {
             purchaseDate: new Date().toISOString().split('T')[0]
         }));
     };
-
 
     const fetchVendors = async () => {
         try {
@@ -266,7 +265,7 @@ const PharmacyInventory = () => {
 
         const pQty = Number(newMedicine.purchaseQty) || 0;
         const fQty = Number(newMedicine.freeQty) || 0;
-        
+
         let totalStock = pQty + fQty;
         let price = Number(newMedicine.buyingPrice) || 0;
         let selling = Number(newMedicine.sellingPrice) || 0;
@@ -274,8 +273,6 @@ const PharmacyInventory = () => {
 
         if (['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit)) {
             totalStock = totalStock * ups;
-            price = price / ups;
-            selling = selling / ups;
         } else if (['Number', 'Sachets', 'Powder', 'Ointment', 'Others'].includes(newMedicine.unit)) {
             ups = 1;
         } else if (['Syrup', 'Injection'].includes(newMedicine.unit)) {
@@ -283,20 +280,18 @@ const PharmacyInventory = () => {
         } else {
             if (ups > 1) {
                 totalStock = totalStock * ups;
-                price = price / ups;
-                selling = selling / ups;
             }
         }
-        
+
         let baseTotal = pQty * (Number(newMedicine.buyingPrice) || 0);
-        
+
         let disc = 0;
         if (newMedicine.discountType === 'Percentage') {
             disc = baseTotal * ((Number(newMedicine.discountValue) || 0) / 100);
         } else {
             disc = Number(newMedicine.discountValue) || 0;
         }
-        
+
         const afterDisc = Math.max(0, baseTotal - disc);
         const cgstAmt = afterDisc * ((Number(newMedicine.cgstPercent) || 0) / 100);
         const sgstAmt = afterDisc * ((Number(newMedicine.sgstPercent) || 0) / 100);
@@ -340,25 +335,25 @@ const PharmacyInventory = () => {
                 setIsEditing(false);
                 setEditId(null);
                 fetchInventory();
-                
+
                 // If it was extracted from invoice, remove it
                 if (pendingInvoice && extractedMedicines.some(m => m.medicineName === newMedicine.name)) {
                     showSuccessMsg('Medicine Imported Successfully');
                     const updatedMeds = extractedMedicines.filter(m => m.medicineName !== newMedicine.name);
                     setExtractedMedicines(updatedMeds);
                     localStorage.setItem('pendingInvoiceMedicines_' + pendingInvoice._id, JSON.stringify(updatedMeds));
-                    
+
                     const newImported = invoiceStats.imported + 1;
                     const newRemaining = updatedMeds.length;
-                    
+
                     setInvoiceStats({ ...invoiceStats, imported: newImported, remaining: newRemaining });
-                    
+
                     if (newRemaining === 0) {
                         showSuccessMsg('Invoice Completed Successfully');
                         // Optional: we can call an API to mark it completed here if we had one
                     }
                 }
-                
+
                 setNewMedicine(initialFormState);
             }
         } catch (error) {
@@ -382,6 +377,7 @@ const PharmacyInventory = () => {
             name: med.name,
             category: med.category,
             stock: med.stock,
+            unitsPerStrip: med.unitsPerStrip || 10,
             minStockAlertLevel: med.minStockAlertLevel || 50,
             rackLocation: med.rackLocation || '',
             unit: med.unit || 'Tablets',
@@ -419,10 +415,9 @@ const PharmacyInventory = () => {
         med.category.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-
     return (
         <div className="pharmacy-management-container">
-            
+
             {pendingInvoice && invoiceStats.remaining > 0 && (
                 <div style={{ position: 'fixed', bottom: '30px', right: '30px', background: 'white', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 1000, display: 'flex', gap: '20px', alignItems: 'center' }}>
                     <div>
@@ -471,396 +466,398 @@ const PharmacyInventory = () => {
                 </div>
 
                 {activeTab === 'inventory' ? (
-                <>
-                <div style={{ background: '#f0f9ff', padding: '20px', borderRadius: '10px', marginTop: '20px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                            <h3 style={{ margin: 0, fontSize: '16px', color: '#0369a1' }}>📄 Upload Purchase Invoice</h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#0284c7' }}>Upload a PDF invoice to automatically extract and import medicines (Max 10MB)</p>
-                        </div>
-                        {pendingInvoice && invoiceStats.remaining === 0 && (
-                            <button type="button" onClick={handleClearInvoice} style={{ padding: '8px 16px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                                Upload New Invoice
-                            </button>
-                        )}
-                    </div>
-                    
-                    {successMessage && <div style={{ padding: '10px', background: '#dcfce7', color: '#166534', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}>✔ {successMessage}</div>}
+                    <>
+                        <div style={{ background: '#f0f9ff', padding: '20px', borderRadius: '10px', marginTop: '20px', border: '1px solid #bae6fd', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '16px', color: '#0369a1' }}>📄 Upload Purchase Invoice</h3>
+                                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#0284c7' }}>Upload a PDF invoice to automatically extract and import medicines (Max 10MB)</p>
+                                </div>
+                                {pendingInvoice && invoiceStats.remaining === 0 && (
+                                    <button type="button" onClick={handleClearInvoice} style={{ padding: '8px 16px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                                        Upload New Invoice
+                                    </button>
+                                )}
+                            </div>
 
-                    {(!pendingInvoice || invoiceStats.remaining === 0) ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                            <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={uploadingPdf} style={{ padding: '10px', background: 'white', borderRadius: '6px', border: '1px solid #7dd3fc', width: '300px' }} />
-                            {uploadingPdf && <span style={{ color: '#0284c7', fontSize: '14px', fontWeight: 'bold' }}>{importLoadingState}</span>}
-                            {pdfError && <span style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }}>{pdfError}</span>}
+                            {successMessage && <div style={{ padding: '10px', background: '#dcfce7', color: '#166534', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}>✔ {successMessage}</div>}
+
+                            {(!pendingInvoice || invoiceStats.remaining === 0) ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={uploadingPdf} style={{ padding: '10px', background: 'white', borderRadius: '6px', border: '1px solid #7dd3fc', width: '300px' }} />
+                                    {uploadingPdf && <span style={{ color: '#0284c7', fontSize: '14px', fontWeight: 'bold' }}>{importLoadingState}</span>}
+                                    {pdfError && <span style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }}>{pdfError}</span>}
+                                </div>
+                            ) : (
+                                <div style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e0f2fe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <h4 style={{ margin: '0 0 5px', color: '#0c4a6e', fontSize: '15px' }}>✔ Invoice Uploaded Successfully</h4>
+                                        <div style={{ display: 'flex', gap: '20px', fontSize: '14px', color: '#0369a1' }}>
+                                            <span><strong>Medicines Found:</strong> {invoiceStats.total}</span>
+                                            <span><strong>Remaining:</strong> {invoiceStats.remaining}</span>
+                                            <span><strong>Imported:</strong> {invoiceStats.imported}</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button type="button" onClick={handleClearInvoice} style={{ padding: '8px 16px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                            Cancel / Clear
+                                        </button>
+                                        <button type="button" onClick={() => setShowInvoiceDetails(true)} style={{ padding: '8px 16px', background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                            View Invoice Details
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <div style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #e0f2fe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <h4 style={{ margin: '0 0 5px', color: '#0c4a6e', fontSize: '15px' }}>✔ Invoice Uploaded Successfully</h4>
-                                <div style={{ display: 'flex', gap: '20px', fontSize: '14px', color: '#0369a1' }}>
-                                    <span><strong>Medicines Found:</strong> {invoiceStats.total}</span>
-                                    <span><strong>Remaining:</strong> {invoiceStats.remaining}</span>
-                                    <span><strong>Imported:</strong> {invoiceStats.imported}</span>
+
+                        <form onSubmit={handleAddMedicine} className="pharma-form" style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', marginTop: '20px', border: '1px solid #e2e8f0' }}>
+                            <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#334155' }}>{isEditing ? 'Edit Medicine' : 'Add New Medicine'}</h3>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>MEDICINE NAME *</label>
+                                    {pendingInvoice ? (
+                                        <select required disabled={invoiceStats.remaining === 0} value={newMedicine.name || ''} onChange={(e) => handleSelectExtracted(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: invoiceStats.remaining === 0 ? '#f1f5f9' : 'white' }}>
+                                            <option value="">-- Select Medicine from Invoice --</option>
+                                            {extractedMedicines.map((m, idx) => (
+                                                <option key={idx} value={m.medicineName}>{m.medicineName}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div style={{ position: 'relative' }}>
+                                            <input required type="text" value={newMedicine.name || ''} onChange={(e) => {
+                                                const val = e.target.value;
+                                                setNewMedicine({ ...newMedicine, name: val });
+                                                if (val.length >= 3) {
+                                                    const matches = medicines.filter(m => m.name.toLowerCase().includes(val.toLowerCase())).slice(0, 10);
+                                                    setNameSuggestions(matches);
+                                                    setShowNameSuggestions(true);
+                                                } else {
+                                                    setShowNameSuggestions(false);
+                                                }
+                                            }} onFocus={() => {
+                                                if (newMedicine.name && newMedicine.name.length >= 3) setShowNameSuggestions(true);
+                                            }} onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)} placeholder="e.g. Gonal-F 900 IU Pen / Menopur 75 IU" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} autoComplete="off" />
+
+                                            {showNameSuggestions && nameSuggestions.length > 0 && (
+                                                <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', zIndex: 50, listStyle: 'none', margin: '4px 0 0 0', padding: 0, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', maxHeight: '200px', overflowY: 'auto' }}>
+                                                    {nameSuggestions.map((m, idx) => (
+                                                        <li key={idx} onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            setNewMedicine(prev => ({
+                                                                ...prev,
+                                                                name: m.name,
+                                                                salt: m.salt || prev.salt,
+                                                                category: m.category || prev.category,
+                                                                unit: m.unit || prev.unit
+                                                            }));
+                                                            setShowNameSuggestions(false);
+                                                        }} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                                                            <div style={{ fontWeight: '600', color: '#1e293b', fontSize: '0.85rem' }}>{m.name}</div>
+                                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.salt || 'No Salt'} • {m.category || 'General'}</div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SALT / COMPOSITION</label>
+                                    <input type="text" value={newMedicine.salt || ''} onChange={(e) => setNewMedicine({ ...newMedicine, salt: e.target.value })} placeholder="e.g. Acetaminophen" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>CATEGORY *</label>
+                                    <input required type="text" value={newMedicine.category || ''} onChange={(e) => setNewMedicine({ ...newMedicine, category: e.target.value })} placeholder="General" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <button type="button" onClick={handleClearInvoice} style={{ padding: '8px 16px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                    Cancel / Clear
-                                </button>
-                                <button type="button" onClick={() => setShowInvoiceDetails(true)} style={{ padding: '8px 16px', background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                    View Invoice Details
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
 
-                <form onSubmit={handleAddMedicine} className="pharma-form" style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', marginTop: '20px', border: '1px solid #e2e8f0' }}>
-                        <h3 style={{ margin: '0 0 16px', fontSize: '15px', color: '#334155' }}>{isEditing ? 'Edit Medicine' : 'Add New Medicine'}</h3>
-                        
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>MEDICINE NAME *</label>
-                                {pendingInvoice ? (
-                                    <select required disabled={invoiceStats.remaining === 0} value={newMedicine.name} onChange={(e) => handleSelectExtracted(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: invoiceStats.remaining === 0 ? '#f1f5f9' : 'white' }}>
-                                        <option value="">-- Select Medicine from Invoice --</option>
-                                        {extractedMedicines.map((m, idx) => (
-                                            <option key={idx} value={m.medicineName}>{m.medicineName}</option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <div style={{ position: 'relative' }}>
-                                        <input required type="text" value={newMedicine.name} onChange={(e) => {
-                                            const val = e.target.value;
-                                            setNewMedicine({ ...newMedicine, name: val });
-                                            if (val.length >= 3) {
-                                                const matches = medicines.filter(m => m.name.toLowerCase().includes(val.toLowerCase())).slice(0, 10);
-                                                setNameSuggestions(matches);
-                                                setShowNameSuggestions(true);
-                                            } else {
-                                                setShowNameSuggestions(false);
-                                            }
-                                        }} onFocus={() => {
-                                            if (newMedicine.name && newMedicine.name.length >= 3) setShowNameSuggestions(true);
-                                        }} onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)} placeholder="e.g. Gonal-F 900 IU Pen / Menopur 75 IU" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} autoComplete="off" />
-                                        
-                                        {showNameSuggestions && nameSuggestions.length > 0 && (
-                                            <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', zIndex: 50, listStyle: 'none', margin: '4px 0 0 0', padding: 0, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', maxHeight: '200px', overflowY: 'auto' }}>
-                                                {nameSuggestions.map((m, idx) => (
-                                                    <li key={idx} onMouseDown={(e) => {
-                                                        e.preventDefault();
-                                                        setNewMedicine(prev => ({ 
-                                                            ...prev, 
-                                                            name: m.name, 
-                                                            salt: m.salt || prev.salt, 
-                                                            category: m.category || prev.category, 
-                                                            unit: m.unit || prev.unit 
-                                                        }));
-                                                        setShowNameSuggestions(false);
-                                                    }} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                                        <div style={{ fontWeight: '600', color: '#1e293b', fontSize: '0.85rem' }}>{m.name}</div>
-                                                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.salt || 'No Salt'} • {m.category || 'General'}</div>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        )}
+                            <div style={{ background: '#e0f2fe', padding: '15px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #bae6fd' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.95rem', fontWeight: 'bold', color: '#0369a1', cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={newMedicine.isMultiDose} onChange={(e) => setNewMedicine({ ...newMedicine, isMultiDose: e.target.checked })} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
+                                    Enable Partial/Dosage Tracking (Multi-Dose items like Syrups, IV Fluids, Vials)
+                                </label>
+
+                                {newMedicine.isMultiDose && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '15px' }}>
+                                        <div className="form-group">
+                                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#0284c7', marginBottom: '6px' }}>VOLUME / DOSAGE PER UNIT *</label>
+                                            <input required={newMedicine.isMultiDose} type="number" min="1" step="any" value={newMedicine.packVolume || ''} onChange={(e) => setNewMedicine({ ...newMedicine, packVolume: e.target.value })} placeholder="e.g. 900" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #7dd3fc' }} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#0284c7', marginBottom: '6px' }}>VOLUME UNIT *</label>
+                                            <select value={newMedicine.volumeUnit || ''} onChange={(e) => setNewMedicine({ ...newMedicine, volumeUnit: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #7dd3fc', background: 'white' }}>
+                                                <option value="IU">IU (International Units)</option>
+                                                <option value="IU/ml">IU/ml</option>
+                                                <option value="Units">Units</option>
+                                                <option value="ml">ml</option>
+                                                <option value="mcg">mcg</option>
+                                                <option value="mg">mg</option>
+                                                <option value="pills">Pills / Tablets</option>
+                                            </select>
+                                        </div>
+                                        <div className="form-group">
+                                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#0284c7', marginBottom: '6px' }}>BILLING TYPE *</label>
+                                            <select value={newMedicine.billingType || ''} onChange={(e) => setNewMedicine({ ...newMedicine, billingType: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #7dd3fc', background: 'white' }}>
+                                                <option value="FULL_UNIT">Charge Full Unit (Vial/Bottle)</option>
+                                                <option value="PROPORTIONAL">Charge Proportionally (by used volume)</option>
+                                            </select>
+                                        </div>
+                                        <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                                            <div style={{ padding: '8px 12px', background: '#0284c7', color: 'white', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 'bold', width: '100%' }}>
+                                                Total Initial Vol: {(newMedicine.stock || 0) * (newMedicine.packVolume || 0)} {newMedicine.volumeUnit}
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SALT / COMPOSITION</label>
-                                <input type="text" value={newMedicine.salt || ''} onChange={(e) => setNewMedicine({ ...newMedicine, salt: e.target.value })} placeholder="e.g. Acetaminophen" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>CATEGORY *</label>
-                                <input required type="text" value={newMedicine.category} onChange={(e) => setNewMedicine({ ...newMedicine, category: e.target.value })} placeholder="General" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                        </div>
 
-                        <div style={{ background: '#e0f2fe', padding: '15px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #bae6fd' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.95rem', fontWeight: 'bold', color: '#0369a1', cursor: 'pointer' }}>
-                                <input type="checkbox" checked={newMedicine.isMultiDose} onChange={(e) => setNewMedicine({ ...newMedicine, isMultiDose: e.target.checked })} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
-                                Enable Partial/Dosage Tracking (Multi-Dose items like Syrups, IV Fluids, Vials)
-                            </label>
-                            
-                            {newMedicine.isMultiDose && (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '15px' }}>
-                                    <div className="form-group">
-                                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#0284c7', marginBottom: '6px' }}>VOLUME / DOSAGE PER UNIT *</label>
-                                        <input required={newMedicine.isMultiDose} type="number" min="1" step="any" value={newMedicine.packVolume} onChange={(e) => setNewMedicine({ ...newMedicine, packVolume: e.target.value })} placeholder="e.g. 900" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #7dd3fc' }} />
-                                    </div>
-                                    <div className="form-group">
-                                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#0284c7', marginBottom: '6px' }}>VOLUME UNIT *</label>
-                                        <select value={newMedicine.volumeUnit} onChange={(e) => setNewMedicine({ ...newMedicine, volumeUnit: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #7dd3fc', background: 'white' }}>
-                                            <option value="IU">IU (International Units)</option>
-                                            <option value="IU/ml">IU/ml</option>
-                                            <option value="Units">Units</option>
-                                            <option value="ml">ml</option>
-                                            <option value="mcg">mcg</option>
-                                            <option value="mg">mg</option>
-                                            <option value="pills">Pills / Tablets</option>
-                                        </select>
-                                    </div>
-                                    <div className="form-group">
-                                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#0284c7', marginBottom: '6px' }}>BILLING TYPE *</label>
-                                        <select value={newMedicine.billingType} onChange={(e) => setNewMedicine({ ...newMedicine, billingType: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #7dd3fc', background: 'white' }}>
-                                            <option value="FULL_UNIT">Charge Full Unit (Vial/Bottle)</option>
-                                            <option value="PROPORTIONAL">Charge Proportionally (by used volume)</option>
-                                        </select>
-                                    </div>
-                                    <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                                        <div style={{ padding: '8px 12px', background: '#0284c7', color: 'white', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 'bold', width: '100%' }}>
-                                            Total Initial Vol: {(newMedicine.stock || 0) * (newMedicine.packVolume || 0)} {newMedicine.volumeUnit}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>PURCHASE QTY *</label>
-                                <input required type="number" min="0" value={newMedicine.purchaseQty} onChange={(e) => {
-                                    const val = e.target.value;
-                                    setNewMedicine({ ...newMedicine, purchaseQty: val, stock: Number(val) + Number(newMedicine.freeQty || 0) });
-                                }} placeholder="e.g. 10" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>FREE QTY (SCHEME)</label>
-                                <input type="number" min="0" value={newMedicine.freeQty} onChange={(e) => {
-                                    const val = e.target.value;
-                                    setNewMedicine({ ...newMedicine, freeQty: val, stock: Number(newMedicine.purchaseQty || 0) + Number(val) });
-                                }} placeholder="e.g. 2" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) ? '(UNITS)' : ''}</label>
-                                <input readOnly type="text" value={
-                                    ['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) 
-                                        ? `${(((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1)).toLocaleString()} Units (${(Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)} Packs)`
-                                        : `${((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)).toLocaleString()}`
-                                } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 'bold' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>UNIT</label>
-                                <select value={newMedicine.unit} onChange={(e) => setNewMedicine({ ...newMedicine, unit: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
-                                    {['Tablets', 'Capsules', 'Strip', 'Sachets', 'Powder', 'Number', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
-                                </select>
-                            </div>
-                            {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
                                 <div className="form-group">
-                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>
-                                        {newMedicine.unit === 'Strip' ? 'UNITS PER STRIP' : 'UNITS PER PACK / BOX'}
-                                    </label>
-                                    <input type="number" min="1" value={newMedicine.unitsPerStrip} onChange={(e) => {
-                                        setNewMedicine({ ...newMedicine, unitsPerStrip: e.target.value });
-                                    }} placeholder={newMedicine.unit === 'Strip' ? "e.g. 10 or 15" : "e.g. 10"} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>PURCHASE QTY *</label>
+                                    <input required type="number" min="0" value={newMedicine.purchaseQty || ''} onChange={(e) => {
+                                        const val = e.target.value;
+                                        setNewMedicine({ ...newMedicine, purchaseQty: val, stock: Number(val) + Number(newMedicine.freeQty || 0) });
+                                    }} placeholder="e.g. 10" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                                 </div>
-                            )}
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>COST PRICE (₹) *</label>
-                                <input required type="number" min="0" step="any" value={newMedicine.buyingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, buyingPrice: e.target.value })} placeholder="e.g. 30" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>DISCOUNT TYPE</label>
-                                <select value={newMedicine.discountType} onChange={(e) => setNewMedicine({ ...newMedicine, discountType: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
-                                    <option value="Percentage">Percentage (%)</option>
-                                    <option value="Flat Amount">Flat Amount (₹)</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>DISCOUNT VALUE</label>
-                                <input type="number" min="0" step="any" value={newMedicine.discountValue} onChange={(e) => setNewMedicine({ ...newMedicine, discountValue: e.target.value })} placeholder="e.g. 10" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>CGST (%)</label>
-                                <input type="number" min="0" step="any" value={newMedicine.cgstPercent} onChange={(e) => setNewMedicine({ ...newMedicine, cgstPercent: e.target.value })} placeholder="e.g. 5" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SGST (%)</label>
-                                <input type="number" min="0" step="any" value={newMedicine.sgstPercent} onChange={(e) => setNewMedicine({ ...newMedicine, sgstPercent: e.target.value })} placeholder="e.g. 5" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#0369a1', marginBottom: '8px' }}>FINAL AMOUNT (₹)</label>
-                                <input readOnly type="text" value={
-                                    (() => {
-                                        const qty = Number(newMedicine.purchaseQty) || 0;
-                                        const price = Number(newMedicine.buyingPrice) || 0;
-                                        let baseTotal = qty * price;
-                                        
-                                        let disc = 0;
-                                        if (newMedicine.discountType === 'Percentage') {
-                                            disc = baseTotal * ((Number(newMedicine.discountValue) || 0) / 100);
-                                        } else {
-                                            disc = Number(newMedicine.discountValue) || 0;
-                                        }
-                                        
-                                        const afterDisc = Math.max(0, baseTotal - disc);
-                                        
-                                        const cgstAmt = afterDisc * ((Number(newMedicine.cgstPercent) || 0) / 100);
-                                        const sgstAmt = afterDisc * ((Number(newMedicine.sgstPercent) || 0) / 100);
-                                        
-                                        return (afterDisc + cgstAmt + sgstAmt).toFixed(2);
-                                    })()
-                                } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #bae6fd', background: '#f0f9ff', fontWeight: 'bold', color: '#0369a1' }} />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SELLING PRICE (₹) *</label>
-                                <input required type="number" min="0" step="any" value={newMedicine.sellingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, sellingPrice: e.target.value })} placeholder="e.g. 50" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>PROFIT MARGIN</label>
-                                <input type="text" readOnly value={newMedicine.buyingPrice && newMedicine.sellingPrice ? `${(((Number(newMedicine.sellingPrice) - Number(newMedicine.buyingPrice)) / (Number(newMedicine.buyingPrice) || 1)) * 100).toFixed(1)}%` : '--'} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: '700', color: Number(newMedicine.sellingPrice) > Number(newMedicine.buyingPrice) ? '#059669' : '#dc2626' }} />
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>BATCH NUMBER</label>
-                                <input type="text" value={newMedicine.batchNumber} onChange={(e) => setNewMedicine({ ...newMedicine, batchNumber: e.target.value })} placeholder="e.g. BT-2026-001" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>EXPIRY DATE *</label>
-                                <input required type="date" value={newMedicine.expiryDate} onChange={(e) => setNewMedicine({ ...newMedicine, expiryDate: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>VENDOR / SUPPLIER</label>
-                                <div style={{ display: 'flex', gap: '5px' }}>
-                                    <select value={newMedicine.vendorId || ''} onChange={(e) => {
-                                        const selId = e.target.value;
-                                        const v = vendors.find(v => v._id === selId);
-                                        setNewMedicine({ ...newMedicine, vendorId: selId, vendor: v ? v.vendorName : '' });
-                                    }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
-                                        <option value="">-- Select Vendor --</option>
-                                        {vendors.map(v => (
-                                            <option key={v._id} value={v._id}>{v.vendorName}</option>
-                                        ))}
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>FREE QTY (SCHEME)</label>
+                                    <input type="number" min="0" value={newMedicine.freeQty || ''} onChange={(e) => {
+                                        const val = e.target.value;
+                                        setNewMedicine({ ...newMedicine, freeQty: val, stock: Number(newMedicine.purchaseQty || 0) + Number(val) });
+                                    }} placeholder="e.g. 2" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>TOTAL STOCK {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) ? '(UNITS)' : ''}</label>
+                                    <input readOnly type="text" value={
+                                        ['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit)
+                                            ? `${(((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1)).toLocaleString()} Units (${(Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)} Packs)`
+                                            : `${((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)).toLocaleString()}`
+                                    } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: 'bold' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>UNIT</label>
+                                    <select value={newMedicine.unit || ''} onChange={(e) => setNewMedicine({ ...newMedicine, unit: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
+                                        {['Tablets', 'Capsules', 'Strip', 'Sachets', 'Powder', 'Number', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
                                     </select>
-                                    <button type="button" onClick={() => setShowVendorModal(true)} style={{ padding: '0 15px', background: '#e0e7ff', border: '1px solid #c7d2fe', borderRadius: '8px', cursor: 'pointer', color: '#4338ca', fontWeight: 'bold' }}>+</button>
+                                </div>
+                                {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) && (
+                                    <div className="form-group">
+                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>
+                                            {newMedicine.unit === 'Strip' ? 'UNITS PER STRIP' : 'UNITS PER PACK / BOX'}
+                                        </label>
+                                        <input type="number" min="1" value={newMedicine.unitsPerStrip || ''} onChange={(e) => {
+                                            setNewMedicine({ ...newMedicine, unitsPerStrip: e.target.value });
+                                        }} placeholder={newMedicine.unit === 'Strip' ? "e.g. 10 or 15" : "e.g. 10"} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>COST PRICE (₹) *</label>
+                                    <input required type="number" min="0" step="any" value={newMedicine.buyingPrice || ''} onChange={(e) => setNewMedicine({ ...newMedicine, buyingPrice: e.target.value })} placeholder="e.g. 30" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>DISCOUNT TYPE</label>
+                                    <select value={newMedicine.discountType || ''} onChange={(e) => setNewMedicine({ ...newMedicine, discountType: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
+                                        <option value="Percentage">Percentage (%)</option>
+                                        <option value="Flat Amount">Flat Amount (₹)</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>DISCOUNT VALUE</label>
+                                    <input type="number" min="0" step="any" value={newMedicine.discountValue || ''} onChange={(e) => setNewMedicine({ ...newMedicine, discountValue: e.target.value })} placeholder="e.g. 10" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                                 </div>
                             </div>
-                        </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>RACK LOCATION</label>
-                                <input type="text" value={newMedicine.rackLocation} onChange={(e) => setNewMedicine({ ...newMedicine, rackLocation: e.target.value })} placeholder="e.g. Rack A-3" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>CGST (%)</label>
+                                    <input type="number" min="0" step="any" value={newMedicine.cgstPercent || ''} onChange={(e) => setNewMedicine({ ...newMedicine, cgstPercent: e.target.value })} placeholder="e.g. 5" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SGST (%)</label>
+                                    <input type="number" min="0" step="any" value={newMedicine.sgstPercent || ''} onChange={(e) => setNewMedicine({ ...newMedicine, sgstPercent: e.target.value })} placeholder="e.g. 5" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#0369a1', marginBottom: '8px' }}>FINAL AMOUNT (₹)</label>
+                                    <input readOnly type="text" value={
+                                        (() => {
+                                            const qty = Number(newMedicine.purchaseQty) || 0;
+                                            const price = Number(newMedicine.buyingPrice) || 0;
+                                            let baseTotal = qty * price;
+
+                                            let disc = 0;
+                                            if (newMedicine.discountType === 'Percentage') {
+                                                disc = baseTotal * ((Number(newMedicine.discountValue) || 0) / 100);
+                                            } else {
+                                                disc = Number(newMedicine.discountValue) || 0;
+                                            }
+
+                                            const afterDisc = Math.max(0, baseTotal - disc);
+
+                                            const cgstAmt = afterDisc * ((Number(newMedicine.cgstPercent) || 0) / 100);
+                                            const sgstAmt = afterDisc * ((Number(newMedicine.sgstPercent) || 0) / 100);
+
+                                            return (afterDisc + cgstAmt + sgstAmt).toFixed(2);
+                                        })()
+                                    } style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #bae6fd', background: '#f0f9ff', fontWeight: 'bold', color: '#0369a1' }} />
+                                </div>
                             </div>
-                            <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>MIN STOCK ALERT LEVEL</label>
-                                <input type="number" value={newMedicine.minStockAlertLevel} onChange={(e) => setNewMedicine({ ...newMedicine, minStockAlertLevel: e.target.value })} placeholder="50" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>SELLING PRICE (₹) *</label>
+                                    <input required type="number" min="0" step="any" value={newMedicine.sellingPrice || ''} onChange={(e) => setNewMedicine({ ...newMedicine, sellingPrice: e.target.value })} placeholder="e.g. 50" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>PROFIT MARGIN</label>
+                                    <input type="text" readOnly value={newMedicine.buyingPrice && newMedicine.sellingPrice ? `${(((Number(newMedicine.sellingPrice) - Number(newMedicine.buyingPrice)) / (Number(newMedicine.buyingPrice) || 1)) * 100).toFixed(1)}%` : '--'} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontWeight: '700', color: Number(newMedicine.sellingPrice) > Number(newMedicine.buyingPrice) ? '#059669' : '#dc2626' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>BATCH NUMBER</label>
+                                    <input type="text" value={newMedicine.batchNumber || ''} onChange={(e) => setNewMedicine({ ...newMedicine, batchNumber: e.target.value })} placeholder="e.g. BT-2026-001" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
                             </div>
-                            <div className="form-group"></div>
-                        </div>
 
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-                            {isEditing && (
-                                <button type="button" onClick={() => { setIsEditing(false); setEditId(null); setNewMedicine(initialFormState); }} className="btn-cancel" style={{ padding: '10px 24px', width: 'auto', boxShadow: 'none', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cancel Edit</button>
-                            )}
-                            <button type="submit" className="btn-save" style={{ padding: '10px 24px', width: 'auto', boxShadow: 'none' }}>{isEditing ? 'Update Medicine' : 'Add Medicine'}</button>
-                            {!isEditing && (
-                                <button type="button" onClick={() => setNewMedicine(initialFormState)} className="btn-cancel" style={{ padding: '10px 24px', width: 'auto', boxShadow: 'none', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', color: '#64748b' }}>Clear Form</button>
-                            )}
-                        </div>
-                    </form>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>EXPIRY DATE *</label>
+                                    <input required type="date" value={newMedicine.expiryDate || ''} onChange={(e) => setNewMedicine({ ...newMedicine, expiryDate: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>VENDOR / SUPPLIER</label>
+                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                        <select value={newMedicine.vendorId || ''} onChange={(e) => {
+                                            const selId = e.target.value;
+                                            const v = vendors.find(v => v._id === selId);
+                                            setNewMedicine({ ...newMedicine, vendorId: selId, vendor: v ? v.vendorName : '' });
+                                        }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' }}>
+                                            <option value="">-- Select Vendor --</option>
+                                            {vendors.map(v => (
+                                                <option key={v._id} value={v._id}>{v.vendorName}</option>
+                                            ))}
+                                        </select>
+                                        <button type="button" onClick={() => setShowVendorModal(true)} style={{ padding: '0 15px', background: '#e0e7ff', border: '1px solid #c7d2fe', borderRadius: '8px', cursor: 'pointer', color: '#4338ca', fontWeight: 'bold' }}>+</button>
+                                    </div>
+                                </div>
+                            </div>
 
-            <div className="inventory-controls" style={{ marginBottom: '20px', marginTop: '20px' }}>
-                <div className="search-bar" style={{ maxWidth: '400px' }}>
-                    <span className="search-icon">🔍</span>
-                    <input type="text" placeholder="Search medicines..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                </div>
-            </div>
-            <div className="inventory-table-wrapper">
-                {loading ? <div className="loader">Loading...</div> : (
-                    <table className="inventory-table">
-                        <thead>
-                            <tr>
-                                <th>Batch #</th>
-                                <th>Medicine Name</th>
-                                <th>Category</th>
-                                <th>Stock</th>
-                                <th>Buying (₹)</th>
-                                <th>Selling (₹)</th>
-                                <th>Vendor</th>
-                                <th>Expiry</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredMedicines.map((med) => (
-                                <tr key={med._id}>
-                                    <td><small>#{med.batchNumber}</small></td>
-                                    <td className="med-name">{med.name}</td>
-                                    <td><span className="category-tag">{med.category}</span></td>
-                                    <td>
-                                        {med.isMultiDose ? (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                <div className={med.stock < (med.minStockAlertLevel || 50) ? 'low-stock' : 'good-stock'} style={{ fontWeight: 'bold' }}>
-                                                    {med.stock} {med.unit || 'Vials'} <span style={{ fontSize: '0.85em', color: '#475569', fontWeight: 'normal' }}>({med.openUnitVolume || 0}/{med.packVolume} {med.volumeUnit} open)</span>
-                                                </div>
-                                                {med.openUnitVolume > 0 && (
-                                                    <div style={{ width: '100%', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                                                        <div style={{ width: `${((med.openUnitVolume / med.packVolume) * 100) || 0}%`, height: '100%', background: '#3b82f6' }}></div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '16px' }}>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>RACK LOCATION</label>
+                                    <input type="text" value={newMedicine.rackLocation || ''} onChange={(e) => setNewMedicine({ ...newMedicine, rackLocation: e.target.value })} placeholder="e.g. Rack A-3" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group">
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>MIN STOCK ALERT LEVEL</label>
+                                    <input type="number" value={newMedicine.minStockAlertLevel || ''} onChange={(e) => setNewMedicine({ ...newMedicine, minStockAlertLevel: e.target.value })} placeholder="50" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                </div>
+                                <div className="form-group"></div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                                {isEditing && (
+                                    <button type="button" onClick={() => { setIsEditing(false); setEditId(null); setNewMedicine(initialFormState); }} className="btn-cancel" style={{ padding: '10px 24px', width: 'auto', boxShadow: 'none', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Cancel Edit</button>
+                                )}
+                                <button type="submit" className="btn-save" style={{ padding: '10px 24px', width: 'auto', boxShadow: 'none' }}>{isEditing ? 'Update Medicine' : 'Add Medicine'}</button>
+                                {!isEditing && (
+                                    <button type="button" onClick={() => setNewMedicine(initialFormState)} className="btn-cancel" style={{ padding: '10px 24px', width: 'auto', boxShadow: 'none', background: '#f1f5f9', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', color: '#64748b' }}>Clear Form</button>
+                                )}
+                            </div>
+                        </form>
+
+                        <div className="inventory-controls" style={{ marginBottom: '20px', marginTop: '20px' }}>
+                            <div className="search-bar" style={{ maxWidth: '400px' }}>
+                                <span className="search-icon"></span>
+                                <input type="text" placeholder="Search medicines..." value={searchTerm || ''} onChange={(e) => setSearchTerm(e.target.value)} />
+                            </div>
+                        </div>
+                        <div className="inventory-table-wrapper">
+                            {loading ? <div className="loader">Loading...</div> : (
+                                <table className="inventory-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Batch #</th>
+                                            <th>Medicine Name</th>
+                                            <th>Category</th>
+                                            <th>Stock</th>
+                                            <th>Buying (₹)</th>
+                                            <th>Selling (₹)</th>
+                                            <th>Vendor</th>
+                                            <th>Expiry</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredMedicines.map((med) => (
+                                            <tr key={med._id}>
+                                                <td><small>#{med.batchNumber}</small></td>
+                                                <td className="med-name">{med.name}</td>
+                                                <td><span className="category-tag">{med.category}</span></td>
+                                                <td>
+                                                    {med.isMultiDose ? (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                            <div className={med.stock < (med.minStockAlertLevel || 50) ? 'low-stock' : 'good-stock'} style={{ fontWeight: 'bold' }}>
+                                                                {med.stock} {med.unit || 'Vials'} <span style={{ fontSize: '0.85em', color: '#475569', fontWeight: 'normal' }}>({med.openUnitVolume || 0}/{med.packVolume} {med.volumeUnit} open)</span>
+                                                            </div>
+                                                            {med.openUnitVolume > 0 && (
+                                                                <div style={{ width: '100%', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                                                                    <div style={{ width: `${((med.openUnitVolume / med.packVolume) * 100) || 0}%`, height: '100%', background: '#3b82f6' }}></div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className={med.stock < (med.minStockAlertLevel || 50) ? 'low-stock' : 'good-stock'}>
+                                                            {['Strip', 'Capsules', 'Tablets'].includes(med.unit) ? (
+                                                                <span>
+                                                                    {Math.floor(med.stock / (Number(med.unitsPerStrip) || 1))} {med.unit} <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 'normal' }}>({med.stock} Units)</span>
+                                                                </span>
+                                                            ) : (
+                                                                <span>{med.stock} {med.unit}</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td>₹{med.buyingPrice}</td>
+                                                <td><strong>₹{med.sellingPrice}</strong></td>
+                                                <td>{med.vendor || 'N/A'}</td>
+                                                <td>{new Date(med.expiryDate).toLocaleDateString()}</td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <button
+                                                            title="View Details"
+                                                            onClick={() => handleViewDetails(med)}
+                                                            style={{ padding: '6px', background: '#eff6ff', color: '#3b82f6', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            👁️
+                                                        </button>
+                                                        <button
+                                                            title="Edit Medicine"
+                                                            onClick={() => {
+                                                                handleEdit(med);
+                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                            }}
+                                                            style={{ padding: '6px', background: '#ecfdf5', color: '#10b981', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            ✏️
+                                                        </button>
+                                                        <button
+                                                            title="Delete Item"
+                                                            onClick={() => handleDelete(med._id)}
+                                                            style={{ padding: '6px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            🗑️
+                                                        </button>
                                                     </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className={med.stock < (med.minStockAlertLevel || 50) ? 'low-stock' : 'good-stock'}>
-                                                {['Strip', 'Capsules', 'Tablets'].includes(med.unit) && (Number(med.unitsPerStrip) || 1) > 1 ? (
-                                                    <span>{med.stock.toLocaleString()} Units <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 'normal' }}>({Math.floor(med.stock / (Number(med.unitsPerStrip) || 1))} {med.unit === 'Strip' ? 'Strips' : 'Packs'})</span></span>
-                                                ) : (
-                                                    <span>{med.stock.toLocaleString()} {med.unit}</span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td>₹{med.buyingPrice}</td>
-                                    <td><strong>₹{med.sellingPrice}</strong></td>
-                                    <td>{med.vendor || 'N/A'}</td>
-                                    <td>{new Date(med.expiryDate).toLocaleDateString()}</td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            <button 
-                                                title="View Details"
-                                                onClick={() => handleViewDetails(med)} 
-                                                style={{ padding: '6px', background: '#eff6ff', color: '#3b82f6', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                👁️
-                                            </button>
-                                            <button 
-                                                title="Edit Medicine"
-                                                onClick={() => {
-                                                    handleEdit(med);
-                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                }} 
-                                                style={{ padding: '6px', background: '#ecfdf5', color: '#10b981', border: '1px solid #a7f3d0', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                ✏️
-                                            </button>
-                                            <button 
-                                                title="Delete Item"
-                                                onClick={() => handleDelete(med._id)} 
-                                                style={{ padding: '6px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                🗑️
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <PurchaseInvoiceHistory />
                 )}
-            </div>
-            </>
-            ) : (
-                <PurchaseInvoiceHistory />
-            )}
             </div>
             {showAddModal && (
                 <div className="modal-overlay">
@@ -880,11 +877,11 @@ const PharmacyInventory = () => {
                                 <div className="form-row">
                                     <div className="form-group">
                                         <label>Medicine Name <span className="required">*</span></label>
-                                        <input required type="text" value={newMedicine.name} onChange={(e) => setNewMedicine({ ...newMedicine, name: e.target.value })} placeholder="e.g. Paracetamol 500mg" />
+                                        <input required type="text" value={newMedicine.name || ''} onChange={(e) => setNewMedicine({ ...newMedicine, name: e.target.value })} placeholder="e.g. Paracetamol 500mg" />
                                     </div>
                                     <div className="form-group">
                                         <label>Category <span className="required">*</span></label>
-                                        <input required type="text" value={newMedicine.category} onChange={(e) => setNewMedicine({ ...newMedicine, category: e.target.value })} placeholder="e.g. Analgesic" />
+                                        <input required type="text" value={newMedicine.category || ''} onChange={(e) => setNewMedicine({ ...newMedicine, category: e.target.value })} placeholder="e.g. Analgesic" />
                                     </div>
                                 </div>
                                 <div className="form-row">
@@ -906,17 +903,17 @@ const PharmacyInventory = () => {
                                     </div>
                                     <div className="form-group">
                                         <label>Batch Number</label>
-                                        <input required type="text" value={newMedicine.batchNumber} onChange={(e) => setNewMedicine({ ...newMedicine, batchNumber: e.target.value })} placeholder="e.g. BT-9921" />
+                                        <input required type="text" value={newMedicine.batchNumber || ''} onChange={(e) => setNewMedicine({ ...newMedicine, batchNumber: e.target.value })} placeholder="e.g. BT-9921" />
                                     </div>
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
                                         <label>Rack Location</label>
-                                        <input type="text" value={newMedicine.rackLocation} onChange={(e) => setNewMedicine({ ...newMedicine, rackLocation: e.target.value })} placeholder="e.g. Rack A-3" />
+                                        <input type="text" value={newMedicine.rackLocation || ''} onChange={(e) => setNewMedicine({ ...newMedicine, rackLocation: e.target.value })} placeholder="e.g. Rack A-3" />
                                     </div>
                                     <div className="form-group">
                                         <label>Min Stock Alert Level</label>
-                                        <input type="number" value={newMedicine.minStockAlertLevel} onChange={(e) => setNewMedicine({ ...newMedicine, minStockAlertLevel: e.target.value })} placeholder="50" />
+                                        <input type="number" value={newMedicine.minStockAlertLevel || ''} onChange={(e) => setNewMedicine({ ...newMedicine, minStockAlertLevel: e.target.value })} placeholder="50" />
                                     </div>
                                 </div>
                             </div>
@@ -927,14 +924,14 @@ const PharmacyInventory = () => {
                                 <div className="form-row">
                                     <div className="form-group">
                                         <label>Purchase Qty *</label>
-                                        <input required type="number" min="0" value={newMedicine.purchaseQty} onChange={(e) => {
+                                        <input required type="number" min="0" value={newMedicine.purchaseQty || ''} onChange={(e) => {
                                             const val = e.target.value;
                                             setNewMedicine({ ...newMedicine, purchaseQty: val, stock: Number(val) + Number(newMedicine.freeQty || 0) });
                                         }} placeholder="0" />
                                     </div>
                                     <div className="form-group">
                                         <label>Free Qty (Scheme)</label>
-                                        <input type="number" min="0" value={newMedicine.freeQty} onChange={(e) => {
+                                        <input type="number" min="0" value={newMedicine.freeQty || ''} onChange={(e) => {
                                             const val = e.target.value;
                                             setNewMedicine({ ...newMedicine, freeQty: val, stock: Number(newMedicine.purchaseQty || 0) + Number(val) });
                                         }} placeholder="0" />
@@ -942,21 +939,21 @@ const PharmacyInventory = () => {
                                     <div className="form-group">
                                         <label>Total Stock {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) ? '(UNITS)' : ''}</label>
                                         <input readOnly type="text" value={
-                                            ['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) 
+                                            ['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit)
                                                 ? `${(((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)) * (Number(newMedicine.unitsPerStrip) || 1)).toLocaleString()} Units (${(Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)} Packs)`
                                                 : `${((Number(newMedicine.purchaseQty) || 0) + (Number(newMedicine.freeQty) || 0)).toLocaleString()}`
                                         } style={{ background: '#f1f5f9', fontWeight: 'bold' }} />
                                     </div>
                                     <div className="form-group">
                                         <label>Unit</label>
-                                        <select value={newMedicine.unit} onChange={(e) => setNewMedicine({ ...newMedicine, unit: e.target.value })}>
+                                        <select value={newMedicine.unit || ''} onChange={(e) => setNewMedicine({ ...newMedicine, unit: e.target.value })}>
                                             {['Tablets', 'Capsules', 'Strip', 'Sachets', 'Powder', 'Number', 'Syrup', 'Injection', 'Ointment', 'Others'].map(u => <option key={u} value={u}>{u}</option>)}
                                         </select>
                                     </div>
                                     {['Strip', 'Capsules', 'Tablets'].includes(newMedicine.unit) && (
                                         <div className="form-group">
                                             <label>{newMedicine.unit === 'Strip' ? 'Units Per Strip' : 'Units Per Pack'}</label>
-                                            <input type="number" min="1" value={newMedicine.unitsPerStrip} onChange={(e) => {
+                                            <input type="number" min="1" value={newMedicine.unitsPerStrip || ''} onChange={(e) => {
                                                 setNewMedicine({ ...newMedicine, unitsPerStrip: e.target.value });
                                             }} placeholder="e.g. 10" />
                                         </div>
@@ -966,32 +963,32 @@ const PharmacyInventory = () => {
                                     <div className="form-group">
                                         <label>Cost Price (₹) *</label>
                                         <div className="input-with-icon">
-                                            <input required type="number" step="any" value={newMedicine.buyingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, buyingPrice: e.target.value })} placeholder="0.00" />
+                                            <input required type="number" step="any" value={newMedicine.buyingPrice || ''} onChange={(e) => setNewMedicine({ ...newMedicine, buyingPrice: e.target.value })} placeholder="0.00" />
                                         </div>
                                     </div>
                                     <div className="form-group">
                                         <label>Discount Type</label>
-                                        <select value={newMedicine.discountType} onChange={(e) => setNewMedicine({ ...newMedicine, discountType: e.target.value })}>
+                                        <select value={newMedicine.discountType || ''} onChange={(e) => setNewMedicine({ ...newMedicine, discountType: e.target.value })}>
                                             <option value="Percentage">Percentage (%)</option>
                                             <option value="Flat Amount">Flat Amount (₹)</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
                                         <label>Discount Value</label>
-                                        <input type="number" min="0" step="any" value={newMedicine.discountValue} onChange={(e) => setNewMedicine({ ...newMedicine, discountValue: e.target.value })} placeholder="0" />
+                                        <input type="number" min="0" step="any" value={newMedicine.discountValue || ''} onChange={(e) => setNewMedicine({ ...newMedicine, discountValue: e.target.value })} placeholder="0" />
                                     </div>
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
                                         <label>SGST (%)</label>
                                         <div className="input-with-icon">
-                                            <input required type="number" step="any" value={newMedicine.sgstPercent} onChange={(e) => setNewMedicine({ ...newMedicine, sgstPercent: e.target.value })} placeholder="0" />
+                                            <input required type="number" step="any" value={newMedicine.sgstPercent || ''} onChange={(e) => setNewMedicine({ ...newMedicine, sgstPercent: e.target.value })} placeholder="0" />
                                         </div>
                                     </div>
                                     <div className="form-group">
                                         <label>CGST (%)</label>
                                         <div className="input-with-icon">
-                                            <input required type="number" step="any" value={newMedicine.cgstPercent} onChange={(e) => setNewMedicine({ ...newMedicine, cgstPercent: e.target.value })} placeholder="0" />
+                                            <input required type="number" step="any" value={newMedicine.cgstPercent || ''} onChange={(e) => setNewMedicine({ ...newMedicine, cgstPercent: e.target.value })} placeholder="0" />
                                         </div>
                                     </div>
                                     <div className="form-group">
@@ -1001,19 +998,19 @@ const PharmacyInventory = () => {
                                                 const qty = Number(newMedicine.purchaseQty) || 0;
                                                 const price = Number(newMedicine.buyingPrice) || 0;
                                                 let baseTotal = qty * price;
-                                                
+
                                                 let disc = 0;
                                                 if (newMedicine.discountType === 'Percentage') {
                                                     disc = baseTotal * ((Number(newMedicine.discountValue) || 0) / 100);
                                                 } else {
                                                     disc = Number(newMedicine.discountValue) || 0;
                                                 }
-                                                
+
                                                 const afterDisc = Math.max(0, baseTotal - disc);
-                                                
+
                                                 const cgstAmt = afterDisc * ((Number(newMedicine.cgstPercent) || 0) / 100);
                                                 const sgstAmt = afterDisc * ((Number(newMedicine.sgstPercent) || 0) / 100);
-                                                
+
                                                 return (afterDisc + cgstAmt + sgstAmt).toFixed(2);
                                             })()
                                         } style={{ background: '#f0f9ff', fontWeight: 'bold', color: '#0369a1', borderColor: '#bae6fd' }} />
@@ -1023,7 +1020,7 @@ const PharmacyInventory = () => {
                                     <div className="form-group">
                                         <label>Selling Price (₹) *</label>
                                         <div className="input-with-icon">
-                                            <input required type="number" step="any" value={newMedicine.sellingPrice} onChange={(e) => setNewMedicine({ ...newMedicine, sellingPrice: e.target.value })} placeholder="0.00" />
+                                            <input required type="number" step="any" value={newMedicine.sellingPrice || ''} onChange={(e) => setNewMedicine({ ...newMedicine, sellingPrice: e.target.value })} placeholder="0.00" />
                                         </div>
                                     </div>
                                     <div className="form-group">
@@ -1039,11 +1036,11 @@ const PharmacyInventory = () => {
                                 <div className="form-row">
                                     <div className="form-group">
                                         <label>Purchase Date</label>
-                                        <input required type="date" value={newMedicine.purchaseDate} onChange={(e) => setNewMedicine({ ...newMedicine, purchaseDate: e.target.value })} />
+                                        <input required type="date" value={newMedicine.purchaseDate || ''} onChange={(e) => setNewMedicine({ ...newMedicine, purchaseDate: e.target.value })} />
                                     </div>
                                     <div className="form-group">
                                         <label>Expiry Date</label>
-                                        <input required type="date" value={newMedicine.expiryDate} onChange={(e) => setNewMedicine({ ...newMedicine, expiryDate: e.target.value })} />
+                                        <input required type="date" value={newMedicine.expiryDate || ''} onChange={(e) => setNewMedicine({ ...newMedicine, expiryDate: e.target.value })} />
                                     </div>
                                 </div>
 
@@ -1060,9 +1057,9 @@ const PharmacyInventory = () => {
 
             {showDetailsModal && selectedMedicine && (() => {
                 // Find all medicines in the same batch/vendor bill
-                const groupedMedicines = medicines.filter(med => 
-                    (med.batchNumber && med.batchNumber === selectedMedicine.batchNumber && 
-                    (med.vendor === selectedMedicine.vendor || med.vendorId === selectedMedicine.vendorId)) || 
+                const groupedMedicines = medicines.filter(med =>
+                    (med.batchNumber && med.batchNumber === selectedMedicine.batchNumber &&
+                        (med.vendor === selectedMedicine.vendor || med.vendorId === selectedMedicine.vendorId)) ||
                     (med._id === selectedMedicine._id) // Fallback for itself if batch/vendor is missing
                 );
 
@@ -1086,30 +1083,30 @@ const PharmacyInventory = () => {
                     const pQty = (med.purchaseQty !== undefined && med.purchaseQty !== null) ? Number(med.purchaseQty) : (Number(med.stock) || 0);
                     const fQty = Number(med.freeQty) || 0;
                     const stock = pQty + fQty; // Total stock for revenue
-                    
+
                     const buyingPrice = Number(med.buyingPrice) || 0;
                     const sellingPrice = Number(med.sellingPrice) || 0;
-                    
+
                     const gross = pQty * buyingPrice;
-                    
+
                     let discountAmount = 0;
                     if (med.discountType === 'Flat Amount') {
                         discountAmount = Number(med.discountValue) || 0;
                     } else {
                         discountAmount = gross * ((Number(med.discountValue) || 0) / 100);
                     }
-                    
+
                     const taxable = Math.max(0, gross - discountAmount);
                     const cgstPercent = Number(med.cgstPercent) || 0;
                     const sgstPercent = Number(med.sgstPercent) || 0;
-                    
+
                     const cgstAmt = taxable * (cgstPercent / 100);
                     const sgstAmt = taxable * (sgstPercent / 100);
                     const gstAmt = cgstAmt + sgstAmt;
-                    
+
                     const finalAmt = taxable + gstAmt;
                     const revenue = stock * sellingPrice;
-                    
+
                     totalPurchaseQty += pQty;
                     totalFreeQty += fQty;
                     totalStockQty += stock;
@@ -1140,9 +1137,9 @@ const PharmacyInventory = () => {
                                 </div>
                                 <button className="close-btn" onClick={() => setShowDetailsModal(false)}>×</button>
                             </div>
-                            
+
                             <div className="pharma-form" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                
+
                                 {/* Header Section */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
                                     <div>
@@ -1185,22 +1182,22 @@ const PharmacyInventory = () => {
                                                     const pQty = (med.purchaseQty !== undefined && med.purchaseQty !== null) ? Number(med.purchaseQty) : (Number(med.stock) || 0);
                                                     const buyingPrice = Number(med.buyingPrice) || 0;
                                                     const gross = pQty * buyingPrice;
-                                                    
+
                                                     let discountAmount = 0;
                                                     if (med.discountType === 'Flat Amount') {
                                                         discountAmount = Number(med.discountValue) || 0;
                                                     } else {
                                                         discountAmount = gross * ((Number(med.discountValue) || 0) / 100);
                                                     }
-                                                    
+
                                                     const taxable = Math.max(0, gross - discountAmount);
                                                     const cgstPercent = Number(med.cgstPercent) || 0;
                                                     const sgstPercent = Number(med.sgstPercent) || 0;
-                                                    
+
                                                     const cgstAmt = taxable * (cgstPercent / 100);
                                                     const sgstAmt = taxable * (sgstPercent / 100);
                                                     const gstAmt = cgstAmt + sgstAmt;
-                                                    
+
                                                     const totalFinalCost = taxable + gstAmt;
 
                                                     return (
@@ -1208,10 +1205,12 @@ const PharmacyInventory = () => {
                                                             <td style={{ padding: '10px', fontWeight: 'bold', color: '#0f172a' }}>{med.name} {med._id === selectedMedicine._id ? '(Selected)' : ''}</td>
                                                             <td style={{ padding: '10px' }}>{med.batchNumber || 'N/A'}</td>
                                                             <td style={{ padding: '10px', fontWeight: 'bold', color: med.stock < (med.minStockAlertLevel || 50) ? '#dc2626' : '#059669' }}>
-                                                                {['Strip', 'Capsules', 'Tablets'].includes(med.unit) && (Number(med.unitsPerStrip) || 1) > 1 ? (
-                                                                    <span>{med.stock.toLocaleString()} Units <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 'normal' }}>({Math.floor(med.stock / (Number(med.unitsPerStrip) || 1))} {med.unit === 'Strip' ? 'Strips' : 'Packs'})</span></span>
+                                                                {['Strip', 'Capsules', 'Tablets'].includes(med.unit) ? (
+                                                                    <span>
+                                                                        {Math.floor(med.stock / (Number(med.unitsPerStrip) || 1))} {med.unit} <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 'normal' }}>({med.stock} Units)</span>
+                                                                    </span>
                                                                 ) : (
-                                                                    <span>{med.stock.toLocaleString()} {med.unit || 'Tabs'}</span>
+                                                                    <span>{med.stock} {med.unit || 'Tabs'}</span>
                                                                 )}
                                                             </td>
                                                             <td style={{ padding: '10px' }}>₹{med.buyingPrice || 0} <span style={{ fontSize: '10px', color: '#64748b', display: 'block' }}>(+{med.cgstPercent || 0}% CGST, +{med.sgstPercent || 0}% SGST)</span></td>
@@ -1227,13 +1226,13 @@ const PharmacyInventory = () => {
 
                                 {/* Financial Calculations Section */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginTop: '10px' }}>
-                                    
+
                                     <div style={{ background: '#f0fdf4', padding: '15px', borderRadius: '8px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
                                         <div style={{ color: '#166534', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Qty (Purchase + Free)</div>
                                         <div style={{ color: '#14532d', fontSize: '18px', fontWeight: '900' }}>{totalPurchaseQty} + {totalFreeQty}</div>
                                         <div style={{ color: '#166534', fontSize: '12px', marginTop: '4px' }}>Total Stock: {totalStockQty}</div>
                                     </div>
-                                    
+
                                     <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                                         <div style={{ color: '#475569', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Gross Amount</div>
                                         <div style={{ color: '#0f172a', fontSize: '18px', fontWeight: '900' }}>₹{totalGrossPurchaseAmount.toFixed(2)}</div>
@@ -1265,11 +1264,11 @@ const PharmacyInventory = () => {
                                 </div>
 
                             </div>
-                            
+
                             <div className="modal-actions" style={{ padding: '15px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                <button 
-                                    type="button" 
-                                    className="btn-add" 
+                                <button
+                                    type="button"
+                                    className="btn-add"
                                     style={{ background: '#ecfdf5', color: '#10b981', border: '1px solid #a7f3d0', padding: '8px 16px', boxShadow: 'none' }}
                                     onClick={() => {
                                         setShowDetailsModal(false);
@@ -1288,7 +1287,7 @@ const PharmacyInventory = () => {
 
             {showVendorModal && (
                 <div className="modal-overlay">
-                    <div className="modal-content inventory-modal" style={{maxWidth: '500px'}}>
+                    <div className="modal-content inventory-modal" style={{ maxWidth: '500px' }}>
                         <div className="modal-header">
                             <div>
                                 <h2>Manage Vendors</h2>
@@ -1296,30 +1295,30 @@ const PharmacyInventory = () => {
                             </div>
                             <button className="close-btn" onClick={() => setShowVendorModal(false)}>×</button>
                         </div>
-                        <div className="pharma-form" style={{padding: '20px'}}>
+                        <div className="pharma-form" style={{ padding: '20px' }}>
                             <form onSubmit={handleSaveVendor}>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>Vendor Name *</label>
-                                    <input required type="text" value={vendorForm.vendorName} onChange={(e) => setVendorForm({ ...vendorForm, vendorName: e.target.value })} placeholder="Enter vendor name" />
-                                    {vendorErrors.vendorName && <span className="error-text" style={{color: 'red', fontSize: '12px'}}>{vendorErrors.vendorName}</span>}
+                                    <input required type="text" value={vendorForm.vendorName || ''} onChange={(e) => setVendorForm({ ...vendorForm, vendorName: e.target.value })} placeholder="Enter vendor name" />
+                                    {vendorErrors.vendorName && <span className="error-text" style={{ color: 'red', fontSize: '12px' }}>{vendorErrors.vendorName}</span>}
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>Contact Person</label>
-                                    <input type="text" value={vendorForm.contactPerson} onChange={(e) => setVendorForm({ ...vendorForm, contactPerson: e.target.value })} placeholder="Contact Person" />
+                                    <input type="text" value={vendorForm.contactPerson || ''} onChange={(e) => setVendorForm({ ...vendorForm, contactPerson: e.target.value })} placeholder="Contact Person" />
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>Phone Number *</label>
-                                    <input type="text" value={vendorForm.phone} onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="Phone Number" />
-                                    {vendorErrors.phone && <span className="error-text" style={{color: 'red', fontSize: '12px'}}>{vendorErrors.phone}</span>}
+                                    <input type="text" value={vendorForm.phone || ''} onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} placeholder="Phone Number" />
+                                    {vendorErrors.phone && <span className="error-text" style={{ color: 'red', fontSize: '12px' }}>{vendorErrors.phone}</span>}
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>GSTIN</label>
-                                    <input type="text" value={vendorForm.gstin} onChange={(e) => setVendorForm({ ...vendorForm, gstin: e.target.value.toUpperCase().slice(0, 15) })} placeholder="GST Number" />
-                                    {vendorErrors.gstin && <span className="error-text" style={{color: 'red', fontSize: '12px'}}>{vendorErrors.gstin}</span>}
+                                    <input type="text" value={vendorForm.gstin || ''} onChange={(e) => setVendorForm({ ...vendorForm, gstin: e.target.value.toUpperCase().slice(0, 15) })} placeholder="GST Number" />
+                                    {vendorErrors.gstin && <span className="error-text" style={{ color: 'red', fontSize: '12px' }}>{vendorErrors.gstin}</span>}
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>Drug License (DL) Number</label>
-                                    <input type="text" value={vendorForm.dlNumber} onChange={(e) => setVendorForm({ ...vendorForm, dlNumber: e.target.value })} placeholder="e.g., 20B/21B/... or DL Number" />
+                                    <input type="text" value={vendorForm.dlNumber || ''} onChange={(e) => setVendorForm({ ...vendorForm, dlNumber: e.target.value })} placeholder="e.g., 20B/21B/... or DL Number" />
                                 </div>
                                 <div className="modal-actions" style={{ marginTop: '20px' }}>
                                     <button type="button" className="btn-cancel" onClick={() => setShowVendorModal(false)}>Cancel</button>
@@ -1342,7 +1341,7 @@ const PharmacyInventory = () => {
                                 {pendingInvoice.status}
                             </span>
                         </div>
-                        
+
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '20px' }}>
                             <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
                                 <h4 style={{ margin: '0 0 10px', color: '#475569' }}>Vendor Details</h4>
@@ -1395,13 +1394,13 @@ const PharmacyInventory = () => {
                     <div className="modal-content" style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '500px' }}>
                         <h3 style={{ marginTop: 0, color: '#dc2626' }}>Pending Invoice Detected</h3>
                         <p style={{ color: '#475569', lineHeight: '1.5' }}>
-                            There is already a Pending Invoice.<br/><br/>
-                            <strong>Vendor:</strong> {pendingInvoice?.vendorName || 'N/A'}<br/>
-                            <strong>Invoice Number:</strong> {pendingInvoice?.invoiceNumber || 'N/A'}<br/>
+                            There is already a Pending Invoice.<br /><br />
+                            <strong>Vendor:</strong> {pendingInvoice?.vendorName || 'N/A'}<br />
+                            <strong>Invoice Number:</strong> {pendingInvoice?.invoiceNumber || 'N/A'}<br />
                             <strong>Remaining Medicines:</strong> {invoiceStats.remaining}
                         </p>
                         <p style={{ fontWeight: 'bold', color: '#0f172a', marginTop: '20px' }}>What do you want to do?</p>
-                        
+
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
                             <button type="button" onClick={() => { setShowInvoiceConfirm(false); setPendingPdfFile(null); }} style={{ padding: '10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
                                 Continue Existing Invoice
@@ -1419,7 +1418,7 @@ const PharmacyInventory = () => {
 
             {showConsumptionModal && (
                 <div className="modal-overlay">
-                    <div className="modal-content inventory-modal" style={{maxWidth: '500px'}}>
+                    <div className="modal-content inventory-modal" style={{ maxWidth: '500px' }}>
                         <div className="modal-header">
                             <div>
                                 <h2>📌 Record Consumption</h2>
@@ -1427,13 +1426,13 @@ const PharmacyInventory = () => {
                             </div>
                             <button className="close-btn" onClick={() => setShowConsumptionModal(false)}>×</button>
                         </div>
-                        <div className="pharma-form" style={{padding: '20px'}}>
+                        <div className="pharma-form" style={{ padding: '20px' }}>
                             <form onSubmit={handleRecordConsumption}>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>Select Medicine *</label>
-                                    <select 
-                                        required 
-                                        value={consumptionForm.medicineId} 
+                                    <select
+                                        required
+                                        value={consumptionForm.medicineId || ''}
                                         onChange={(e) => setConsumptionForm({ ...consumptionForm, medicineId: e.target.value })}
                                         style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                                     >
@@ -1447,20 +1446,20 @@ const PharmacyInventory = () => {
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>Quantity *</label>
-                                    <input 
-                                        required 
-                                        type="number" 
-                                        min="1" 
-                                        value={consumptionForm.quantity} 
-                                        onChange={(e) => setConsumptionForm({ ...consumptionForm, quantity: e.target.value })} 
-                                        placeholder="Enter quantity used" 
+                                    <input
+                                        required
+                                        type="number"
+                                        min="1"
+                                        value={consumptionForm.quantity || ''}
+                                        onChange={(e) => setConsumptionForm({ ...consumptionForm, quantity: e.target.value })}
+                                        placeholder="Enter quantity used"
                                     />
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>Reason / Category *</label>
-                                    <select 
-                                        required 
-                                        value={consumptionForm.reason} 
+                                    <select
+                                        required
+                                        value={consumptionForm.reason || ''}
                                         onChange={(e) => setConsumptionForm({ ...consumptionForm, reason: e.target.value })}
                                         style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                                     >
@@ -1472,11 +1471,11 @@ const PharmacyInventory = () => {
                                 </div>
                                 <div className="form-group" style={{ marginBottom: '15px' }}>
                                     <label>Given To (Optional)</label>
-                                    <input 
-                                        type="text" 
-                                        value={consumptionForm.givenTo} 
-                                        onChange={(e) => setConsumptionForm({ ...consumptionForm, givenTo: e.target.value })} 
-                                        placeholder="e.g., Dr. Sharma, Staff Name" 
+                                    <input
+                                        type="text"
+                                        value={consumptionForm.givenTo || ''}
+                                        onChange={(e) => setConsumptionForm({ ...consumptionForm, givenTo: e.target.value })}
+                                        placeholder="e.g., Dr. Sharma, Staff Name"
                                     />
                                 </div>
                                 <div className="modal-actions" style={{ marginTop: '20px' }}>
