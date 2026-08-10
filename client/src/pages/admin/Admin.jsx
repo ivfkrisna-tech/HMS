@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminAPI, uploadAPI, hospitalAPI } from '../../utils/api';
+import { adminAPI, uploadAPI, hospitalAPI, adminEntitiesAPI } from '../../utils/api';
 import '../administration/SuperAdmin.css';
 
 const Admin = () => {
@@ -12,10 +12,11 @@ const Admin = () => {
     const [roles, setRoles] = useState([]);
     const [hospital, setHospital] = useState(null);
     const [hospitals, setHospitals] = useState([]);
+    const [doctors, setDoctors] = useState([]);
 
     const [editModal, setEditModal] = useState(false);
     const [editForm, setEditForm] = useState({
-        id: '', name: '', email: '', phone: '', roleId: '', hospitalId: '', currentAvatar: '', newAvatarFile: null, specialty: '', department: ''
+        id: '', name: '', email: '', phone: '', roleId: '', hospitalId: '', currentAvatar: '', newAvatarFile: null, specialty: '', department: '', assignedDoctors: []
     });
     const [updating, setUpdating] = useState(false);
 
@@ -24,7 +25,7 @@ const Admin = () => {
     // Create Staff Form state
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [createForm, setCreateForm] = useState({
-        name: '', email: '', password: '', phone: '', roleId: '', hospitalId: '', file: null, department: ''
+        name: '', email: '', password: '', phone: '', roleId: '', hospitalId: '', file: null, department: '', assignedDoctors: []
     });
     const [creating, setCreating] = useState(false);
 
@@ -43,7 +44,15 @@ const Admin = () => {
         fetchUsers();
         fetchRoles();
         fetchHospital();
+        fetchDoctors();
     }, []);
+
+    const fetchDoctors = async () => {
+        try {
+            const response = await adminEntitiesAPI.getDoctors();
+            if (response.success) setDoctors(response.doctors);
+        } catch (err) { console.error('Error fetching doctors:', err); }
+    };
 
     const fetchHospital = async () => {
         try {
@@ -106,7 +115,8 @@ const Admin = () => {
             currentAvatar: userItem.avatar,
             newAvatarFile: null,
             specialty: '', // Ideally fetch specific doctor details if needed, but basic update is fine
-            department: (userItem.departments && userItem.departments.length > 0) ? userItem.departments[0] : ''
+            department: (userItem.departments && userItem.departments.length > 0) ? userItem.departments[0] : '',
+            assignedDoctors: userItem.assignedDoctors || []
         });
         setEditModal(true);
         setError('');
@@ -142,7 +152,8 @@ const Admin = () => {
                 hospitalId: editForm.hospitalId,
                 avatar: avatarUrl,
                 specialty: editForm.specialty,
-                departments: ['IVF']
+                departments: ['IVF'],
+                assignedDoctors: editForm.assignedDoctors
             };
 
             const response = await adminAPI.updateUser(editForm.id, updateData);
@@ -213,13 +224,14 @@ const Admin = () => {
             const userData = {
                 ...createForm,
                 departments: ['IVF'],
-                avatar: avatarUrl
+                avatar: avatarUrl,
+                assignedDoctors: createForm.assignedDoctors
             };
 
             const response = await adminAPI.createUser(userData);
             if (response.success) {
                 setSuccess(`✅ ${response.user?.role || 'Staff'} account created! They can log in with: ${createForm.email}`);
-                setCreateForm({ name: '', email: '', password: '', phone: '', roleId: '', hospitalId: '', file: null, department: '' });
+                setCreateForm({ name: '', email: '', password: '', phone: '', roleId: '', hospitalId: '', file: null, department: '', assignedDoctors: [] });
                 setShowCreateForm(false);
                 fetchUsers();
             }
@@ -330,6 +342,34 @@ const Admin = () => {
                                     </select>
                                 </div>
                             </div>
+
+                            {(() => {
+                                const selectedRoleName = (roles.find(r => r._id === createForm.roleId)?.name || '').toLowerCase();
+                                if (selectedRoleName.includes('doctor assistant') || selectedRoleName.includes('doctorassistant')) {
+                                    return (
+                                        <div className="form-row">
+                                            <div className="form-group" style={{ width: '100%' }}>
+                                                <label className="staff-label">Assign Doctors * <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.85rem' }}>(Hold Ctrl/Cmd to select multiple)</span></label>
+                                                <select
+                                                    multiple
+                                                    value={createForm.assignedDoctors}
+                                                    onChange={e => {
+                                                        const values = Array.from(e.target.selectedOptions, option => option.value);
+                                                        setCreateForm({ ...createForm, assignedDoctors: values });
+                                                    }}
+                                                    className="staff-input"
+                                                    style={{ height: '100px' }}
+                                                >
+                                                    {doctors.map(d => (
+                                                        <option key={d._id} value={d._id}>Dr. {d.name} ({d.specialty})</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
                             
                             {(user.role === 'superadmin' || user.role === 'centraladmin') && (
                                 <div className="form-row">
@@ -474,6 +514,34 @@ const Admin = () => {
                                         </select>
                                     </div>
                                 </div>
+
+                                {(() => {
+                                    const selectedRoleName = (roles.find(r => r._id === editForm.roleId)?.name || '').toLowerCase();
+                                    if (selectedRoleName.includes('doctor assistant') || selectedRoleName.includes('doctorassistant')) {
+                                        return (
+                                            <div className="form-row">
+                                                <div className="form-group" style={{ width: '100%' }}>
+                                                    <label className="staff-label">Assign Doctors * <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.85rem' }}>(Hold Ctrl/Cmd to select multiple)</span></label>
+                                                    <select
+                                                        multiple
+                                                        value={editForm.assignedDoctors}
+                                                        onChange={e => {
+                                                            const values = Array.from(e.target.selectedOptions, option => option.value);
+                                                            setEditForm({ ...editForm, assignedDoctors: values });
+                                                        }}
+                                                        className="staff-input"
+                                                        style={{ height: '100px' }}
+                                                    >
+                                                        {doctors.map(d => (
+                                                            <option key={d._id} value={d._id}>Dr. {d.name} ({d.specialty})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
 
                                 {(user.role === 'superadmin' || user.role === 'centraladmin') && (
                                     <div className="form-row">

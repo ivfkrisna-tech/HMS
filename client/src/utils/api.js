@@ -140,6 +140,18 @@ export const doctorAPI = {
     getBookedSlots: async (doctorId, date) => {
         const response = await apiClient.get(`/api/doctor/${doctorId}/booked-slots?date=${date}`);
         return response.data;
+    },
+    reviewDraftNotes: async (appointmentId, status, editedNotes = undefined) => {
+        const response = await apiClient.post(`/api/doctor/appointment/${appointmentId}/review/notes`, { status, editedNotes });
+        return response.data;
+    },
+    reviewVitals: async (appointmentId, status, vitals = undefined) => {
+        const response = await apiClient.post(`/api/doctor/appointment/${appointmentId}/review/vitals`, { status, vitals });
+        return response.data;
+    },
+    updateConsultationStatus: async (appointmentId, status, details = '') => {
+        const response = await apiClient.post(`/api/doctor/appointment/${appointmentId}/consultation-status`, { status, details });
+        return response.data;
     }
 };
 
@@ -622,6 +634,26 @@ export const consentAPI = {
         const base = apiClient.defaults.baseURL || '';
         return `${base}/api/consent/templates/${id}/generate-pdf?patientId=${patientId}`;
     },
+};
+
+// ==========================================
+// DOCTOR ASSISTANT API
+// ==========================================
+export const assistantAPI = {
+    getDashboardStats: async () => (await apiClient.get('/api/assistant/dashboard-stats')).data,
+    getMyDoctors: async () => (await apiClient.get('/api/assistant/my-doctors')).data,
+    getAppointments: async (tab = 'today') => (await apiClient.get(`/api/assistant/appointments?tab=${tab}`)).data,
+    getAppointmentDetails: async (id) => (await apiClient.get(`/api/assistant/appointment/${id}`)).data,
+    getPatientProfile: async (id) => (await apiClient.get(`/api/assistant/patient/${id}/profile`)).data,
+    updatePatientProfile: async (id, data) => (await apiClient.put(`/api/assistant/patient/${id}/profile`, data)).data,
+    savePreparation: async (aptId, data) => (await apiClient.post(`/api/assistant/appointment/${aptId}/preparation`, data)).data,
+    saveReports: async (aptId, files) => (await apiClient.post(`/api/assistant/appointment/${aptId}/reports`, { files })).data,
+    addInvestigation: async (aptId, labTestName) => (await apiClient.post(`/api/assistant/appointment/${aptId}/investigations`, { labTestName })).data,
+    saveVitals: async (aptId, data) => (await apiClient.post(`/api/assistant/appointment/${aptId}/vitals`, data)).data,
+    saveIvfDetails: async (aptId, data) => (await apiClient.post(`/api/assistant/appointment/${aptId}/ivf-details`, data)).data,
+    saveClinicalNotes: async (aptId, data) => (await apiClient.post(`/api/assistant/appointment/${aptId}/clinical-notes`, data)).data,
+    markReady: async (aptId) => (await apiClient.post(`/api/assistant/appointment/${aptId}/mark-ready`)).data,
+    getChecklist: async (aptId) => (await apiClient.get(`/api/assistant/appointment/${aptId}/checklist`)).data,
 };
 
 export default apiClient;

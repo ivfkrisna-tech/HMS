@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, useAppDispatch } from '../../store/hooks';
 import { logout } from '../../store/slices/authSlice';
@@ -6,8 +6,10 @@ import { useBranding } from '../../context/BrandingContext';
 import {
     FiHome, FiUsers, FiCalendar, FiActivity, FiPackage,
     FiSettings, FiLogOut, FiPieChart, FiClipboard,
-    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers, FiRefreshCcw, FiShoppingCart, FiCornerUpLeft
+    FiFileText, FiPlusSquare, FiShield, FiShare2, FiLayers, FiRefreshCcw, FiShoppingCart, FiCornerUpLeft,
+    FiHeart, FiCheckSquare, FiEdit, FiClock, FiBell
 } from 'react-icons/fi';
+import { notificationAPI } from '../../utils/api';
 import './DashboardLayout.css';
 
 const DashboardSidebar = ({ isOpen, setOpen }) => {
@@ -47,6 +49,22 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
             return [
                 { label: 'My Patients', path: '/doctor/dashboard', icon: <FiUsers /> },
                 { label: 'All Appointments', path: '/doctor/patients?tab=all', icon: <FiCalendar /> },
+            ];
+        }
+        if (role.includes('doctor assistant') || role.includes('doctorassistant')) {
+            return [
+                { label: 'Dashboard', path: '/assistant/dashboard', icon: <FiHome /> },
+                { label: "Today's Patients", path: '/assistant/patients', icon: <FiUsers /> },
+                { label: 'Appointments', path: '/assistant/appointments', icon: <FiCalendar /> },
+                { label: 'Patient Preparation', path: '/assistant/preparation', icon: <FiPlusSquare /> },
+                { label: 'Vitals', path: '/assistant/vitals', icon: <FiHeart /> },
+                { label: 'Reports', path: '/assistant/reports', icon: <FiFileText /> },
+                { label: 'Investigations', path: '/assistant/investigations', icon: <FiActivity /> },
+                { label: 'Consent Forms', path: '/assistant/consents', icon: <FiShield /> },
+                { label: 'Clinical Notes', path: '/assistant/clinical-notes', icon: <FiEdit /> },
+                { label: 'Follow-up', path: '/assistant/follow-up', icon: <FiClock /> },
+                { label: 'Tasks', path: '/assistant/tasks', icon: <FiCheckSquare /> },
+                { label: 'Question Library', path: '/assistant/question-library', icon: <FiFileText /> },
             ];
         }
         if (role.includes('reception')) {
@@ -182,6 +200,31 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
     const location = useLocation();
+    
+    // Notifications State
+    const [notifications, setNotifications] = useState([]);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const unreadCount = notifications.filter(n => n.status === 'Unread').length;
+
+    useEffect(() => {
+        if (!user) return;
+        const fetchNotifications = async () => {
+            try {
+                const res = await notificationAPI.getNotifications();
+                if (res.success) setNotifications(res.data);
+            } catch (err) { console.error('Failed to fetch notifications', err); }
+        };
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 30000); // Poll every 30s
+        return () => clearInterval(interval);
+    }, [user]);
+
+    const handleMarkAsRead = async (id) => {
+        try {
+            await notificationAPI.markAsRead(id);
+            setNotifications(prev => prev.map(n => n._id === id ? { ...n, status: 'Read' } : n));
+        } catch (err) {}
+    };
 
     const handleLogout = () => {
         dispatch(logout());
@@ -233,6 +276,37 @@ const TopBar = ({ toggleSidebar, sidebarOpen }) => {
                         <span>Home</span>
                     </button>
                 )}
+                
+                {/* Notification Bell */}
+                <div className="notification-widget" style={{ position: 'relative', marginRight: '16px', cursor: 'pointer' }}>
+                    <div onClick={() => setShowNotifications(!showNotifications)} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <FiBell size={20} color="#64748b" />
+                        {unreadCount > 0 && (
+                            <span style={{ position: 'absolute', top: '-6px', right: '-8px', background: '#ef4444', color: 'white', borderRadius: '50%', padding: '2px 6px', fontSize: '10px', fontWeight: 'bold' }}>
+                                {unreadCount}
+                            </span>
+                        )}
+                    </div>
+                    {showNotifications && (
+                        <div style={{ position: 'absolute', top: '35px', right: '-10px', width: '320px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', zIndex: 1000, maxHeight: '400px', overflowY: 'auto' }}>
+                            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '14px', color: '#0f172a' }}>Notifications</strong>
+                            </div>
+                            <div style={{ padding: '8px' }}>
+                                {notifications.length === 0 ? (
+                                    <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>No notifications</div>
+                                ) : (
+                                    notifications.map(n => (
+                                        <div key={n._id} onClick={() => handleMarkAsRead(n._id)} style={{ padding: '12px', background: n.status === 'Unread' ? '#f8fafc' : 'white', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', borderRadius: '4px' }}>
+                                            <div style={{ fontSize: '13px', color: '#1e293b', marginBottom: '4px' }}>{n.message}</div>
+                                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(n.createdAt).toLocaleTimeString()}</div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
                 <div className="user-profile-widget">
                     <div className="profile-text-info">
                         <span className="user-disp-name">{user?.role === 'doctor' ? 'DR. ' : ''}{user?.name || 'User'}</span>

@@ -29,6 +29,25 @@ async function seedRoles() {
                     { label: 'Inventory', path: '/pharmacy/inventory' }
                 ],
                 isSystemRole: true
+            },
+            {
+                name: 'Doctor Assistant',
+                description: 'Prepares patients before doctor consultation — vitals, history, reports, consent',
+                permissions: [
+                    'assistant_view_appointments', 'assistant_view_patients',
+                    'assistant_add_vitals', 'assistant_add_history',
+                    'assistant_upload_reports', 'assistant_view_reports',
+                    'assistant_add_investigations', 'assistant_manage_consent',
+                    'assistant_draft_notes', 'assistant_add_followup',
+                    'assistant_view_schedule', 'patient_view'
+                ],
+                dashboardPath: '/assistant/dashboard',
+                navLinks: [
+                    { label: 'Dashboard', path: '/assistant/dashboard' },
+                    { label: "Today's Patients", path: '/assistant/patients' },
+                    { label: 'Appointments', path: '/assistant/patients?tab=all' }
+                ],
+                isSystemRole: true
             }
         ];
 

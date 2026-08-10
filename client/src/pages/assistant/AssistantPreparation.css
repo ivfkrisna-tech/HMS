@@ -1,0 +1,350 @@
+/* ========================================
+   Doctor Assistant Preparation Page
+   ======================================== */
+
+.assistant-prep {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.assistant-prep .prep-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.assistant-prep .prep-header h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.assistant-prep .prep-header .patient-meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 6px;
+}
+
+.assistant-prep .prep-header .patient-meta span {
+    font-size: 0.82rem;
+    color: #64748b;
+    background: #f1f5f9;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+.assistant-prep .prep-header .header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.assistant-prep .btn-back {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.assistant-prep .btn-back:hover {
+    background: #e2e8f0;
+}
+
+.assistant-prep .btn-save {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.assistant-prep .btn-save:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+
+.assistant-prep .btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.assistant-prep .btn-ready {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.assistant-prep .btn-ready:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+}
+
+.assistant-prep .btn-ready.is-ready {
+    background: #dcfce7;
+    color: #166534;
+    cursor: default;
+}
+
+/* Tab Navigation */
+.assistant-prep .tab-nav {
+    display: flex;
+    gap: 4px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+}
+
+.assistant-prep .tab-nav button {
+    padding: 9px 16px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.assistant-prep .tab-nav button.active {
+    background: white;
+    color: #6366f1;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.assistant-prep .tab-nav button:hover:not(.active) {
+    color: #1e293b;
+}
+
+/* Tab Content */
+.assistant-prep .tab-content {
+    background: white;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    border: 1px solid #f1f5f9;
+    min-height: 300px;
+}
+
+.assistant-prep .tab-content h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Form Fields */
+.assistant-prep .form-group {
+    margin-bottom: 18px;
+}
+
+.assistant-prep .form-group label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 6px;
+}
+
+.assistant-prep .form-group textarea,
+.assistant-prep .form-group input,
+.assistant-prep .form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    color: #1e293b;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+}
+
+.assistant-prep .form-group textarea:focus,
+.assistant-prep .form-group input:focus,
+.assistant-prep .form-group select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.assistant-prep .form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.assistant-prep .form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+/* Vitals Grid */
+.assistant-prep .vitals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+}
+
+.assistant-prep .vital-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}
+
+.assistant-prep .vital-card label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.assistant-prep .vital-card input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    outline: none;
+}
+
+.assistant-prep .vital-card input:focus {
+    border-color: #6366f1;
+}
+
+.assistant-prep .bmi-display {
+    background: linear-gradient(135deg, #ede9fe, #e0e7ff);
+    border: 1px solid #c4b5fd;
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+}
+
+.assistant-prep .bmi-display label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #6366f1;
+    margin-bottom: 4px;
+}
+
+.assistant-prep .bmi-display .bmi-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #4338ca;
+}
+
+/* Checklist */
+.assistant-prep .checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.assistant-prep .checklist li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.9rem;
+    color: #334155;
+}
+
+.assistant-prep .checklist li:last-child {
+    border-bottom: none;
+}
+
+.assistant-prep .checklist li .check-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.assistant-prep .checklist li .check-icon.done {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.assistant-prep .checklist li .check-icon.pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+/* Toast */
+.assistant-prep .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e293b;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    z-index: 9999;
+    animation: slideUp 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .assistant-prep {
+        padding: 14px;
+    }
+    .assistant-prep .tab-nav {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .assistant-prep .tab-content {
+        padding: 16px;
+    }
+    .assistant-prep .vitals-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .assistant-prep .prep-header {
+        flex-direction: column;
+    }
+}

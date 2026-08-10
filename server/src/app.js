@@ -52,6 +52,7 @@ const revenueRoutes     = require('./routes/revenue.routes');
 const sourceRoutes      = require('./routes/source.routes');
 const packageServicesRoutes = require('./routes/packageServices.routes');
 const consentRoutes         = require('./routes/consent.routes');
+const doctorAssistantRoutes = require('./routes/doctorAssistant.routes');
 
 const app = express();
 
@@ -186,6 +187,7 @@ app.use('/api/clinic', clinicRoutes);
 app.use('/api/sources', sourceRoutes);
 app.use('/api/package-services', packageServicesRoutes);
 app.use('/api/consent', consentRoutes);
+app.use('/api/assistant', doctorAssistantRoutes);
 
 // Revenue & Billing — Central Admin system analytics
 app.use('/api/revenue', revenueRoutes);

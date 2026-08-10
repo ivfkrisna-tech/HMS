@@ -108,7 +108,64 @@ const appointmentSchema = new mongoose.Schema({
         name: { type: String },
         uploadedAt: { type: Date, default: Date.now },
         type: { type: String }
-    }]
+    }],
+
+    // --- DOCTOR ASSISTANT PREPARATION ---
+    preparation: {
+        chiefComplaint: { type: String, default: '' },
+        presentIllness: { type: String, default: '' },
+        pastHistory: { type: String, default: '' },
+        familyHistory: { type: String, default: '' },
+        surgicalHistory: { type: String, default: '' },
+        allergies: { type: String, default: '' },
+        currentMedicines: { type: String, default: '' },
+        lifestyle: { type: String, default: '' },
+        remarks: { type: String, default: '' },
+        preparedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        preparedAt: { type: Date, default: null }
+    },
+    draftClinicalNotes: { type: String, default: '' },
+    assistantNotes: { type: String, default: '' },
+    readyForDoctor: { type: Boolean, default: false },
+    readyAt: { type: Date, default: null },
+
+    // --- PHASE 4: CONSULTATION WORKFLOW ---
+    consultationStatus: { 
+        type: String, 
+        enum: [
+            'Patient Checked In', 
+            'Waiting For Assistant', 
+            'Preparation In Progress', 
+            'Ready For Doctor', 
+            'Doctor Reviewing', 
+            'Prescription Completed', 
+            'Consultation Completed'
+        ],
+        default: 'Patient Checked In'
+    },
+    timeline: [{
+        status: String,
+        timestamp: { type: Date, default: Date.now },
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        role: String,
+        details: String
+    }],
+    doctorReview: {
+        draftNotesStatus: { type: String, enum: ['Draft', 'Approved', 'Rejected', 'Edited'], default: 'Draft' },
+        draftNotesApprovedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        draftNotesApprovedAt: Date,
+        
+        vitalsStatus: { type: String, enum: ['Pending', 'Accepted', 'Updated', 'Rejected'], default: 'Pending' },
+        vitalsReviewedAt: Date,
+        
+        reportsStatus: { type: String, enum: ['Pending', 'Reviewed'], default: 'Pending' },
+        reportsComments: String,
+        
+        consentStatus: { type: String, enum: ['Pending', 'Verified'], default: 'Pending' },
+        
+        investigationsStatus: { type: String, enum: ['Pending', 'Reviewed'], default: 'Pending' },
+        investigationsComments: String
+    }
 }, {
     timestamps: true
 });
