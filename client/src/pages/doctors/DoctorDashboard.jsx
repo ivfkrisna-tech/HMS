@@ -32,8 +32,9 @@ const DoctorDashboard = () => {
                 const today = new Date().toISOString().split('T')[0];
                 setStats({
                     today: apts.filter(a => a.appointmentDate.startsWith(today)).length,
-                    pending: apts.filter(a => a.status === 'pending' || a.status === 'confirmed').length,
-                    completed: apts.filter(a => a.status === 'completed').length
+                    ready: apts.filter(a => a.appointmentDate.startsWith(today) && a.consultationStatus === 'Ready For Doctor').length,
+                    waiting: apts.filter(a => a.appointmentDate.startsWith(today) && (a.consultationStatus === 'Patient Checked In' || a.consultationStatus === 'Waiting For Assistant' || a.consultationStatus === 'Preparation In Progress')).length,
+                    completed: apts.filter(a => a.status === 'completed' || a.consultationStatus === 'Consultation Completed').length
                 });
             }
 
@@ -72,17 +73,21 @@ const DoctorDashboard = () => {
 
             {/* Stats Cards */}
             <div className="stats-grid">
+                <div className="stat-card" style={{ background: '#dcfce7', borderColor: '#bbf7d0', color: '#166534' }}>
+                    <h3 style={{ color: '#166534' }}>{stats.ready}</h3>
+                    <p style={{ color: '#15803d', fontWeight: 'bold' }}>Ready For Doctor</p>
+                </div>
+                <div className="stat-card" style={{ background: '#fef3c7', borderColor: '#fde68a', color: '#92400e' }}>
+                    <h3 style={{ color: '#92400e' }}>{stats.waiting}</h3>
+                    <p style={{ color: '#b45309', fontWeight: 'bold' }}>Patients Waiting</p>
+                </div>
+                <div className="stat-card" style={{ background: '#f1f5f9', borderColor: '#e2e8f0', color: '#475569' }}>
+                    <h3 style={{ color: '#475569' }}>{stats.completed}</h3>
+                    <p style={{ color: '#64748b', fontWeight: 'bold' }}>Completed Consultations</p>
+                </div>
                 <div className="stat-card blue">
                     <h3>{stats.today}</h3>
-                    <p>Today's Appointments</p>
-                </div>
-                <div className="stat-card orange">
-                    <h3>{stats.pending}</h3>
-                    <p>Pending / Upcoming</p>
-                </div>
-                <div className="stat-card green">
-                    <h3>{stats.completed}</h3>
-                    <p>Completed Visits</p>
+                    <p>Total Today</p>
                 </div>
             </div>
 
@@ -118,7 +123,7 @@ const DoctorDashboard = () => {
                                         </div>
                                     </td>
                                     <td>{apt.serviceName || 'Consultation'}</td>
-                                    <td><span className={`status-badge ${apt.status}`}>{apt.status}</span></td>
+                                    <td><span className={`status-badge ${apt.status}`}>{apt.consultationStatus || apt.status}</span></td>
                                     <td>
                                         <button
                                             className="btn-view"

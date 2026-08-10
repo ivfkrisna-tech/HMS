@@ -15,21 +15,17 @@ const auditLogSchema = new mongoose.Schema({
     action: {
         type: String,
         required: true,
-        enum: [
-            'VIEW_PATIENT', 'CREATE_PATIENT', 'UPDATE_PATIENT', 'DELETE_PATIENT',
-            'VIEW_PRESCRIPTION', 'CREATE_PRESCRIPTION', 'UPDATE_PRESCRIPTION',
-            'VIEW_APPOINTMENT', 'CREATE_APPOINTMENT', 'CANCEL_APPOINTMENT', 'COMPLETE_APPOINTMENT',
-            'VIEW_BILL', 'CREATE_BILL', 'CONFIRM_PAYMENT',
-            'STAFF_LOGIN', 'STAFF_LOGOUT', 'PATIENT_LOGIN',
-            'EXPORT_DATA', 'SYNC_PUSH', 'BACKUP_CREATED',
-            'DATA_ERASURE_REQUEST', 'DATA_ERASED',
-        ],
     },
 
     // What it targeted
     targetModel: { type: String, default: '' },  // 'ClinicPatient', 'Appointment', etc.
     targetId:    { type: mongoose.Schema.Types.ObjectId, default: null },
     targetLabel: { type: String, default: '' },  // e.g. patient name (for readability in audit UI)
+    
+    // Field-level changes (added for Phase 4)
+    field: { type: String, default: '' },
+    oldValue: { type: mongoose.Schema.Types.Mixed, default: null },
+    newValue: { type: mongoose.Schema.Types.Mixed, default: null },
 
     // Request context
     ip:        { type: String, default: '' },

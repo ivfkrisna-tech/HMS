@@ -98,7 +98,11 @@ const userSchema = new mongoose.Schema({
     // --- NURSE & CLINICAL LOGS ---
     nursingNotes: { type: Array, default: [] },
     medicationLogs: { type: Array, default: [] },
-    vitalsHistory: { type: Array, default: [] }
+    vitalsHistory: { type: Array, default: [] },
+
+    // --- DOCTOR ASSISTANT ---
+    // Which doctors this assistant is assigned to (only used for Doctor Assistant role)
+    assignedDoctors: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Doctor', default: undefined }]
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

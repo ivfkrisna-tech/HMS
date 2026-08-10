@@ -32,6 +32,20 @@ import NursePatientProfile from '../pages/nurse/NursePatientProfile';
 import NurseVitalsEntry from '../pages/nurse/NurseVitalsEntry';
 import NursingNotesPage from '../pages/nurse/NursingNotesPage';
 
+// Doctor Assistant Pages
+import AssistantDashboard from '../pages/assistant/AssistantDashboard';
+import AssistantPatients from '../pages/assistant/AssistantPatients';
+import AssistantAppointments from '../pages/assistant/AssistantAppointments';
+import AssistantPreparation from '../pages/assistant/AssistantPreparation';
+import AssistantVitals from '../pages/assistant/AssistantVitals';
+import AssistantReports from '../pages/assistant/AssistantReports';
+import AssistantInvestigations from '../pages/assistant/AssistantInvestigations';
+import AssistantConsents from '../pages/assistant/AssistantConsents';
+import AssistantClinicalNotes from '../pages/assistant/AssistantClinicalNotes';
+import AssistantFollowUp from '../pages/assistant/AssistantFollowUp';
+import AssistantTasks from '../pages/assistant/AssistantTasks';
+import AssistantQuestionLibrary from '../pages/assistant/AssistantQuestionLibrary';
+
 // Hospital Admin (Tier 2) Pages
 import Admin from '../pages/admin/Admin';
 import AdminDoctors from '../pages/admin/AdminDoctors';
@@ -189,6 +203,36 @@ const MainRoutes = () => {
                             <Route path="hospitaladmin/question-library" element={<ProtectedRoute allowedRoles={['hospitaladmin']}><HospitalAdminQuestionLibrary /></ProtectedRoute>} />
                             <Route path="hospitaladmin/sources" element={<ProtectedRoute allowedRoles={['hospitaladmin']}><HospitalAdminSources /></ProtectedRoute>} />
                             <Route path="hospitaladmin/packages" element={<ProtectedRoute allowedRoles={['hospitaladmin']}><HospitalAdminPackages /></ProtectedRoute>} />
+
+                            {/* Doctor Assistant Pages */}
+                            <Route path="assistant/dashboard" element={<ProtectedRoute requiredPermissions={['assistant_view_appointments']}><AssistantDashboard /></ProtectedRoute>} />
+                            
+                            {/* Question Library (Read Only) */}
+                            <Route path="assistant/question-library" element={<ProtectedRoute requiredPermissions={['assistant_view_appointments']}><AssistantQuestionLibrary /></ProtectedRoute>} />
+                            <Route path="assistant/patients" element={<ProtectedRoute requiredPermissions={['assistant_view_patients']}><AssistantPatients /></ProtectedRoute>} />
+                            <Route path="assistant/appointments" element={<ProtectedRoute requiredPermissions={['assistant_view_appointments']}><AssistantAppointments /></ProtectedRoute>} />
+                            
+                            {/* Fallback routes for when no appointmentId is provided */}
+                            <Route path="assistant/preparation" element={<Navigate to="/assistant/appointments" replace />} />
+                            <Route path="assistant/vitals" element={<Navigate to="/assistant/appointments" replace />} />
+                            <Route path="assistant/reports" element={<Navigate to="/assistant/appointments" replace />} />
+                            <Route path="assistant/investigations" element={<Navigate to="/assistant/appointments" replace />} />
+                            
+                            {/* Consent Management */}
+                            <Route path="assistant/consents" element={<ProtectedRoute requiredPermissions={['assistant_manage_consent']}><AssistantConsents /></ProtectedRoute>} />
+                            <Route path="assistant/clinical-notes" element={<Navigate to="/assistant/appointments" replace />} />
+                            <Route path="assistant/follow-up" element={<Navigate to="/assistant/appointments" replace />} />
+                            <Route path="assistant/tasks" element={<Navigate to="/assistant/appointments" replace />} />
+                            <Route path="assistant/question-library" element={<ProtectedRoute requiredPermissions={['assistant_view_appointments']}><HospitalAdminQuestionLibrary /></ProtectedRoute>} />
+
+                            <Route path="assistant/preparation/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_view_patients']}><AssistantPreparation /></ProtectedRoute>} />
+                            <Route path="assistant/vitals/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_add_vitals']}><AssistantVitals /></ProtectedRoute>} />
+                            <Route path="assistant/reports/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_view_reports']}><AssistantReports /></ProtectedRoute>} />
+                            <Route path="assistant/investigations/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_add_investigations']}><AssistantInvestigations /></ProtectedRoute>} />
+                            <Route path="assistant/consents/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_manage_consent']}><AssistantConsents /></ProtectedRoute>} />
+                            <Route path="assistant/clinical-notes/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_draft_notes']}><AssistantClinicalNotes /></ProtectedRoute>} />
+                            <Route path="assistant/follow-up/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_add_followup']}><AssistantFollowUp /></ProtectedRoute>} />
+                            <Route path="assistant/tasks/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_view_patients']}><AssistantTasks /></ProtectedRoute>} />
 
                             <Route path="lab/dashboard" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><LabDashboard /></ProtectedRoute>} />
                             <Route path="lab/tests" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><AssignedTests /></ProtectedRoute>} />

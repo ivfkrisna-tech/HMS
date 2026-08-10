@@ -9,7 +9,41 @@ const LabReport = require('../models/labReport.model');
 const Inventory = require('../models/inventory.model');
 const PharmacyOrder = require('../models/pharmacyOrder.model');
 const Notification = require('../models/notification.model');
+const AuditLog = require('../models/auditLog.model');
 const { verifyToken } = require('../middleware/auth.middleware');
+
+// --- HELPER: Audit Log and Timeline ---
+async function logAuditAndTimeline(appointmentId, modelName, action, field, oldValue, newValue, user, role, newStatus = null, timelineDetails = null) {
+    try {
+        await AuditLog.create({
+            documentId: appointmentId,
+            modelName,
+            action,
+            field,
+            oldValue,
+            newValue,
+            modifiedBy: user._id || user.userId,
+            role
+        });
+
+        if (newStatus || timelineDetails) {
+            const updateObj = { $push: {} };
+            if (newStatus) updateObj.$set = { consultationStatus: newStatus };
+            if (timelineDetails || newStatus) {
+                updateObj.$push.timeline = {
+                    status: newStatus || timelineDetails,
+                    timestamp: new Date(),
+                    user: user._id || user.userId,
+                    role: role,
+                    details: timelineDetails || `Changed status to ${newStatus}`
+                };
+            }
+            await Appointment.findByIdAndUpdate(appointmentId, updateObj);
+        }
+    } catch (err) {
+        console.error('[AuditLog] Error logging:', err.message);
+    }
+}
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -639,3 +673,96 @@ router.get('/:doctorId/booked-slots', async (req, res) => {
 });
 
 module.exports = router;
+
+// ==========================================
+// DOCTOR ASSISTANT REVIEW WORKFLOW (PHASE 4)
+// ==========================================
+
+// 1. Review Draft Notes
+router.post('/appointment/:appointmentId/review/notes', verifyToken, async (req, res) => {
+    try {
+        const { status, editedNotes } = req.body; // status: 'Approved', 'Rejected', 'Edited'
+        const appointmentId = req.params.appointmentId;
+        
+        const update = {
+            'doctorReview.draftNotesStatus': status,
+            'doctorReview.draftNotesApprovedBy': req.user._id || req.user.userId,
+            'doctorReview.draftNotesApprovedAt': new Date()
+        };
+        
+        if (status === 'Edited' && editedNotes !== undefined) {
+            update.notes = editedNotes; // Save the final notes to doctor's notes
+        } else if (status === 'Approved') {
+            const apt = await Appointment.findById(appointmentId).select('draftClinicalNotes').lean();
+            update.notes = apt.draftClinicalNotes;
+        }
+        
+        const appointment = await Appointment.findByIdAndUpdate(appointmentId, update, { new: true });
+        
+        await logAuditAndTimeline(
+            appointmentId, 'Appointment', 'REVIEW', 'draftNotesStatus', 
+            null, status, req.user, 'Doctor', 'Doctor Reviewing', `Doctor ${status.toLowerCase()} draft clinical notes`
+        );
+        
+        res.json({ success: true, message: `Draft notes ${status}`, appointment });
+    } catch (error) {
+        console.error('Review draft notes error:', error);
+        res.status(500).json({ success: false, message: 'Failed to review draft notes' });
+    }
+});
+
+// 2. Review Vitals
+router.post('/appointment/:appointmentId/review/vitals', verifyToken, async (req, res) => {
+    try {
+        const { status, vitals } = req.body; // status: 'Accepted', 'Updated', 'Rejected'
+        const appointmentId = req.params.appointmentId;
+        
+        const update = {
+            'doctorReview.vitalsStatus': status,
+            'doctorReview.vitalsReviewedAt': new Date()
+        };
+        
+        // Only update if doctor modified them. If accepted, leave assistant vitals as they are in the historical record.
+        if (status === 'Updated' && vitals) {
+            update.vitals = vitals;
+        }
+        
+        const appointment = await Appointment.findByIdAndUpdate(appointmentId, update, { new: true });
+        
+        await logAuditAndTimeline(
+            appointmentId, 'Appointment', 'REVIEW', 'vitalsStatus', 
+            null, status, req.user, 'Doctor', 'Doctor Reviewing', `Doctor ${status.toLowerCase()} vitals`
+        );
+        
+        res.json({ success: true, message: `Vitals ${status}`, appointment });
+    } catch (error) {
+        console.error('Review vitals error:', error);
+        res.status(500).json({ success: false, message: 'Failed to review vitals' });
+    }
+});
+
+// 3. Update Consultation Status
+router.post('/appointment/:appointmentId/consultation-status', verifyToken, async (req, res) => {
+    try {
+        const { status, details } = req.body; // 'Prescription Completed', 'Consultation Completed'
+        const appointmentId = req.params.appointmentId;
+        
+        const updateObj = { consultationStatus: status };
+        // If completed, update general status as well
+        if (status === 'Consultation Completed') {
+            updateObj.status = 'completed';
+        }
+        
+        const appointment = await Appointment.findByIdAndUpdate(appointmentId, updateObj, { new: true });
+        
+        await logAuditAndTimeline(
+            appointmentId, 'Appointment', 'STATUS_CHANGE', 'consultationStatus', 
+            null, status, req.user, 'Doctor', status, details || `Doctor changed status to ${status}`
+        );
+        
+        res.json({ success: true, message: `Status updated to ${status}`, appointment });
+    } catch (error) {
+        console.error('Consultation status error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update consultation status' });
+    }
+});

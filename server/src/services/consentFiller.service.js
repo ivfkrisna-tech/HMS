@@ -26,61 +26,30 @@ class ConsentFillerService {
             // Load the binary content into PizZip
             const zip = new PizZip(content);
             
-            // Get the raw XML
-            let xml = zip.file("word/document.xml").asText();
-            
-            // 1. Remove proofErr tags that corrupt XML token boundaries
-            let cleaned = xml.replace(/<w:proofErr[^>]*\/>/g, '');
-            cleaned = cleaned.replace(/<w:proofErr[^>]*>.*?<\/w:proofErr>/g, '');
-            
-            // 2. Uncorrupt split tags inside {{ and }}
-            let uncorruptedXml = '';
-            let inBraces = 0;
-            for (let i = 0; i < cleaned.length; i++) {
-                let char = cleaned[i];
-                if (char === '{') {
-                    inBraces++;
-                    uncorruptedXml += char;
-                } else if (char === '}') {
-                    if (inBraces > 0) inBraces--;
-                    uncorruptedXml += char;
-                } else if (char === '<' && inBraces > 0) {
-                    // Skip internal XML tags between braces
-                    let tag = '<';
-                    i++;
-                    while (i < cleaned.length && cleaned[i] !== '>') {
-                        tag += cleaned[i];
-                        i++;
-                    }
-                    tag += '>';
-                } else {
-                    uncorruptedXml += char;
-                }
-            }
-
-            // 3. Replace all placeholders dynamically
+            // Clean up newlines in data to avoid creating manual line breaks
+            // Docxtemplater natively handles special XML characters escaping.
+            const cleanedData = {};
             Object.keys(data).forEach(key => {
                 let value = data[key] || '';
-                // Escape special XML characters in value
-                value = String(value)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&apos;');
-                    
-                const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-                uncorruptedXml = uncorruptedXml.replace(regex, value);
+                // Replace any newlines with space to prevent manual linebreaks/new paragraphs
+                cleanedData[key] = String(value).replace(/[\r\n]+/g, ' ').trim();
             });
-            
-            // 4. Also clear any remaining unfilled placeholders to avoid raw {{ }} in final doc
-            uncorruptedXml = uncorruptedXml.replace(/\{\{[^}]+\}\}/g, '');
 
-            // 5. Update the zip with the filled XML
-            zip.file("word/document.xml", uncorruptedXml);
+            // Initialize Docxtemplater
+            // We use {{ and }} as delimiters since the system historically used them
+            const doc = new Docxtemplater(zip, {
+                paragraphLoop: true,
+                linebreaks: false, 
+                delimiters: { start: '{{', end: '}}' },
+                nullGetter: () => { return ""; } // Replace undefined variables with empty string
+            });
+
+            // Render the document (replace placeholders dynamically)
+            // Docxtemplater natively preserves paragraph formatting, text runs, and spacing
+            doc.render(cleanedData);
 
             // Generate the output buffer
-            const buffer = zip.generate({
+            const buffer = doc.getZip().generate({
                 type: 'nodebuffer',
                 compression: 'DEFLATE',
             });
@@ -88,6 +57,13 @@ class ConsentFillerService {
             return buffer;
         } catch (error) {
             console.error('Error generating filled consent document:', error);
+            // Docxtemplater provides detailed error logs
+            if (error.properties && error.properties.errors instanceof Array) {
+                const errorMessages = error.properties.errors.map(function (error) {
+                    return error.properties.explanation;
+                }).join("\n");
+                console.error('Docxtemplater errors:', errorMessages);
+            }
             throw new Error(`Failed to generate document: ${error.message}`);
         }
     }

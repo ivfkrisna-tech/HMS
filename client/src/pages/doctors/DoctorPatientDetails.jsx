@@ -865,6 +865,28 @@ const DoctorPatientDetails = () => {
                                 {profile.gender && <span className="dpd-tag tag-gender">{profile.gender}</span>}
                                 {profile.bloodGroup && <span className="dpd-tag tag-blood">🩸 {profile.bloodGroup}</span>}
                             </div>
+                            
+                            {/* Patient Alerts Panel */}
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                {/* Check High BP */}
+                                {appointment.vitals?.bp && parseInt(appointment.vitals.bp.split('/')[0]) >= 140 && (
+                                    <span style={{ padding: '4px 10px', background: '#fee2e2', color: '#991b1b', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
+                                        ⚠️ High BP ({appointment.vitals.bp})
+                                    </span>
+                                )}
+                                {/* Check Allergies */}
+                                {(appointment.preparation?.allergies || profile.allergies) && (
+                                    <span style={{ padding: '4px 10px', background: '#fef3c7', color: '#92400e', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
+                                        ⚠️ Has Allergies
+                                    </span>
+                                )}
+                                {/* Check Diabetes */}
+                                {((appointment.preparation?.pastHistory || '').toLowerCase().includes('diabetes') || (profile.medicalHistory || '').toLowerCase().includes('diabetes')) && (
+                                    <span style={{ padding: '4px 10px', background: '#e0e7ff', color: '#3730a3', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
+                                        🩸 Diabetic
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="dpd-appt-info">
@@ -882,12 +904,88 @@ const DoctorPatientDetails = () => {
                                 {appointment.status} {isLocked && '🔒 Locked'}
                             </span>
                         </div>
+                        <div className="dpd-appt-item" style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '15px' }}>
+                            <span className="dpd-appt-label">Consultation</span>
+                            <span className="dpd-appt-status" style={{ background: '#fef3c7', color: '#d97706' }}>
+                                {appointment.consultationStatus || 'Patient Checked In'}
+                            </span>
+                        </div>
                         <div className="dpd-appt-item">
                             <span className="dpd-appt-label">Service</span>
                             <span className="dpd-appt-value">{appointment.serviceName || 'Consultation'}</span>
                         </div>
                     </div>
                 </div>
+
+                {/* DOCTOR ASSISTANT PREPARATION SUMMARY (PHASE 4) */}
+                {(appointment.preparation?.preparedAt || appointment.vitals?.weight) && (
+                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px', margin: '0 20px 20px 20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <h3 style={{ fontSize: '15px', color: '#0f172a', margin: 0 }}>🩺 Assistant Preparation</h3>
+                            <div>
+                                <span style={{ fontSize: '12px', background: appointment.readyForDoctor ? '#dcfce7' : '#fef3c7', color: appointment.readyForDoctor ? '#166534' : '#d97706', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', marginRight: '10px' }}>
+                                    {appointment.readyForDoctor ? 'Ready For Doctor' : 'Preparation In Progress'}
+                                </span>
+                                {appointment.vitals?.weight && appointment.doctorReview?.vitalsStatus === 'Pending' && (
+                                    <button 
+                                        onClick={async () => {
+                                            try {
+                                                await doctorAPI.reviewVitals(appointment._id, 'Accepted');
+                                                alert('Vitals Accepted!');
+                                                window.location.reload();
+                                            } catch(e) { alert('Failed to accept vitals'); }
+                                        }}
+                                        style={{ padding: '4px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+                                    >
+                                        ✅ Accept Vitals
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                            {appointment.vitals?.bp && (
+                                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Blood Pressure</div>
+                                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a' }}>{appointment.vitals.bp} mmHg</div>
+                                </div>
+                            )}
+                            {appointment.vitals?.weight && (
+                                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Vitals</div>
+                                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a' }}>
+                                        {appointment.vitals.weight}kg | {appointment.vitals.height}cm | BMI {appointment.vitals.bmi}
+                                    </div>
+                                </div>
+                            )}
+                            {appointment.preparation?.chiefComplaint && (
+                                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Chief Complaint</div>
+                                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a' }}>{appointment.preparation.chiefComplaint}</div>
+                                </div>
+                            )}
+                            {appointment.draftClinicalNotes && (
+                                <div style={{ background: '#fef2f2', border: '1px dashed #fca5a5', borderRadius: '8px', padding: '12px' }}>
+                                    <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold' }}>Draft Notes from Assistant</div>
+                                    <div style={{ fontSize: '13px', color: '#7f1d1d' }}>{appointment.draftClinicalNotes.substring(0, 50)}...</div>
+                                </div>
+                            )}
+                        </div>
+                        {/* Consultation Timeline */}
+                        {appointment.timeline && appointment.timeline.length > 0 && (
+                            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed #cbd5e1' }}>
+                                <h4 style={{ fontSize: '13px', color: '#334155', marginBottom: '10px' }}>⏳ Consultation Timeline</h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {appointment.timeline.map((event, idx) => (
+                                        <div key={idx} style={{ display: 'flex', alignItems: 'center', fontSize: '11px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '4px 10px', color: '#475569' }}>
+                                            <span style={{ fontWeight: 'bold', marginRight: '6px' }}>{event.status}</span>
+                                            <span>{new Date(event.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Tabs Navigation */}
                 <div className="dpd-tabs-container">
@@ -1251,6 +1349,78 @@ const DoctorPatientDetails = () => {
                                 {patientLatestVitals.spo2 && <div style={{ fontSize: '13px', color: '#475569' }}><b>SpO2:</b> {patientLatestVitals.spo2}%</div>}
                                 {patientLatestVitals.temp && <div style={{ fontSize: '13px', color: '#475569' }}><b>Temp:</b> {patientLatestVitals.temp}</div>}
                                 {patientLatestVitals.weight && <div style={{ fontSize: '13px', color: '#475569' }}><b>Weight:</b> {patientLatestVitals.weight} kg</div>}
+                            </div>
+                        )}
+
+                        {/* --- DOCTOR ASSISTANT DATA --- */}
+                        {appointment.preparation?.preparedAt && (
+                            <div style={{ margin: '0 20px 15px', padding: '16px', background: '#eef2ff', borderRadius: '8px', border: '1px solid #c7d2fe' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#4338ca' }}>
+                                        👨‍⚕️ Prepared by Assistant ({(new Date(appointment.preparation.preparedAt)).toLocaleString()})
+                                    </div>
+                                    {appointment.readyForDoctor && (
+                                        <span style={{ fontSize: '11px', background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                                            ✅ Ready for Doctor
+                                        </span>
+                                    )}
+                                </div>
+                                
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+                                    {appointment.preparation.chiefComplaint && (
+                                        <div><b style={{color: '#374151'}}>Chief Complaint:</b> <div style={{color: '#4b5563', whiteSpace: 'pre-wrap'}}>{appointment.preparation.chiefComplaint}</div></div>
+                                    )}
+                                    {appointment.preparation.presentIllness && (
+                                        <div><b style={{color: '#374151'}}>Present Illness:</b> <div style={{color: '#4b5563', whiteSpace: 'pre-wrap'}}>{appointment.preparation.presentIllness}</div></div>
+                                    )}
+                                    {appointment.preparation.pastHistory && (
+                                        <div><b style={{color: '#374151'}}>Past History:</b> <div style={{color: '#4b5563', whiteSpace: 'pre-wrap'}}>{appointment.preparation.pastHistory}</div></div>
+                                    )}
+                                    {appointment.preparation.allergies && (
+                                        <div><b style={{color: '#374151'}}>Allergies:</b> <div style={{color: '#4b5563', whiteSpace: 'pre-wrap'}}>{appointment.preparation.allergies}</div></div>
+                                    )}
+                                    {appointment.preparation.currentMedicines && (
+                                        <div style={{gridColumn: '1 / -1'}}><b style={{color: '#374151'}}>Current Medicines:</b> <div style={{color: '#4b5563', whiteSpace: 'pre-wrap'}}>{appointment.preparation.currentMedicines}</div></div>
+                                    )}
+                                </div>
+
+                                {appointment.draftClinicalNotes && (
+                                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #a5b4fc' }}>
+                                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                            <b style={{fontSize: '13px', color: '#374151'}}>📝 Draft Clinical Notes:</b>
+                                            {!isLocked && (
+                                                <div>
+                                                    <button 
+                                                        onClick={async () => {
+                                                            try {
+                                                                await doctorAPI.reviewDraftNotes(appointment._id, 'Approved');
+                                                                setSessionData(prev => ({ ...prev, notes: prev.notes ? prev.notes + '\n\n' + appointment.draftClinicalNotes : appointment.draftClinicalNotes }));
+                                                                alert('Draft notes approved and copied to your session notes!');
+                                                            } catch(e) { alert('Failed to approve notes'); }
+                                                        }}
+                                                        style={{ padding: '4px 10px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', marginRight: '6px' }}
+                                                    >
+                                                        ✅ Approve & Copy
+                                                    </button>
+                                                    <button 
+                                                        onClick={async () => {
+                                                            try {
+                                                                await doctorAPI.reviewDraftNotes(appointment._id, 'Rejected');
+                                                                alert('Draft notes rejected!');
+                                                            } catch(e) { alert('Failed to reject notes'); }
+                                                        }}
+                                                        style={{ padding: '4px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+                                                    >
+                                                        ❌ Reject
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div style={{fontSize: '13px', color: '#4b5563', whiteSpace: 'pre-wrap', marginTop: '6px', background: 'rgba(255,255,255,0.6)', padding: '8px', borderRadius: '6px'}}>
+                                            {appointment.draftClinicalNotes}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 

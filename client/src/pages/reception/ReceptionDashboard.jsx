@@ -1459,6 +1459,15 @@ const ReceptionDashboard = () => {
                                     <label>Age</label>
                                     <input name="age" value={intakeForm.age || ''} readOnly style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#475569', fontWeight: 'bold' }} />
                                 </div>
+                                <div className="field">
+                                    <label>Gender</label>
+                                    <select name="gender" value={intakeForm.gender || ''} onChange={handleInputChange}>
+                                        <option value="">Select Gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <div className="form-row">
