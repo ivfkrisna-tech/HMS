@@ -205,12 +205,12 @@ const MainRoutes = () => {
                             <Route path="hospitaladmin/packages" element={<ProtectedRoute allowedRoles={['hospitaladmin']}><HospitalAdminPackages /></ProtectedRoute>} />
 
                             {/* Doctor Assistant Pages */}
-                            <Route path="assistant/dashboard" element={<ProtectedRoute requiredPermissions={['assistant_view_appointments']}><AssistantDashboard /></ProtectedRoute>} />
+                            <Route path="assistant/dashboard" element={<Navigate replace to="/assistant/patients" />} />
                             
                             {/* Question Library (Read Only) */}
-                            <Route path="assistant/question-library" element={<ProtectedRoute requiredPermissions={['assistant_view_appointments']}><AssistantQuestionLibrary /></ProtectedRoute>} />
-                            <Route path="assistant/patients" element={<ProtectedRoute requiredPermissions={['assistant_view_patients']}><AssistantPatients /></ProtectedRoute>} />
-                            <Route path="assistant/appointments" element={<ProtectedRoute requiredPermissions={['assistant_view_appointments']}><AssistantAppointments /></ProtectedRoute>} />
+                            <Route path="assistant/question-library" element={<ProtectedRoute requiredPermissions={['appointment_view_all', 'appointment view all']}><AssistantQuestionLibrary /></ProtectedRoute>} />
+                            <Route path="assistant/patients" element={<ProtectedRoute requiredPermissions={['patient_view', 'patient view', 'patient_search', 'patient search']}><AssistantPatients /></ProtectedRoute>} />
+                            <Route path="assistant/appointments" element={<ProtectedRoute requiredPermissions={['appointment_view_all', 'appointment view all']}><AssistantAppointments /></ProtectedRoute>} />
                             
                             {/* Fallback routes for when no appointmentId is provided */}
                             <Route path="assistant/preparation" element={<Navigate to="/assistant/appointments" replace />} />
@@ -219,20 +219,20 @@ const MainRoutes = () => {
                             <Route path="assistant/investigations" element={<Navigate to="/assistant/appointments" replace />} />
                             
                             {/* Consent Management */}
-                            <Route path="assistant/consents" element={<ProtectedRoute requiredPermissions={['assistant_manage_consent']}><AssistantConsents /></ProtectedRoute>} />
+                            <Route path="assistant/consents" element={<ProtectedRoute requiredPermissions={['clinical_history_view', 'clinical history view', 'visit_intake', 'visit intake']}><AssistantConsents /></ProtectedRoute>} />
                             <Route path="assistant/clinical-notes" element={<Navigate to="/assistant/appointments" replace />} />
                             <Route path="assistant/follow-up" element={<Navigate to="/assistant/appointments" replace />} />
                             <Route path="assistant/tasks" element={<Navigate to="/assistant/appointments" replace />} />
-                            <Route path="assistant/question-library" element={<ProtectedRoute requiredPermissions={['assistant_view_appointments']}><HospitalAdminQuestionLibrary /></ProtectedRoute>} />
+                            <Route path="assistant/question-library" element={<ProtectedRoute requiredPermissions={['appointment_view_all', 'appointment view all']}><HospitalAdminQuestionLibrary /></ProtectedRoute>} />
 
-                            <Route path="assistant/preparation/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_view_patients']}><AssistantPreparation /></ProtectedRoute>} />
-                            <Route path="assistant/vitals/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_add_vitals']}><AssistantVitals /></ProtectedRoute>} />
-                            <Route path="assistant/reports/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_view_reports']}><AssistantReports /></ProtectedRoute>} />
-                            <Route path="assistant/investigations/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_add_investigations']}><AssistantInvestigations /></ProtectedRoute>} />
-                            <Route path="assistant/consents/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_manage_consent']}><AssistantConsents /></ProtectedRoute>} />
-                            <Route path="assistant/clinical-notes/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_draft_notes']}><AssistantClinicalNotes /></ProtectedRoute>} />
-                            <Route path="assistant/follow-up/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_add_followup']}><AssistantFollowUp /></ProtectedRoute>} />
-                            <Route path="assistant/tasks/:appointmentId" element={<ProtectedRoute requiredPermissions={['assistant_view_patients']}><AssistantTasks /></ProtectedRoute>} />
+                            <Route path="assistant/preparation/:appointmentId" element={<ProtectedRoute requiredPermissions={['patient_view', 'patient view', 'visit_intake', 'visit intake']}><AssistantPreparation /></ProtectedRoute>} />
+                            <Route path="assistant/vitals/:appointmentId" element={<ProtectedRoute requiredPermissions={['clinical_history_view', 'clinical history view', 'visit_intake', 'visit intake']}><AssistantVitals /></ProtectedRoute>} />
+                            <Route path="assistant/reports/:appointmentId" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab view', 'clinical_history_view', 'clinical history view']}><AssistantReports /></ProtectedRoute>} />
+                            <Route path="assistant/investigations/:appointmentId" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab view', 'clinical_history_view', 'clinical history view']}><AssistantInvestigations /></ProtectedRoute>} />
+                            <Route path="assistant/consents/:appointmentId" element={<ProtectedRoute requiredPermissions={['clinical_history_view', 'clinical history view', 'visit_intake', 'visit intake']}><AssistantConsents /></ProtectedRoute>} />
+                            <Route path="assistant/clinical-notes/:appointmentId" element={<ProtectedRoute requiredPermissions={['clinical_history_view', 'clinical history view', 'patient_view', 'patient view', 'appointment_view_all', 'appointment view all']}><AssistantClinicalNotes /></ProtectedRoute>} />
+                            <Route path="assistant/follow-up/:appointmentId" element={<ProtectedRoute requiredPermissions={['clinical_history_view', 'clinical history view', 'patient_view', 'patient view', 'appointment_view_all', 'appointment view all']}><AssistantFollowUp /></ProtectedRoute>} />
+                            <Route path="assistant/tasks/:appointmentId" element={<ProtectedRoute requiredPermissions={['clinical_history_view', 'clinical history view', 'patient_view', 'patient view', 'appointment_view_all', 'appointment view all']}><AssistantTasks /></ProtectedRoute>} />
 
                             <Route path="lab/dashboard" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><LabDashboard /></ProtectedRoute>} />
                             <Route path="lab/tests" element={<ProtectedRoute requiredPermissions={['lab_view', 'lab_manage']}><AssignedTests /></ProtectedRoute>} />

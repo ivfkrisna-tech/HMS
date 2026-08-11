@@ -396,17 +396,29 @@ router.post('/appointment/:appointmentId/reports', verifyToken, async (req, res)
             return res.status(400).json({ success: false, message: 'No files provided' });
         }
 
-        const appointment = await Appointment.findOneAndUpdate(
-            { _id: req.params.appointmentId, hospitalId: req.user.hospitalId },
-            { $push: { prescriptions: { $each: files } } },
-            { new: true }
-        );
+        const appointment = await Appointment.findOne({
+            _id: req.params.appointmentId,
+            hospitalId: req.user.hospitalId
+        });
 
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
 
-        res.json({ success: true, message: 'Reports saved', prescriptions: appointment.prescriptions });
+        const formattedFiles = files.map(f => ({
+            fileName: f.name || 'Report',
+            url: f.url,
+            date: new Date(),
+            type: f.type || 'Laboratory'
+        }));
+
+        const updatedUser = await User.findByIdAndUpdate(
+            appointment.userId,
+            { $push: { 'fertilityProfile.previousReports': { $each: formattedFiles } } },
+            { new: true }
+        );
+
+        res.json({ success: true, message: 'Reports saved', prescriptions: updatedUser.fertilityProfile?.previousReports || [] });
     } catch (err) {
         console.error('[Assistant] Save reports error:', err.message);
         res.status(500).json({ success: false, message: 'Failed to save reports' });

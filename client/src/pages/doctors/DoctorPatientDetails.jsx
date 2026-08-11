@@ -822,6 +822,7 @@ const DoctorPatientDetails = () => {
         { id: 'overview', label: 'Overview', icon: '📋' },
         { id: 'history', label: 'Past Visits', icon: '📜' },
         { id: 'documents', label: 'Reports', icon: '📁' },
+        { id: 'consents', label: 'Consent Forms', icon: '📝' },
     ];
 
     // Dynamic Form Tabs Injection
@@ -991,16 +992,41 @@ const DoctorPatientDetails = () => {
                 <div className="dpd-tabs-container">
                     <button className="dpd-tab-scroll-btn" onClick={() => scrollTabs('left')} title="Scroll Left">‹</button>
                     <div className="dpd-tabs-nav" ref={tabsRef}>
-                        {allTabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                className={`dpd-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                                onClick={() => setActiveTab(tab.id)}
-                            >
-                                <span className="dpd-tab-icon">{tab.icon}</span>
-                                <span className="dpd-tab-label">{tab.label}</span>
-                            </button>
-                        ))}
+                        {allTabs.map(tab => {
+                            if (tab.id === 'consents') {
+                                return (
+                                    <button
+                                        type="button"
+                                        key={tab.id}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            console.log("Switching tab to consents safely");
+                                            setActiveTab('consents');
+                                        }}
+                                        className={`dpd-tab-btn ${activeTab === 'consents' ? 'active' : ''}`}
+                                    >
+                                        <span className="dpd-tab-icon">📝</span>
+                                        <span className="dpd-tab-label">Consent Forms</span>
+                                    </button>
+                                );
+                            }
+                            return (
+                                <button
+                                    type="button"
+                                    key={tab.id}
+                                    className={`dpd-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveTab(tab.id);
+                                    }}
+                                >
+                                    <span className="dpd-tab-icon">{tab.icon}</span>
+                                    <span className="dpd-tab-label">{tab.label}</span>
+                                </button>
+                            );
+                        })}
                     </div>
                     <button className="dpd-tab-scroll-btn" onClick={() => scrollTabs('right')} title="Scroll Right">›</button>
                 </div>
@@ -1242,6 +1268,65 @@ const DoctorPatientDetails = () => {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    )}
+
+                    {/* CONSENTS TAB */}
+                    {activeTab === 'consents' && (
+                        <div className="dpd-tab-panel">
+                            <div style={{ padding: '20px', background: '#dcfce7', color: '#166534', fontWeight: 'bold', borderRadius: '8px' }}>
+                                Consent Forms Section Working
+                            </div>
+                            
+                            {/* Original UI commented out for testing
+                            <h3 className="dpd-panel-title">📝 Consent Forms</h3>
+                            {(patient?.consents || []).length === 0 ? (
+                                <div className="dpd-empty-hist"><p>No consent forms generated or uploaded.</p></div>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
+                                    {(patient?.consents || []).map((doc, i) => {
+                                        const isPending = doc.status === 'Pending';
+                                        return (
+                                        <div key={doc._id || i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}>
+                                                    📄 {String(doc.consentName || `Consent Form ${i + 1}`)}
+                                                </div>
+                                                {isPending ? (
+                                                    <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#d97706', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                                        ⏳ Pending Signature
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                                        ✅ Signed
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                                {doc.uploadedAt ? `Generated/Uploaded: ${new Date(doc.uploadedAt).toLocaleDateString('en-IN')}` : ''}
+                                                {(!isPending && doc.signedDate) ? ` | Signed: ${new Date(doc.signedDate).toLocaleDateString('en-IN')}` : ''}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '8px' }}>
+                                                {doc.fileUrl && (
+                                                    <a href={doc.fileUrl} target="_blank" rel="noreferrer"
+                                                       onClick={(e) => { e.preventDefault(); window.open(doc.fileUrl, '_blank'); }}
+                                                       style={{ flex: 1, textAlign: 'center', background: '#eff6ff', color: '#3b82f6', fontSize: '0.82rem', fontWeight: 600, padding: '8px', borderRadius: '6px', textDecoration: 'none' }}>
+                                                        👁 Preview
+                                                    </a>
+                                                )}
+                                                {doc.fileUrl && (
+                                                    <a href={doc.fileUrl} download
+                                                       onClick={(e) => { e.preventDefault(); window.open(doc.fileUrl, '_blank'); }}
+                                                       style={{ flex: 1, textAlign: 'center', background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', fontSize: '0.82rem', fontWeight: 600, padding: '8px', borderRadius: '6px', textDecoration: 'none' }}>
+                                                        ⬇️ Download
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )})}
+                                </div>
+                            )}
+                            */}
                         </div>
                     )}
                 </div>

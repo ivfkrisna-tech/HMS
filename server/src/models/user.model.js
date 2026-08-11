@@ -92,7 +92,10 @@ const userSchema = new mongoose.Schema({
         consentName: { type: String, required: true },
         fileUrl: { type: String, default: null },
         fileType: { type: String, default: null },
-        uploadedAt: { type: Date, default: Date.now }
+        uploadedAt: { type: Date, default: Date.now },
+        status: { type: String, enum: ['Signed', 'Pending'], default: 'Signed' },
+        signedDate: { type: Date, default: null },
+        appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null }
     }],
 
     // --- NURSE & CLINICAL LOGS ---
