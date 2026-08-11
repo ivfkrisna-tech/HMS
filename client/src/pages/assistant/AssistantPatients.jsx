@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { assistantAPI } from '../../utils/api';
+import { assistantAPI, doctorAPI, uploadAPI } from '../../utils/api';
 
 const AssistantPatients = () => {
     const navigate = useNavigate();
@@ -8,9 +8,128 @@ const AssistantPatients = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
 
+    // Modal states
+    const [vitalsPatient, setVitalsPatient] = useState(null);
+    const [uploadPatient, setUploadPatient] = useState(null);
+    const [uploadFile, setUploadFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [vitals, setVitals] = useState({
+        weight: '', height: '', bmi: '', bloodPressure: '',
+        pulse: '', temperature: '', spo2: '', respiratoryRate: '',
+        chiefComplaint: '', notes: ''
+    });
+    const [saving, setSaving] = useState(false);
+
     useEffect(() => {
         fetchAppointments();
     }, []);
+
+    // Calculate BMI when weight/height change
+    useEffect(() => {
+        const w = parseFloat(vitals.weight);
+        const h = parseFloat(vitals.height) / 100; // cm to m
+        if (w > 0 && h > 0) {
+            setVitals(v => ({ ...v, bmi: (w / (h * h)).toFixed(1) }));
+        }
+    }, [vitals.weight, vitals.height]);
+
+    const handleUploadReport = async (e) => {
+        e.preventDefault();
+        if (!uploadFile) return;
+        setUploading(true);
+
+        try {
+            const formData = new FormData();
+            formData.append('images', uploadFile);
+            
+            const res = await uploadAPI.uploadImages(formData);
+            if (res.success && res.files && res.files.length > 0) {
+                const uploadedFile = res.files[0];
+                const patientId = uploadPatient.userId?._id || uploadPatient.patientId;
+                
+                const existingProfile = uploadPatient.userId?.fertilityProfile || {};
+                const existingReports = existingProfile.previousReports || [];
+                
+                const newReport = {
+                    fileName: uploadFile.name,
+                    url: uploadedFile.url,
+                    date: new Date().toISOString()
+                };
+
+                await doctorAPI.updatePatientProfile(patientId, {
+                    previousReports: [...existingReports, newReport]
+                });
+
+                alert("Report uploaded successfully!");
+                setUploadPatient(null);
+                setUploadFile(null);
+                fetchAppointments();
+            } else {
+                throw new Error("Upload failed");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error uploading report: " + (err.message || ''));
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleSaveVitals = async () => {
+        if (!vitalsPatient) return;
+        setSaving(true);
+        try {
+            const patientId = vitalsPatient.userId?._id || vitalsPatient.userId;
+            const profileData = {
+                vitals: {
+                    weight: vitals.weight,
+                    height: vitals.height,
+                    bmi: vitals.bmi,
+                    bloodPressure: vitals.bloodPressure,
+                    pulse: vitals.pulse,
+                    temperature: vitals.temperature,
+                    spo2: vitals.spo2,
+                    respiratoryRate: vitals.respiratoryRate,
+                    lastRecorded: new Date().toISOString()
+                }
+            };
+            await doctorAPI.updatePatientProfile(patientId, profileData);
+
+            if (vitals.chiefComplaint || vitals.notes) {
+                try {
+                    await doctorAPI.updateSession(vitalsPatient._id, {
+                        notes: `Chief Complaint: ${vitals.chiefComplaint}\nNurse Notes: ${vitals.notes}`
+                    });
+                } catch (e) { /* optional, don't block */ }
+            }
+
+            alert('Vitals saved successfully!');
+            setVitalsPatient(null);
+            setVitals({ weight: '', height: '', bmi: '', bloodPressure: '', pulse: '', temperature: '', spo2: '', respiratoryRate: '', chiefComplaint: '', notes: '' });
+            fetchAppointments();
+        } catch (err) {
+            alert('Error saving vitals: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const openVitalsForm = (apt) => {
+        const existing = apt.userId?.fertilityProfile?.vitals || {};
+        setVitals({
+            weight: existing.weight || '',
+            height: existing.height || '',
+            bmi: existing.bmi || '',
+            bloodPressure: existing.bloodPressure || '',
+            pulse: existing.pulse || '',
+            temperature: existing.temperature || '',
+            spo2: existing.spo2 || '',
+            respiratoryRate: existing.respiratoryRate || '',
+            chiefComplaint: '',
+            notes: ''
+        });
+        setVitalsPatient(apt);
+    };
 
     const fetchAppointments = async () => {
         try {
@@ -116,6 +235,16 @@ const AssistantPatients = () => {
         btn: (bg) => ({ padding: '7px 18px', borderRadius: '9px', border: 'none', background: bg, color: '#fff', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }),
         empty: { textAlign: 'center', padding: '60px 20px', background: '#ffffff', borderRadius: '16px', border: '1px dashed #cbd5e1' },
         loadingWrap: { textAlign: 'center', padding: '60px 0', color: '#94a3b8' },
+        overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+        modal: { background: 'linear-gradient(145deg, #1e293b, #0f172a)', borderRadius: '20px', width: '560px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' },
+        modalHeader: { padding: '22px 28px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+        modalBody: { padding: '24px 28px' },
+        formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+        formGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
+        formLabel: { color: '#94a3b8', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' },
+        formInput: { padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#f8fafc', fontSize: '0.88rem', outline: 'none' },
+        formTextarea: { padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#f8fafc', fontSize: '0.88rem', outline: 'none', minHeight: '70px', resize: 'vertical', fontFamily: 'inherit' },
+        modalFooter: { padding: '18px 28px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
     };
 
     return (
@@ -250,7 +379,7 @@ const AssistantPatients = () => {
                                                 <td style={S.td}>
                                                     <div style={{ display: 'flex', gap: '8px' }}>
                                                         <button
-                                                            onClick={() => handleAction('vitals', apt._id)}
+                                                            onClick={() => openVitalsForm(apt)}
                                                             style={{
                                                                 ...S.btn('linear-gradient(135deg, #3b82f6, #6366f1)'),
                                                                 display: 'flex', alignItems: 'center', gap: '5px'
@@ -259,7 +388,7 @@ const AssistantPatients = () => {
                                                             💉 Vitals
                                                         </button>
                                                         <button
-                                                            onClick={() => handleAction('reports', apt._id)}
+                                                            onClick={() => setUploadPatient(apt)}
                                                             style={{
                                                                 ...S.btn('linear-gradient(135deg, #f59e0b, #d97706)'),
                                                                 display: 'flex', alignItems: 'center', gap: '5px'
@@ -298,6 +427,129 @@ const AssistantPatients = () => {
                     </>
                 )}
             </div>
+
+            {/* ─── VITALS MODAL ─── */}
+            {
+                vitalsPatient && (
+                    <div style={S.overlay} onClick={() => setVitalsPatient(null)}>
+                        <div style={S.modal} onClick={e => e.stopPropagation()}>
+                            {/* Header */}
+                            <div style={S.modalHeader}>
+                                <div>
+                                    <h2 style={{ margin: 0, color: '#f8fafc', fontSize: '1.15rem', fontWeight: '800' }}>
+                                        💉 Enter Vitals
+                                    </h2>
+                                    <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem' }}>
+                                        Patient: <strong style={{ color: '#e2e8f0' }}>{vitalsPatient.userId?.name || 'Unknown'}</strong> •
+                                        MRN: {vitalsPatient.userId?.mrn || vitalsPatient.userId?.patientId || 'N/A'} •
+                                        Dr. {vitalsPatient.doctorName}
+                                    </p>
+                                </div>
+                                <button onClick={() => setVitalsPatient(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.3rem', cursor: 'pointer' }}>✕</button>
+                            </div>
+
+                            {/* Body */}
+                            <div style={S.modalBody}>
+                                <div style={S.formGrid}>
+                                    {[
+                                        { key: 'weight', label: 'Weight (kg)', icon: '⚖️', type: 'number' },
+                                        { key: 'height', label: 'Height (cm)', icon: '📏', type: 'number' },
+                                        { key: 'bmi', label: 'BMI (auto)', icon: '📊', type: 'text', readOnly: true },
+                                        { key: 'bloodPressure', label: 'Blood Pressure', icon: '🩸', type: 'text', placeholder: '120/80' },
+                                        { key: 'pulse', label: 'Pulse (bpm)', icon: '💓', type: 'number' },
+                                        { key: 'temperature', label: 'Temp (°F)', icon: '🌡️', type: 'number' },
+                                        { key: 'spo2', label: 'SpO₂ (%)', icon: '🫁', type: 'number' },
+                                        { key: 'respiratoryRate', label: 'Resp Rate (/min)', icon: '💨', type: 'number' },
+                                    ].map(field => (
+                                        <div key={field.key} style={S.formGroup}>
+                                            <label style={S.formLabel}>{field.icon} {field.label}</label>
+                                            <input
+                                                type={field.type}
+                                                value={vitals[field.key]}
+                                                readOnly={field.readOnly}
+                                                placeholder={field.placeholder || ''}
+                                                onChange={e => setVitals({ ...vitals, [field.key]: e.target.value })}
+                                                style={{
+                                                    ...S.formInput,
+                                                    ...(field.readOnly ? { background: 'rgba(255,255,255,0.02)', color: '#64748b' } : {})
+                                                }}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Chief Complaint */}
+                                <div style={{ ...S.formGroup, marginTop: '16px' }}>
+                                    <label style={S.formLabel}>📋 Chief Complaint</label>
+                                    <textarea
+                                        value={vitals.chiefComplaint}
+                                        onChange={e => setVitals({ ...vitals, chiefComplaint: e.target.value })}
+                                        placeholder="Patient's chief complaint..."
+                                        style={S.formTextarea}
+                                    />
+                                </div>
+
+                                {/* Nurse Notes */}
+                                <div style={{ ...S.formGroup, marginTop: '12px' }}>
+                                    <label style={S.formLabel}>📝 Nurse Notes</label>
+                                    <textarea
+                                        value={vitals.notes}
+                                        onChange={e => setVitals({ ...vitals, notes: e.target.value })}
+                                        placeholder="Any observations or notes..."
+                                        style={S.formTextarea}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div style={S.modalFooter}>
+                                <button onClick={() => setVitalsPatient(null)} style={{ ...S.btn('rgba(255,255,255,0.08)'), color: '#94a3b8' }}>Cancel</button>
+                                <button
+                                    onClick={handleSaveVitals}
+                                    disabled={saving}
+                                    style={{ ...S.btn('linear-gradient(135deg, #10b981, #059669)'), opacity: saving ? 0.6 : 1, minWidth: '140px' }}
+                                >
+                                    {saving ? '⏳ Saving...' : '✅ Save Vitals'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* UPload Report Modal */}
+            {uploadPatient && (
+                <div style={S.overlay}>
+                    <div style={{ ...S.modal, maxWidth: '400px' }}>
+                        <div style={S.modalHeader}>
+                            <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px', color: '#f8fafc' }}>
+                                📁 Upload Master Record
+                            </h2>
+                            <button onClick={() => setUploadPatient(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.3rem', cursor: 'pointer' }}>&times;</button>
+                        </div>
+                        <form onSubmit={handleUploadReport} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>
+                                Upload previous medical reports, prescriptions, or scans for <b>{uploadPatient.userId?.name || 'Patient'}</b>.
+                            </p>
+                            
+                            <input 
+                                type="file" 
+                                accept="application/pdf,image/*"
+                                onChange={(e) => setUploadFile(e.target.files[0])}
+                                required
+                                style={{ padding: '10px', border: '1px dashed #475569', borderRadius: '8px', color: '#e2e8f0' }}
+                            />
+
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                <button type="button" onClick={() => setUploadPatient(null)} style={S.btn('rgba(255,255,255,0.08)', '#94a3b8')}>Cancel</button>
+                                <button type="submit" disabled={uploading || !uploadFile} style={S.btn('linear-gradient(135deg, #3b82f6, #6366f1)', '#fff')}>
+                                    {uploading ? 'Uploading...' : 'Save Report'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
