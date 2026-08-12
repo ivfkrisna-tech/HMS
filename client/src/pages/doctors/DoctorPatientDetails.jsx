@@ -291,7 +291,14 @@ const DoctorPatientDetails = () => {
                 console.log("FETCHED PATIENT PROFILE FROM BACKEND:", res);
                 if (res.success) {
                     setAppointment(res.appointment);
-                    setIntakeData(res.appointment.userId?.fertilityProfile || {});
+                    const baseProfile = res.appointment.userId?.fertilityProfile || {};
+                    const qAnswers = res.appointment.questionnaireAnswers || [];
+                    const mappedAnswers = {};
+                    qAnswers.forEach(ans => {
+                        mappedAnswers[ans.questionText] = ans.answer;
+                    });
+                    
+                    setIntakeData({ ...baseProfile, ...mappedAnswers });
                     
                     // Lock if completed
                     if (res.appointment.status === 'completed') {

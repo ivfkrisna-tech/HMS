@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { assistantAPI, doctorAPI, uploadAPI } from '../../utils/api';
+import apiClient, { assistantAPI, doctorAPI, uploadAPI } from '../../utils/api';
+import DynamicQuestionForm from '../../components/DynamicQuestionForm';
 
 const AssistantAppointments = () => {
     const navigate = useNavigate();
@@ -19,6 +20,11 @@ const AssistantAppointments = () => {
         chiefComplaint: '', notes: ''
     });
     const [saving, setSaving] = useState(false);
+
+    // Questionnaire states
+    const [questionnairePatient, setQuestionnairePatient] = useState(null);
+    const [questionLibrary, setQuestionLibrary] = useState([]);
+    const [intakeData, setIntakeData] = useState({});
 
     useEffect(() => {
         fetchAppointments();
@@ -41,15 +47,15 @@ const AssistantAppointments = () => {
         try {
             const formData = new FormData();
             formData.append('images', uploadFile);
-            
+
             const res = await uploadAPI.uploadImages(formData);
             if (res.success && res.files && res.files.length > 0) {
                 const uploadedFile = res.files[0];
                 const patientId = uploadPatient.userId?._id || uploadPatient.patientId;
-                
+
                 const existingProfile = uploadPatient.userId?.fertilityProfile || {};
                 const existingReports = existingProfile.previousReports || [];
-                
+
                 const newReport = {
                     fileName: uploadFile.name,
                     url: uploadedFile.url,
@@ -80,7 +86,7 @@ const AssistantAppointments = () => {
         setSaving(true);
         try {
             const appointmentId = vitalsPatient._id;
-            
+
             const payload = {
                 weight: vitals.weight,
                 height: vitals.height,
@@ -104,6 +110,65 @@ const AssistantAppointments = () => {
             alert('Error saving vitals: ' + (err.response?.data?.message || err.message));
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleSaveQuestionnaire = async () => {
+        if (!questionnairePatient) return;
+        setSaving(true);
+        try {
+            const appointmentId = questionnairePatient._id;
+
+            const answers = Object.entries(intakeData).map(([qText, ans]) => ({
+                questionText: qText,
+                answer: ans
+            }));
+
+            await assistantAPI.saveQuestionnaire(appointmentId, answers);
+
+            alert('Questionnaire saved successfully!');
+            setQuestionnairePatient(null);
+            setIntakeData({});
+            fetchAppointments();
+        } catch (err) {
+            alert('Error saving questionnaire: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const openQuestionnaireForm = async (apt) => {
+        setQuestionnairePatient(apt);
+
+        const existingAnswers = apt.questionnaireAnswers || [];
+        const flatData = {};
+        existingAnswers.forEach(ans => {
+            flatData[ans.questionText] = ans.answer;
+        });
+        setIntakeData(flatData);
+
+        if ((questionLibrary || []).length === 0) {
+            try {
+                const res = await apiClient.get('/api/question-library');
+                const responseBody = res.data;
+                if (responseBody && responseBody.success && responseBody.data && responseBody.data.data) {
+                    const dynamicLibrary = responseBody.data.data;
+                    let allQuestions = [];
+                    Object.keys(dynamicLibrary).forEach(dept => {
+                        if (dynamicLibrary[dept]) {
+                            Object.keys(dynamicLibrary[dept]).forEach(catKey => {
+                                const qList = dynamicLibrary[dept][catKey];
+                                if (Array.isArray(qList)) {
+                                    allQuestions = [...allQuestions, ...qList];
+                                }
+                            });
+                        }
+                    });
+                    setQuestionLibrary([{ _id: 'master', name: 'IVF', questions: allQuestions }]);
+                }
+            } catch (err) {
+                console.error("Error fetching question library:", err);
+            }
         }
     };
 
@@ -139,7 +204,6 @@ const AssistantAppointments = () => {
 
     const getFilteredAppointments = () => {
         return appointments.filter(apt => {
-            // Unified Search
             const term = searchTerm.toLowerCase();
             const pName = (apt.userId?.name || apt.patientId?.name || apt.patientName || '').toLowerCase();
             const pMrn = (apt.userId?.mrn || apt.userId?._id || apt.patientId?.mrn || apt.patientId?._id || '').toLowerCase();
@@ -148,7 +212,6 @@ const AssistantAppointments = () => {
             if (!pName.includes(term) && !pMrn.includes(term) && !pPhone.includes(term)) {
                 return false;
             }
-            
             return true;
         });
     };
@@ -169,23 +232,21 @@ const AssistantAppointments = () => {
         return { bg: '#f1f5f9', color: '#475569' };
     };
 
-    // ─── STYLES ─────────────────────────────────────────────────────
     const S = {
-        page: { minHeight: '100vh', background: 'radial-gradient(circle at top right, #f0f9ff, #e0f2fe, #f1f5f9)', fontFamily: "'Outfit', 'Inter', system-ui, sans-serif", padding: '32px', color: '#1e293b' },
-        topbar: { background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.6)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)', borderRadius: '24px', padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' },
+        page: { minHeight: '100vh', background: 'radial-gradient(circle at top right, #f0f9ff, #e0f2fe, #f1f5f9)', fontFamily: "'Outfit', 'Inter', system-ui, sans-serif", padding: '32px', color: '#1e293b', boxSizing: 'border-box' },
+        topbar: { background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.6)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)', borderRadius: '24px', padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
         topLeft: { display: 'flex', alignItems: 'center', gap: '16px' },
         logo: { width: '48px', height: '48px', borderRadius: '16px', background: 'linear-gradient(135deg, #0ea5e9, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' },
         title: { margin: '0 0 6px 0', fontSize: '2rem', fontWeight: '800', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' },
         subtitle: { margin: 0, color: '#64748b', fontSize: '1rem', fontWeight: '500' },
-        searchWrap: { position: 'relative', flex: 1, maxWidth: '350px' },
-        searchIcon: { position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontSize: '1rem' },
         content: { padding: '0' },
-        sectionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid rgba(0, 0, 0, 0.05)' },
+        sectionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid rgba(0, 0, 0, 0.05)' },
         sectionTitle: { color: '#1e293b', fontSize: '1.5rem', fontWeight: '800', margin: 0 },
         table: { width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px', minWidth: '1000px' },
-        th: { padding: '16px', textAlign: 'left', color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.05em', background: '#f8fafc' },
+        th: { padding: '16px', textAlign: 'left', color: '#64748b', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.05em', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 },
         td: { padding: '16px', verticalAlign: 'middle', border: 'none' },
-        tableWrap: { background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(10px)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.6)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)', padding: '24px', overflowX: 'auto' },
+        tableWrap: { background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(10px)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.6)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)', padding: '24px', maxHeight: 'calc(100vh - 220px)', display: 'flex', flexDirection: 'column' },
+        scrollableContainer: { overflowX: 'auto', overflowY: 'auto', flex: 1 },
         avatar: (color) => ({ width: '40px', height: '40px', borderRadius: '12px', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '800', fontSize: '0.95rem', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }),
         empty: { textAlign: 'center', padding: '60px 20px', background: 'rgba(255, 255, 255, 0.7)', borderRadius: '24px', border: '2px dashed #cbd5e1' },
         loadingWrap: { textAlign: 'center', padding: '60px 0', color: '#94a3b8' },
@@ -199,7 +260,7 @@ const AssistantAppointments = () => {
         formInput: { padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#f8fafc', fontSize: '0.88rem', outline: 'none' },
         formTextarea: { padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#f8fafc', fontSize: '0.88rem', outline: 'none', minHeight: '70px', resize: 'vertical', fontFamily: 'inherit' },
         modalFooter: { padding: '18px 28px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
-        btn: (bg, color = '#fff') => ({ padding: '7px 18px', borderRadius: '9px', border: 'none', background: bg, color, fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }),
+        btn: (bg, color = '#fff') => ({ padding: '10px 20px', borderRadius: '10px', border: 'none', background: bg, color, fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }),
     };
 
     const cssStyles = `
@@ -223,33 +284,19 @@ const AssistantAppointments = () => {
             background: white;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
             transition: transform 0.2s, box-shadow 0.2s;
-            position: relative;
-            z-index: 1;
         }
         .assistant-table-row:hover {
-            transform: scale(1.005);
+            transform: scale(1.002);
             box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
-            z-index: 10;
-        }
-        .assistant-table-row td:first-child {
-            border-radius: 12px 0 0 12px;
-        }
-        .assistant-table-row td:last-child {
-            border-radius: 0 12px 12px 0;
-        }
-        .assistant-th:first-child {
-            border-radius: 12px 0 0 12px;
-        }
-        .assistant-th:last-child {
-            border-radius: 0 12px 12px 0;
+            z-index: 5;
         }
         .assistant-action-btn {
             color: white;
             border: none;
-            padding: 10px 16px;
-            border-radius: 12px;
+            padding: 8px 14px;
+            border-radius: 10px;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             cursor: pointer;
             transition: all 0.3s;
             display: flex;
@@ -257,38 +304,12 @@ const AssistantAppointments = () => {
             gap: 6px;
             white-space: nowrap;
         }
-        .btn-vitals {
-            background: linear-gradient(135deg, #3b82f6, #6366f1);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        }
-        .btn-vitals:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 18px rgba(59, 130, 246, 0.4);
-        }
-        .btn-report {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-        }
-        .btn-report:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 18px rgba(245, 158, 11, 0.4);
-        }
-        .btn-notes {
-            background: linear-gradient(135deg, #8b5cf6, #d946ef);
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-        }
-        .btn-notes:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 18px rgba(139, 92, 246, 0.4);
-        }
-        .btn-consent {
-            background: linear-gradient(135deg, #10b981, #059669);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-        }
-        .btn-consent:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 18px rgba(16, 185, 129, 0.4);
-        }
+        .btn-vitals { background: linear-gradient(135deg, #3b82f6, #6366f1); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .btn-questionnaire { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
+        .btn-report { background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3); }
+        .btn-notes { background: linear-gradient(135deg, #8b5cf6, #d946ef); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); }
+        .btn-consent { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .assistant-action-btn:hover { transform: translateY(-2px); }
     `;
 
     return (
@@ -308,8 +329,8 @@ const AssistantAppointments = () => {
                 <div style={S.tableWrap}>
                     <div style={S.sectionHeader}>
                         <h3 style={S.sectionTitle}>📁 Appointment Roster</h3>
-                        <div style={{ ...S.searchWrap, maxWidth: '350px', flex: 'none' }}>
-                            <span style={S.searchIcon}>🔍</span>
+                        <div style={{ position: 'relative', width: '350px' }}>
+                            <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>🔍</span>
                             <input
                                 type="text"
                                 placeholder="Search by Patient Name, MRN, or Phone..."
@@ -320,37 +341,38 @@ const AssistantAppointments = () => {
                         </div>
                     </div>
 
-                    {loading ? (
-                        <div style={S.loadingWrap}>
-                            <div style={{ width: '38px', height: '38px', border: '3px solid rgba(0,0,0,0.08)', borderTop: '3px solid #3b82f6', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
-                            <p style={{ fontSize: '0.9rem' }}>Loading appointments...</p>
-                            <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-                        </div>
-                    ) : filteredAppointments.length === 0 ? (
-                        <div style={S.empty}>
-                            <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📋</div>
-                            <h4 style={{ color: '#1e293b', margin: '0 0 6px', fontWeight: '700' }}>No Appointments Found</h4>
-                            <p style={{ color: '#64748b', margin: 0, fontSize: '0.88rem' }}>
-                                Try adjusting your search to find what you're looking for.
-                            </p>
-                        </div>
-                    ) : (
-                        <table style={S.table}>
-                            <thead>
-                                <tr>
-                                    <th style={S.th} className="assistant-th">#</th>
-                                    <th style={S.th}>Patient</th>
-                                    <th style={S.th}>Doctor</th>
-                                    <th style={S.th}>Date & Time</th>
-                                    <th style={S.th}>Status</th>
-                                    <th style={S.th} className="assistant-th">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredAppointments.map((apt, idx) => {
-                                    const statusS = getStatusStyle(apt.consultationStatus || apt.status);
-                                    return (
-                                        <tr key={apt._id} className="assistant-table-row">
+                    <div style={S.scrollableContainer}>
+                        {loading ? (
+                            <div style={S.loadingWrap}>
+                                <div style={{ width: '38px', height: '38px', border: '3px solid rgba(0,0,0,0.08)', borderTop: '3px solid #3b82f6', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' }} />
+                                <p style={{ fontSize: '0.9rem' }}>Loading appointments...</p>
+                                <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+                            </div>
+                        ) : filteredAppointments.length === 0 ? (
+                            <div style={S.empty}>
+                                <div style={{ fontSize: '3rem', marginBottom: '10px' }}>📋</div>
+                                <h4 style={{ color: '#1e293b', margin: '0 0 6px', fontWeight: '700' }}>No Appointments Found</h4>
+                                <p style={{ color: '#64748b', margin: 0, fontSize: '0.88rem' }}>
+                                    Try adjusting your search to find what you're looking for.
+                                </p>
+                            </div>
+                        ) : (
+                            <table style={S.table}>
+                                <thead>
+                                    <tr>
+                                        <th style={S.th}>#</th>
+                                        <th style={S.th}>Patient</th>
+                                        <th style={S.th}>Doctor</th>
+                                        <th style={S.th}>Date & Time</th>
+                                        <th style={S.th}>Status</th>
+                                        <th style={S.th}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredAppointments.map((apt, idx) => {
+                                        const statusS = getStatusStyle(apt.consultationStatus || apt.status);
+                                        return (
+                                            <tr key={apt._id} className="assistant-table-row">
                                                 <td style={{ ...S.td, color: '#475569', fontWeight: '600', fontSize: '0.82rem' }}>{idx + 1}</td>
                                                 <td style={S.td}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -388,30 +410,20 @@ const AssistantAppointments = () => {
                                                     </span>
                                                 </td>
                                                 <td style={S.td}>
-                                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                                        <button
-                                                            onClick={() => openVitalsForm(apt)}
-                                                            className="assistant-action-btn btn-vitals"
-                                                        >
+                                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                                        <button onClick={() => openVitalsForm(apt)} className="assistant-action-btn btn-vitals">
                                                             💉 Vitals
                                                         </button>
-                                                        <button
-                                                            onClick={() => setUploadPatient(apt)}
-                                                            className="assistant-action-btn btn-report"
-                                                        >
+                                                        <button onClick={() => openQuestionnaireForm(apt)} className="assistant-action-btn btn-questionnaire">
+                                                            📋 Questionnaire
+                                                        </button>
+                                                        <button onClick={() => setUploadPatient(apt)} className="assistant-action-btn btn-report">
                                                             📁 Upload Report
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleAction('clinical-notes', apt._id)}
-                                                            className="assistant-action-btn btn-notes"
-                                                        >
+                                                        <button onClick={() => handleAction('clinical-notes', apt._id)} className="assistant-action-btn btn-notes">
                                                             📝 Clinical Notes
                                                         </button>
-                                                        <button
-                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction('consents', apt._id); }}
-                                                            type="button"
-                                                            className="assistant-action-btn btn-consent"
-                                                        >
+                                                        <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAction('consents', apt._id); }} type="button" className="assistant-action-btn btn-consent">
                                                             📄 Consent Form
                                                         </button>
                                                     </div>
@@ -421,103 +433,89 @@ const AssistantAppointments = () => {
                                     })}
                                 </tbody>
                             </table>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* ─── VITALS MODAL ─── */}
-            {
-                vitalsPatient && (
-                    <div style={S.overlay} onClick={() => setVitalsPatient(null)}>
-                        <div style={S.modal} onClick={e => e.stopPropagation()}>
-                            {/* Header */}
-                            <div style={S.modalHeader}>
-                                <div>
-                                    <h2 style={{ margin: 0, color: '#f8fafc', fontSize: '1.15rem', fontWeight: '800' }}>
-                                        💉 Enter Vitals
-                                    </h2>
-                                    <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem' }}>
-                                        Patient: <strong style={{ color: '#e2e8f0' }}>{vitalsPatient.userId?.name || 'Unknown'}</strong> •
-                                        MRN: {vitalsPatient.userId?.patientId || 'N/A'} •
-                                        Dr. {vitalsPatient.doctorName}
-                                    </p>
-                                </div>
-                                <button onClick={() => setVitalsPatient(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.3rem', cursor: 'pointer' }}>✕</button>
+            {vitalsPatient && (
+                <div style={S.overlay} onClick={() => setVitalsPatient(null)}>
+                    <div style={S.modal} onClick={e => e.stopPropagation()}>
+                        <div style={S.modalHeader}>
+                            <div>
+                                <h2 style={{ margin: 0, color: '#f8fafc', fontSize: '1.15rem', fontWeight: '800' }}>💉 Enter Vitals</h2>
+                                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem' }}>
+                                    Patient: <strong style={{ color: '#e2e8f0' }}>{vitalsPatient.userId?.name || 'Unknown'}</strong>
+                                </p>
                             </div>
-
-                            {/* Body */}
-                            <div style={S.modalBody}>
-                                <div style={S.formGrid}>
-                                    {[
-                                        { key: 'weight', label: 'Weight (kg)', icon: '⚖️', type: 'number' },
-                                        { key: 'height', label: 'Height (cm)', icon: '📏', type: 'number' },
-                                        { key: 'bmi', label: 'BMI (auto)', icon: '📊', type: 'text', readOnly: true },
-                                        { key: 'bloodPressure', label: 'Blood Pressure', icon: '🩸', type: 'text', placeholder: '120/80' },
-                                        { key: 'pulse', label: 'Pulse (bpm)', icon: '💓', type: 'number' },
-                                        { key: 'temperature', label: 'Temp (°F)', icon: '🌡️', type: 'number' },
-                                        { key: 'spo2', label: 'SpO₂ (%)', icon: '🫁', type: 'number' },
-                                        { key: 'respiratoryRate', label: 'Resp Rate (/min)', icon: '💨', type: 'number' },
-                                    ].map(field => (
-                                        <div key={field.key} style={S.formGroup}>
-                                            <label style={S.formLabel}>{field.icon} {field.label}</label>
-                                            <input
-                                                type={field.type}
-                                                value={vitals[field.key]}
-                                                readOnly={field.readOnly}
-                                                placeholder={field.placeholder || ''}
-                                                onChange={e => setVitals({ ...vitals, [field.key]: e.target.value })}
-                                                style={{
-                                                    ...S.formInput,
-                                                    ...(field.readOnly ? { background: 'rgba(255,255,255,0.02)', color: '#64748b' } : {})
-                                                }}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Chief Complaint */}
-                                <div style={{ ...S.formGroup, marginTop: '16px' }}>
-                                    <label style={S.formLabel}>📋 Chief Complaint</label>
-                                    <textarea
-                                        value={vitals.chiefComplaint}
-                                        onChange={e => setVitals({ ...vitals, chiefComplaint: e.target.value })}
-                                        placeholder="Patient's chief complaint..."
-                                        style={S.formTextarea}
-                                    />
-                                </div>
-
-                                {/* Nurse Notes */}
-                                <div style={{ ...S.formGroup, marginTop: '12px' }}>
-                                    <label style={S.formLabel}>📝 Nurse Notes</label>
-                                    <textarea
-                                        value={vitals.notes}
-                                        onChange={e => setVitals({ ...vitals, notes: e.target.value })}
-                                        placeholder="Any observations or notes..."
-                                        style={S.formTextarea}
-                                    />
-                                </div>
+                            <button onClick={() => setVitalsPatient(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.3rem', cursor: 'pointer' }}>✕</button>
+                        </div>
+                        <div style={S.modalBody}>
+                            <div style={S.formGrid}>
+                                {[
+                                    { key: 'weight', label: 'Weight (kg)', icon: '⚖️', type: 'number' },
+                                    { key: 'height', label: 'Height (cm)', icon: '📏', type: 'number' },
+                                    { key: 'bmi', label: 'BMI (auto)', icon: '📊', type: 'text', readOnly: true },
+                                    { key: 'bloodPressure', label: 'Blood Pressure', icon: '🩸', type: 'text', placeholder: '120/80' },
+                                    { key: 'pulse', label: 'Pulse (bpm)', icon: '💓', type: 'number' },
+                                    { key: 'temperature', label: 'Temp (°F)', icon: '🌡️', type: 'number' },
+                                    { key: 'spo2', label: 'SpO₂ (%)', icon: '🫁', type: 'number' },
+                                    { key: 'respiratoryRate', label: 'Resp Rate (/min)', icon: '💨', type: 'number' },
+                                ].map(field => (
+                                    <div key={field.key} style={S.formGroup}>
+                                        <label style={S.formLabel}>{field.icon} {field.label}</label>
+                                        <input
+                                            type={field.type}
+                                            value={vitals[field.key]}
+                                            readOnly={field.readOnly}
+                                            placeholder={field.placeholder || ''}
+                                            onChange={e => setVitals({ ...vitals, [field.key]: e.target.value })}
+                                            style={{
+                                                ...S.formInput,
+                                                ...(field.readOnly ? { background: 'rgba(255,255,255,0.02)', color: '#64748b' } : {})
+                                            }}
+                                        />
+                                    </div>
+                                ))}
                             </div>
-
-                            {/* Footer */}
-                            <div style={S.modalFooter}>
-                                <button onClick={() => setVitalsPatient(null)} style={{ ...S.btn('rgba(255,255,255,0.08)'), color: '#94a3b8' }}>Cancel</button>
-                                <button
-                                    onClick={handleSaveVitals}
-                                    disabled={saving}
-                                    style={{ ...S.btn('linear-gradient(135deg, #10b981, #059669)'), opacity: saving ? 0.6 : 1, minWidth: '140px' }}
-                                >
-                                    {saving ? '⏳ Saving...' : '✅ Save Vitals'}
-                                </button>
+                            <div style={{ ...S.formGroup, marginTop: '16px' }}>
+                                <label style={S.formLabel}>📋 Chief Complaint</label>
+                                <textarea
+                                    value={vitals.chiefComplaint}
+                                    onChange={e => setVitals({ ...vitals, chiefComplaint: e.target.value })}
+                                    placeholder="Patient's chief complaint..."
+                                    style={S.formTextarea}
+                                />
+                            </div>
+                            <div style={{ ...S.formGroup, marginTop: '12px' }}>
+                                <label style={S.formLabel}>📝 Nurse Notes</label>
+                                <textarea
+                                    value={vitals.notes}
+                                    onChange={e => setVitals({ ...vitals, notes: e.target.value })}
+                                    placeholder="Additional notes..."
+                                    style={S.formTextarea}
+                                />
                             </div>
                         </div>
+                        <div style={S.modalFooter}>
+                            <button onClick={() => setVitalsPatient(null)} style={{ ...S.btn('rgba(255,255,255,0.08)'), color: '#94a3b8' }}>Cancel</button>
+                            <button
+                                onClick={handleSaveVitals}
+                                disabled={saving}
+                                style={{ ...S.btn('linear-gradient(135deg, #10b981, #059669)'), opacity: saving ? 0.6 : 1, minWidth: '140px' }}
+                            >
+                                {saving ? '⏳ Saving...' : '✅ Save Vitals'}
+                            </button>
+                        </div>
                     </div>
-                )
-            }
+                </div>
+            )}
 
-            {/* UPload Report Modal */}
+            {/* ─── UPLOAD REPORT MODAL ─── */}
             {uploadPatient && (
-                <div style={S.overlay}>
-                    <div style={{ ...S.modal, maxWidth: '400px' }}>
+                <div style={S.overlay} onClick={() => setUploadPatient(null)}>
+                    <div style={{ ...S.modal, maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
                         <div style={S.modalHeader}>
                             <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px', color: '#f8fafc' }}>
                                 📁 Upload Master Record
@@ -528,9 +526,9 @@ const AssistantAppointments = () => {
                             <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>
                                 Upload previous medical reports, prescriptions, or scans for <b>{uploadPatient.userId?.name || 'Patient'}</b>.
                             </p>
-                            
-                            <input 
-                                type="file" 
+
+                            <input
+                                type="file"
                                 accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                 onChange={(e) => setUploadFile(e.target.files[0])}
                                 required
@@ -544,6 +542,66 @@ const AssistantAppointments = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── QUESTIONNAIRE MODAL (Exact Separate Card per Question Matching Screenshot) ─── */}
+            {questionnairePatient && (
+                <div style={S.overlay} onClick={() => setQuestionnairePatient(null)}>
+                    <div style={{ background: '#f8fafc', color: '#1e293b', borderRadius: '20px', width: '800px', maxWidth: '95vw', maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                        
+                        {/* Header */}
+                        <div style={{ padding: '20px 24px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontSize: '1.3rem' }}>📋</span>
+                                <h2 style={{ margin: 0, color: '#1e293b', fontSize: '1.2rem', fontWeight: '800' }}>
+                                    {questionnairePatient?.department || questionnairePatient?.serviceName || 'IVF'}
+                                </h2>
+                            </div>
+                            <button onClick={() => setQuestionnairePatient(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.3rem', cursor: 'pointer', padding: '4px' }}>✕</button>
+                        </div>
+
+                        {/* Scrollable Body Container (Single Scrollbar) */}
+                        <div style={{ padding: '24px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
+                            {(() => {
+                                const activeQuestions = (questionLibrary || [])
+                                    .flatMap(cat => cat.questions || [])
+                                    .filter(q => q && typeof q === 'object' && q.q && q.q.trim() !== '');
+
+                                if (activeQuestions.length === 0) {
+                                    return (
+                                        <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b' }}>
+                                            <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📭</div>
+                                            <p>No questions found in the library.</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <DynamicQuestionForm
+                                        categoryName="Questionnaire"
+                                        questions={activeQuestions}
+                                        intakeData={intakeData}
+                                        setIntakeData={setIntakeData}
+                                        theme="light"
+                                        hideHeader={true}
+                                    />
+                                );
+                            })()}
+                        </div>
+
+                        {/* Sticky Footer with Save Button */}
+                        <div style={{ padding: '16px 24px', background: '#ffffff', borderTop: '1px solid #e2e8f0', flexShrink: 0 }}>
+                            <button
+                                onClick={handleSaveQuestionnaire}
+                                disabled={saving}
+                                style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', color: '#ffffff', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(59,130,246,0.35)', opacity: saving ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                            >
+                                {saving ? `⏳ Saving ${questionnairePatient?.department || questionnairePatient?.serviceName || 'IVF'} Data...` : `💾 Save ${questionnairePatient?.department || questionnairePatient?.serviceName || 'IVF'} Data`}
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             )}

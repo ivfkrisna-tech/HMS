@@ -103,6 +103,16 @@ const appointmentSchema = new mongoose.Schema({
     vitals: { type: vitalsSchema, default: () => ({}) },
     ivfDetails: { type: mongoose.Schema.Types.Mixed, default: {} },
 
+    questionnaireAnswers: [
+        {
+            questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: false },
+            questionText: { type: String, required: true },
+            answer: { type: mongoose.Schema.Types.Mixed, required: true },
+            answeredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            updatedAt: { type: Date, default: Date.now }
+        }
+    ],
+
     // Files
     prescription: { type: String, default: '' },
     prescriptions: [{

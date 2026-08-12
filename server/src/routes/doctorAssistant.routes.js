@@ -368,6 +368,53 @@ router.post('/appointment/:appointmentId/vitals', verifyToken, async (req, res) 
 });
 
 // ==========================================
+// SAVE QUESTIONNAIRE ANSWERS
+// ==========================================
+
+router.put('/appointment/:appointmentId/questionnaire', verifyToken, async (req, res) => {
+    try {
+        const { appointmentId } = req.params;
+        const { answers } = req.body; // Expecting array: [{ questionText, answer }]
+
+        if (!Array.isArray(answers)) {
+            return res.status(400).json({ success: false, message: 'Invalid format. Answers must be an array.' });
+        }
+
+        const appointment = await Appointment.findById(appointmentId);
+        if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
+
+        // Upsert logic
+        const existingAnswers = appointment.questionnaireAnswers || [];
+        
+        answers.forEach(newAns => {
+            const index = existingAnswers.findIndex(a => a.questionText === newAns.questionText);
+            if (index !== -1) {
+                existingAnswers[index].answer = newAns.answer;
+                existingAnswers[index].answeredBy = req.user._id;
+                existingAnswers[index].updatedAt = new Date();
+            } else {
+                existingAnswers.push({
+                    questionText: newAns.questionText,
+                    answer: newAns.answer,
+                    answeredBy: req.user._id,
+                    updatedAt: new Date()
+                });
+            }
+        });
+
+        appointment.questionnaireAnswers = existingAnswers;
+        await appointment.save();
+
+        await logAuditAndTimeline(appointment._id, 'Appointment', 'UPDATE', 'questionnaireAnswers', null, 'Questionnaire updated', req.user, 'Doctor Assistant', 'Preparation In Progress', 'Assistant updated patient questionnaire');
+
+        res.json({ success: true, message: 'Questionnaire saved successfully', questionnaireAnswers: appointment.questionnaireAnswers });
+    } catch (err) {
+        console.error('[Assistant] Save questionnaire error:', err.message);
+        res.status(500).json({ success: false, message: 'Failed to save questionnaire' });
+    }
+});
+
+// ==========================================
 // SAVE IVF DETAILS
 // ==========================================
 
