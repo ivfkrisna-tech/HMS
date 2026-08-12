@@ -35,8 +35,8 @@ const uploadReport = multer({
     storage: reportStorage,
     limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
     fileFilter: (_req, file, cb) => {
-        const ok = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(file.mimetype);
-        cb(ok ? null : new Error('Only PDF and images are allowed'), ok);
+        const ok = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.mimetype);
+        cb(ok ? null : new Error('Only PDF, images, and Word documents are allowed'), ok);
     },
 });
 

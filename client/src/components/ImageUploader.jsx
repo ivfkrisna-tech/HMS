@@ -51,7 +51,7 @@ const ImageUploader = () => {
         <input
           type="file"
           multiple
-          accept="image/*,application/pdf"
+          accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
           onChange={handleUpload}
           disabled={uploading}
           className="file-input"

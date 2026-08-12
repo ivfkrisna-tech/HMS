@@ -75,166 +75,199 @@ const DynamicQuestionForm = ({ categoryName, questions, intakeData, setIntakeDat
         flexShrink: 0,
     };
 
-    return (
-        <div className="dpd-tab-panel">
-            <h3 className="dpd-panel-title">📋 {categoryName}</h3>
+    const isGrouped = questions && !Array.isArray(questions);
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {questions.map((item, idx) => {
-                    // Logic check: only show if parent question condition is met
-                    if (item.condition && intakeData[item.parentQ] !== item.condition) return null;
+    const renderQuestionList = (qList) => {
+        return (qList || []).map((item, idx) => {
+            // Logic check: only show if parent question condition is met
+            if (item.condition && item.parentQ) {
+                const normalize = (val) => String(val || '').toLowerCase().trim();
+                let isConditionMet = false;
+                const parentValue = intakeData[item.parentQ];
+                const targetCondition = normalize(item.condition);
+                
+                if (Array.isArray(parentValue)) {
+                    isConditionMet = parentValue.some(v => normalize(v) === targetCondition);
+                } else {
+                    isConditionMet = normalize(parentValue) === targetCondition;
+                }
+                
+                if (!isConditionMet) return null;
+            }
 
-                    const savedVal = intakeData[item.q] || "";
+            const savedVal = intakeData[item.q] || "";
 
-                    return (
-                        <div key={idx} style={fieldStyle}>
-                            <label style={labelStyle}>{item.q}</label>
+            return (
+                <div key={idx} style={fieldStyle}>
+                    <label style={labelStyle}>{item.q}</label>
 
-                            {/* Simple Input */}
-                            {(item.type === 'text' || item.type === 'number' || item.type === 'date') && (
-                                <input
-                                    type={item.type}
-                                    value={savedVal}
-                                    onChange={(e) => handleAnswer(item.q, e.target.value)}
-                                    disabled={readOnly}
-                                    style={inputStyle}
-                                />
-                            )}
+                    {/* Simple Input */}
+                    {(item.type === 'text' || item.type === 'number' || item.type === 'date') && (
+                        <input
+                            type={item.type}
+                            value={savedVal}
+                            onChange={(e) => handleAnswer(item.q, e.target.value)}
+                            disabled={readOnly}
+                            style={inputStyle}
+                        />
+                    )}
 
-                            {/* Select */}
-                            {item.type === 'select' && (
-                                <select
-                                    value={savedVal}
-                                    onChange={(e) => handleAnswer(item.q, e.target.value)}
-                                    disabled={readOnly}
-                                    style={inputStyle}
-                                >
-                                    <option value="">Select...</option>
-                                    {(item.options || []).map(o => (
-                                        <option key={o} value={o}>{o}</option>
-                                    ))}
-                                </select>
-                            )}
+                    {/* Select */}
+                    {item.type === 'select' && (
+                        <select
+                            value={savedVal}
+                            onChange={(e) => handleAnswer(item.q, e.target.value)}
+                            disabled={readOnly}
+                            style={inputStyle}
+                        >
+                            <option value="">Select...</option>
+                            {(item.options || []).map(o => (
+                                <option key={o} value={o}>{o}</option>
+                            ))}
+                        </select>
+                    )}
 
-                            {/* Yes/No */}
-                            {item.type === 'yes-no' && (
-                                <select
-                                    value={savedVal}
-                                    onChange={(e) => handleAnswer(item.q, e.target.value)}
-                                    disabled={readOnly}
-                                    style={inputStyle}
-                                >
-                                    <option value="">Select...</option>
-                                    <option value="Yes">Yes</option>
-                                    <option value="No">No</option>
-                                </select>
-                            )}
+                    {/* Yes/No */}
+                    {item.type === 'yes-no' && (
+                        <select
+                            value={savedVal}
+                            onChange={(e) => handleAnswer(item.q, e.target.value)}
+                            disabled={readOnly}
+                            style={inputStyle}
+                        >
+                            <option value="">Select...</option>
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    )}
 
-                            {/* Textarea */}
-                            {item.type === 'textarea' && (
-                                <textarea
-                                    value={savedVal}
-                                    rows={4}
-                                    onChange={(e) => handleAnswer(item.q, e.target.value)}
-                                    disabled={readOnly}
-                                    style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
-                                />
-                            )}
+                    {/* Textarea */}
+                    {item.type === 'textarea' && (
+                        <textarea
+                            value={savedVal}
+                            rows={4}
+                            onChange={(e) => handleAnswer(item.q, e.target.value)}
+                            disabled={readOnly}
+                            style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
+                        />
+                    )}
 
-                            {/* Checkbox Group */}
-                            {item.type === 'checkbox-group' && (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px' }}>
-                                    {(item.options || []).map(opt => {
-                                        const isChecked = Array.isArray(intakeData[item.q]) && intakeData[item.q].includes(opt);
-                                        return (
-                                            <label key={opt} style={checkboxCardStyle(isChecked)}>
+                    {/* Checkbox Group */}
+                    {item.type === 'checkbox-group' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px' }}>
+                            {(item.options || []).map(opt => {
+                                const isChecked = Array.isArray(intakeData[item.q]) && intakeData[item.q].includes(opt);
+                                return (
+                                    <label key={opt} style={checkboxCardStyle(isChecked)}>
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            disabled={readOnly}
+                                            onChange={(e) => handleCheckbox(item.q, opt, e.target.checked)}
+                                            style={checkboxInputStyle}
+                                        />
+                                        <span>{opt}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Complex Checkbox Group (Date/Text) */}
+                    {(item.type === 'checkbox-date-group' || item.type === 'checkbox-text-group') && (
+                        <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px' }}>
+                                {(item.options || []).map(opt => {
+                                    const isChecked = Array.isArray(intakeData[item.q]) && intakeData[item.q].includes(opt);
+                                    const dateVal = intakeData[`${item.q}_date_${opt}`] || "";
+
+                                    return (
+                                        <div key={opt} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={checkboxCardStyle(isChecked)}>
                                                 <input
                                                     type="checkbox"
                                                     checked={isChecked}
-                                                    disabled={readOnly}
                                                     onChange={(e) => handleCheckbox(item.q, opt, e.target.checked)}
                                                     style={checkboxInputStyle}
                                                 />
                                                 <span>{opt}</span>
                                             </label>
-                                        );
-                                    })}
-                                </div>
-                            )}
-
-                            {/* Complex Checkbox Group (Date/Text) */}
-                            {(item.type === 'checkbox-date-group' || item.type === 'checkbox-text-group') && (
-                                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px' }}>
-                                        {(item.options || []).map(opt => {
-                                            const isChecked = Array.isArray(intakeData[item.q]) && intakeData[item.q].includes(opt);
-                                            const dateVal = intakeData[`${item.q}_date_${opt}`] || "";
-
-                                            return (
-                                                <div key={opt} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                    <label style={checkboxCardStyle(isChecked)}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isChecked}
-                                                            onChange={(e) => handleCheckbox(item.q, opt, e.target.checked)}
-                                                            style={checkboxInputStyle}
-                                                        />
-                                                        <span>{opt}</span>
-                                                    </label>
-                                                    {opt !== 'None' && isChecked && (
-                                                        <input
-                                                            type={item.type === 'checkbox-date-group' ? 'date' : 'text'}
-                                                            value={dateVal}
-                                                            onChange={(e) => handleAnswer(`${item.q}_date_${opt}`, e.target.value)}
-                                                            placeholder={item.type === 'checkbox-text-group' ? 'Details...' : ''}
-                                                            style={{ ...inputStyle, padding: '6px 10px', fontSize: '0.85rem' }}
-                                                        />
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                    {item.extra && (
-                                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600', whiteSpace: 'nowrap' }}>{item.extra}:</span>
-                                            <input
-                                                type="text"
-                                                value={intakeData[`${item.q}_extra`] || ""}
-                                                onChange={(e) => handleAnswer(`${item.q}_extra`, e.target.value)}
-                                                disabled={readOnly}
-                                                placeholder="Enter details..."
-                                                style={{ ...inputStyle, flex: 1 }}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Row Type */}
-                            {item.type === 'row' && (
-                                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                                    {(item.fields || []).map(field => {
-                                        const val = intakeData[field.q] || "";
-                                        return (
-                                            <div key={field.q} style={{ flex: 1, minWidth: '150px' }}>
-                                                <label style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', marginBottom: '6px', fontWeight: '600' }}>{field.q}</label>
+                                            {opt !== 'None' && isChecked && (
                                                 <input
-                                                    type={field.type || 'text'}
-                                                    value={val}
-                                                    onChange={(e) => handleAnswer(field.q, e.target.value)}
-                                                    disabled={readOnly}
-                                                    style={inputStyle}
+                                                    type={item.type === 'checkbox-date-group' ? 'date' : 'text'}
+                                                    value={dateVal}
+                                                    onChange={(e) => handleAnswer(`${item.q}_date_${opt}`, e.target.value)}
+                                                    placeholder={item.type === 'checkbox-text-group' ? 'Details...' : ''}
+                                                    style={{ ...inputStyle, padding: '6px 10px', fontSize: '0.85rem' }}
                                                 />
-                                            </div>
-                                        );
-                                    })}
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {item.extra && (
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600', whiteSpace: 'nowrap' }}>{item.extra}:</span>
+                                    <input
+                                        type="text"
+                                        value={intakeData[`${item.q}_extra`] || ""}
+                                        onChange={(e) => handleAnswer(`${item.q}_extra`, e.target.value)}
+                                        disabled={readOnly}
+                                        placeholder="Enter details..."
+                                        style={{ ...inputStyle, flex: 1 }}
+                                    />
                                 </div>
                             )}
-
                         </div>
-                    );
-                })}
-            </div>
+                    )}
+
+                    {/* Row Type */}
+                    {item.type === 'row' && (
+                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                            {(item.fields || []).map(field => {
+                                const val = intakeData[field.q] || "";
+                                return (
+                                    <div key={field.q} style={{ flex: 1, minWidth: '150px' }}>
+                                        <label style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', marginBottom: '6px', fontWeight: '600' }}>{field.q}</label>
+                                        <input
+                                            type={field.type || 'text'}
+                                            value={val}
+                                            onChange={(e) => handleAnswer(field.q, e.target.value)}
+                                            disabled={readOnly}
+                                            style={inputStyle}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        });
+    };
+
+    return (
+        <div className="dpd-tab-panel">
+            <h3 className="dpd-panel-title">📋 {categoryName}</h3>
+
+            {isGrouped ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    {Object.keys(questions).map(subCat => (
+                        <div key={subCat}>
+                            <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: '#334155', fontWeight: '600', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px' }}>
+                                {subCat}
+                            </h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {renderQuestionList(questions[subCat])}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {renderQuestionList(questions)}
+                </div>
+            )}
 
         </div>
     );

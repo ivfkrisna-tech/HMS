@@ -932,7 +932,7 @@ const UnifiedPatientProfile = () => {
                                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Upload Consent File</label>
                                     <input 
                                         type="file" 
-                                        accept=".pdf, .jpg, .jpeg, .png"
+                                        accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                         onChange={handleConsentFileChange}
                                         style={{ width: '100%', padding: '5px 0', fontSize: '14px' }}
                                     />

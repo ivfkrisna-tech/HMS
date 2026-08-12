@@ -288,6 +288,7 @@ const DoctorPatientDetails = () => {
         const fetchDetails = async () => {
             try {
                 const res = await doctorAPI.getAppointmentDetails(appointmentId);
+                console.log("FETCHED PATIENT PROFILE FROM BACKEND:", res);
                 if (res.success) {
                     setAppointment(res.appointment);
                     setIntakeData(res.appointment.userId?.fertilityProfile || {});
@@ -1034,10 +1035,46 @@ const DoctorPatientDetails = () => {
                 {/* Tab Content */}
                 <div className="dpd-tab-content">
                     {/* OVERVIEW */}
-                    {activeTab === 'overview' && (
-                        <div className="dpd-tab-panel">
-                            <h3 className="dpd-panel-title">📋 Patient Overview</h3>
-                            <div className="dpd-overview-grid">
+                    {activeTab === 'overview' && (() => {
+                        console.log("FULL APPOINTMENT DATA:", appointment);
+                        console.log("FULL PATIENT DATA:", patient);
+                        const latestVitals = appointment?.vitals || (patient?.vitalsHistory && patient?.vitalsHistory[0]) || patient?.fertilityProfile?.vitals || {};
+
+                        const calcBMI = (h, w) => {
+                            if (!h || !w || isNaN(h) || isNaN(w)) return null;
+                            const hM = h / 100;
+                            return (w / (hM * hM)).toFixed(1);
+                        };
+
+                        const displayHeight = latestVitals.height || latestVitals.heightCm || patient?.height || '-';
+                        const displayWeight = latestVitals.weight || latestVitals.weightKg || patient?.weight || '-';
+                        const displayBMI    = latestVitals.bmi || (displayHeight !== '-' && displayWeight !== '-' ? calcBMI(displayHeight, displayWeight) : patient?.bmi) || '-';
+                        const displayBP     = latestVitals.bp || latestVitals.bloodPressure || '-';
+                        const displayPulse  = latestVitals.pulse || latestVitals.pulseRate || '-';
+                        const displayTemp   = latestVitals.temp || latestVitals.temperature || '-';
+                        const displaySpO2   = latestVitals.spo2 || latestVitals.spO2 || '-';
+                        const displayResp   = latestVitals.respRate || latestVitals.respiratoryRate || latestVitals.rr || '-';
+                        
+                        const valChiefComplaint = latestVitals.chiefComplaint || appointment?.chiefComplaint || profile.chiefComplaint || intakeData.chiefComplaint || '-';
+                        const displayNotes  = latestVitals.nurseNotes || latestVitals.notes || '';
+
+                        let isHighBP = false;
+                        if (displayBP && typeof displayBP === 'string' && displayBP.includes('/')) {
+                            const [sysStr, diaStr] = displayBP.split('/');
+                            const sys = parseInt(sysStr, 10);
+                            const dia = parseInt(diaStr, 10);
+
+                            if (!isNaN(sys) && !isNaN(dia)) {
+                                isHighBP = sys >= 140 || dia >= 90;
+                            }
+                        }
+                        const spo2Num = displaySpO2 !== '-' ? parseInt(displaySpO2) : 100;
+                        const isLowSpO2 = spo2Num < 95 && spo2Num > 0;
+
+                        return (
+                            <div className="dpd-tab-panel">
+                                <h3 className="dpd-panel-title">📋 Patient Overview</h3>
+                                <div className="dpd-overview-grid">
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Full Name</span>
                                     <span className="dpd-ov-value">{patient.name || '-'}</span>
@@ -1064,15 +1101,15 @@ const DoctorPatientDetails = () => {
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Height</span>
-                                    <span className="dpd-ov-value">{profile.height || intakeData.height || '-'} cm</span>
+                                    <span className="dpd-ov-value">{displayHeight} {displayHeight !== '-' ? 'cm' : ''}</span>
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Weight</span>
-                                    <span className="dpd-ov-value">{profile.weight || intakeData.weight || '-'} kg</span>
+                                    <span className="dpd-ov-value">{displayWeight} {displayWeight !== '-' ? 'kg' : ''}</span>
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">BMI</span>
-                                    <span className="dpd-ov-value">{profile.bmi || intakeData.bmi || '-'}</span>
+                                    <span className="dpd-ov-value">{displayBMI}</span>
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Address</span>
@@ -1080,13 +1117,44 @@ const DoctorPatientDetails = () => {
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Chief Complaint</span>
-                                    <span className="dpd-ov-value">{profile.chiefComplaint || intakeData.chiefComplaint || '-'}</span>
+                                    <span className="dpd-ov-value">{valChiefComplaint}</span>
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Reason for Visit</span>
                                     <span className="dpd-ov-value">{profile.reasonForVisit || intakeData.reasonForVisit || '-'}</span>
                                 </div>
+                                <div className="dpd-ov-card" style={isHighBP ? { border: '2px solid #ef4444', background: '#fef2f2' } : {}}>
+                                    <span className="dpd-ov-label" style={isHighBP ? { color: '#b91c1c' } : {}}>
+                                        BP {isHighBP && <span style={{ fontSize: '11px', background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '10px', marginLeft: '6px' }}>⚠️ High BP</span>}
+                                    </span>
+                                    <span className="dpd-ov-value" style={isHighBP ? { color: '#b91c1c' } : {}}>{displayBP} {displayBP !== '-' ? 'mmHg' : ''}</span>
+                                </div>
+                                <div className="dpd-ov-card">
+                                    <span className="dpd-ov-label">Pulse</span>
+                                    <span className="dpd-ov-value">{displayPulse} {displayPulse !== '-' ? 'bpm' : ''}</span>
+                                </div>
+                                <div className="dpd-ov-card">
+                                    <span className="dpd-ov-label">Temperature</span>
+                                    <span className="dpd-ov-value">{displayTemp} {displayTemp !== '-' ? '°F' : ''}</span>
+                                </div>
+                                <div className="dpd-ov-card" style={isLowSpO2 ? { border: '2px solid #f97316', background: '#fff7ed' } : {}}>
+                                    <span className="dpd-ov-label" style={isLowSpO2 ? { color: '#c2410c' } : {}}>
+                                        SpO2 {isLowSpO2 && <span style={{ fontSize: '11px', background: '#ffedd5', color: '#9a3412', padding: '2px 6px', borderRadius: '10px', marginLeft: '6px' }}>⚠️ Low</span>}
+                                    </span>
+                                    <span className="dpd-ov-value" style={isLowSpO2 ? { color: '#c2410c' } : {}}>{displaySpO2}{displaySpO2 !== '-' ? '%' : ''}</span>
+                                </div>
+                                <div className="dpd-ov-card">
+                                    <span className="dpd-ov-label">Resp Rate</span>
+                                    <span className="dpd-ov-value">{displayResp} {displayResp !== '-' ? '/min' : ''}</span>
+                                </div>
                             </div>
+
+                            {displayNotes && displayNotes !== '-' && (
+                                <div style={{ marginTop: '16px', padding: '12px', background: '#f8fafc', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
+                                    <h4 style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#1e293b' }}>📝 Nurse / Assistant Notes</h4>
+                                    <p style={{ margin: 0, fontSize: '14px', color: '#475569' }}>{displayNotes}</p>
+                                </div>
+                            )}
 
                             {/* Partner Quick Info */}
                             {(profile.partnerFirstName || intakeData.partnerFirstName) && (
@@ -1113,7 +1181,8 @@ const DoctorPatientDetails = () => {
                                 </div>
                             )}
                         </div>
-                    )}
+                        );
+                    })()}
 
                     {/* PAST VISITS HISTORY */}
                     {activeTab === 'history' && (

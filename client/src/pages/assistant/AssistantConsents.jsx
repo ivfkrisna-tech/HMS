@@ -322,7 +322,7 @@ const AssistantConsents = () => {
                         ref={fileInputRef} 
                         style={{ display: 'none' }} 
                         onChange={handleFileChange}
-                        accept="image/*,application/pdf"
+                        accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                     />
                     
                     <button 

@@ -534,7 +534,7 @@ const AssistantPatients = () => {
                             
                             <input 
                                 type="file" 
-                                accept="application/pdf,image/*"
+                                accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                 onChange={(e) => setUploadFile(e.target.files[0])}
                                 required
                                 style={{ padding: '10px', border: '1px dashed #475569', borderRadius: '8px', color: '#e2e8f0' }}

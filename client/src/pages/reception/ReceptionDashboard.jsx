@@ -1802,7 +1802,7 @@ const ReceptionDashboard = () => {
                                                     </label>
                                                     <input
                                                         type="file"
-                                                        accept=".jpg,.jpeg,.png,.pdf"
+                                                        accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                                         onChange={handlePaymentProofChange}
                                                         style={{
                                                             display: 'block',
@@ -2688,7 +2688,7 @@ const ReceptionDashboard = () => {
                                 </label>
                                 <input
                                     type="file"
-                                    accept=".jpg,.jpeg,.png,.pdf"
+                                    accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                     onChange={handleModalProofChange}
                                     style={{
                                         display: 'block',

@@ -42,6 +42,8 @@ const userSchema = new mongoose.Schema({
     marriageDate: { type: String, default: null },
     gender: String,
     bloodGroup: String,
+    height: { type: String, default: '' },
+    weight: { type: String, default: '' },
     houseNumber: { type: String, default: null },
     street: { type: String, default: null },
     address: String, // Kept for backwards compatibility
@@ -101,7 +103,22 @@ const userSchema = new mongoose.Schema({
     // --- NURSE & CLINICAL LOGS ---
     nursingNotes: { type: Array, default: [] },
     medicationLogs: { type: Array, default: [] },
-    vitalsHistory: { type: Array, default: [] },
+    vitalsHistory: { 
+        type: [{
+            weight: { type: String, default: '' },
+            height: { type: String, default: '' },
+            bmi: { type: String, default: '' },
+            bp: { type: String, default: '' },
+            pulse: { type: String, default: '' },
+            temperature: { type: String, default: '' },
+            spo2: { type: String, default: '' },
+            rr: { type: String, default: '' },
+            chiefComplaint: { type: String, default: '' },
+            notes: { type: String, default: '' },
+            timestamp: { type: Date, default: Date.now }
+        }], 
+        default: [] 
+    },
 
     // --- DOCTOR ASSISTANT ---
     // Which doctors this assistant is assigned to (only used for Doctor Assistant role)

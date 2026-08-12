@@ -606,7 +606,7 @@ const ConsentManagement = () => {
                                 <input
                                     type="file"
                                     className="staff-input"
-                                    accept=".docx"
+                                    accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                     style={{ padding: '8px' }}
                                     onChange={handleFileChange}
                                 />

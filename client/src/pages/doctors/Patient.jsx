@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { doctorAPI, uploadAPI } from '../../utils/api';
+import { doctorAPI, uploadAPI, assistantAPI } from '../../utils/api';
 
 const Patient = () => {
     const navigate = useNavigate();
@@ -111,30 +111,22 @@ const Patient = () => {
         if (!vitalsPatient) return;
         setSaving(true);
         try {
-            const patientId = vitalsPatient.userId?._id || vitalsPatient.userId;
-            const profileData = {
-                vitals: {
-                    weight: vitals.weight,
-                    height: vitals.height,
-                    bmi: vitals.bmi,
-                    bloodPressure: vitals.bloodPressure,
-                    pulse: vitals.pulse,
-                    temperature: vitals.temperature,
-                    spo2: vitals.spo2,
-                    respiratoryRate: vitals.respiratoryRate,
-                    lastRecorded: new Date().toISOString()
-                }
+            const appointmentId = vitalsPatient._id;
+            
+            const payload = {
+                weight: vitals.weight,
+                height: vitals.height,
+                bmi: vitals.bmi,
+                bloodPressure: vitals.bloodPressure,
+                pulse: vitals.pulse,
+                temperature: vitals.temperature,
+                spo2: vitals.spo2,
+                respiratoryRate: vitals.respiratoryRate,
+                chiefComplaint: vitals.chiefComplaint,
+                notes: vitals.notes
             };
-            await doctorAPI.updatePatientProfile(patientId, profileData);
 
-            // Also save chief complaint in appointment notes if provided
-            if (vitals.chiefComplaint || vitals.notes) {
-                try {
-                    await doctorAPI.updateSession(vitalsPatient._id, {
-                        notes: `Chief Complaint: ${vitals.chiefComplaint}\nNurse Notes: ${vitals.notes}`
-                    });
-                } catch (e) { /* optional, don't block */ }
-            }
+            await assistantAPI.saveVitals(appointmentId, payload);
 
             alert('Vitals saved successfully!');
             setVitalsPatient(null);
@@ -550,7 +542,7 @@ const Patient = () => {
                             
                             <input 
                                 type="file" 
-                                accept="application/pdf,image/*"
+                                accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                 onChange={(e) => setUploadFile(e.target.files[0])}
                                 required
                                 style={{ padding: '10px', border: '1px dashed #cbd5e1', borderRadius: '8px' }}

@@ -96,7 +96,7 @@ const AssistantReports = () => {
                     style={{ display: 'none' }} 
                     onChange={handleFileChange}
                     multiple
-                    accept="image/*,application/pdf"
+                    accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                 />
 
                 <button 

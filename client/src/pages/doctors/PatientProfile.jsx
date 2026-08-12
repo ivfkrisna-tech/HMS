@@ -558,7 +558,7 @@ const PatientProfile = () => {
                                 <label style={C.fieldLabel}>Upload Consent File</label>
                                 <input 
                                     type="file" 
-                                    accept=".pdf, .jpg, .jpeg, .png"
+                                    accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                     onChange={handleConsentFileChange}
                                     style={{ background: 'transparent', color: '#fff', padding: '6px 0', width: '100%' }}
                                 />

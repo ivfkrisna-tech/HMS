@@ -484,7 +484,7 @@ const PharmacyInventory = () => {
 
                             {(!pendingInvoice || invoiceStats.remaining === 0) ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                    <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={uploadingPdf} style={{ padding: '10px', background: 'white', borderRadius: '6px', border: '1px solid #7dd3fc', width: '300px' }} />
+                                    <input type="file" accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp" onChange={handlePdfUpload} disabled={uploadingPdf} style={{ padding: '10px', background: 'white', borderRadius: '6px', border: '1px solid #7dd3fc', width: '300px' }} />
                                     {uploadingPdf && <span style={{ color: '#0284c7', fontSize: '14px', fontWeight: 'bold' }}>{importLoadingState}</span>}
                                     {pdfError && <span style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }}>{pdfError}</span>}
                                 </div>
