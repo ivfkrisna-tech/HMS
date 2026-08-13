@@ -4,7 +4,7 @@ const getSocketURL = () => {
     if (import.meta.env.MODE === 'development') {
         return ''; // Allow Vite proxy to handle it, or use same origin
     }
-    return import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+    return import.meta.env.VITE_API_URL || 'https://hms-ivf-docker.onrender.com';
 };
 
 const socket = io(getSocketURL(), {

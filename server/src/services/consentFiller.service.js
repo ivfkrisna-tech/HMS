@@ -4,7 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { execSync, exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 
 /**
  * Service to handle dynamic placeholder replacement in .docx files.
@@ -69,14 +71,152 @@ class ConsentFillerService {
     }
 
     /**
-     * Converts a .docx buffer to a PDF buffer perfectly using MS Word COM Object via PowerShell.
-     * Guaranteed to preserve formatting, tables, images, headers and margins.
+     * Checks if LibreOffice is available on the system.
+     * Called once at server startup for health verification.
+     * @returns {{ available: boolean, path: string, version: string }}
+     */
+    static checkLibreOffice() {
+        const binaryNames = ['libreoffice', 'soffice'];
+        for (const bin of binaryNames) {
+            try {
+                const versionOutput = execSync(`${bin} --version`, { stdio: 'pipe', timeout: 10000 }).toString().trim();
+                console.log(`[LibreOffice Check] ✅ LibreOffice detected successfully`);
+                console.log(`[LibreOffice Check] Binary: ${bin}`);
+                console.log(`[LibreOffice Check] Version: ${versionOutput}`);
+                return { available: true, path: bin, version: versionOutput };
+            } catch (e) {
+                // Try next binary name
+            }
+        }
+        console.log(`[LibreOffice Check] ⚠️ LibreOffice not found on this system. PDF conversion will use Windows MS Word fallback.`);
+        return { available: false, path: null, version: null };
+    }
+
+    /**
+     * Converts a .docx buffer to a PDF buffer.
+     * 
+     * On Linux/Docker: Uses LibreOffice headless CLI (libreoffice --headless --convert-to pdf)
+     * On Windows: Uses MS Word COM Object via PowerShell (existing local dev behavior)
+     * 
      * Temporary files are created in OS tmp directory and cleaned up immediately.
      * 
-     * @param {Buffer} docxBuffer 
+     * @param {Buffer} docxBuffer - The filled .docx document as a buffer
+     * @returns {Promise<Buffer>} The generated PDF as a buffer
+     */
+    static async convertToPdf(docxBuffer) {
+        const isWindows = os.platform() === 'win32';
+
+        if (!isWindows) {
+            return await ConsentFillerService._convertWithLibreOffice(docxBuffer);
+        } else {
+            return ConsentFillerService._convertWithMSWord(docxBuffer);
+        }
+    }
+
+    /**
+     * Linux/Docker conversion using LibreOffice headless CLI.
+     * Command: libreoffice --headless --convert-to pdf --outdir <tempDir> <docxFile>
+     * 
+     * @param {Buffer} docxBuffer
+     * @returns {Promise<Buffer>} pdfBuffer
+     */
+    static async _convertWithLibreOffice(docxBuffer) {
+        const tempId = crypto.randomUUID();
+        const tempDir = path.join(os.tmpdir(), `consent-pdf-${tempId}`);
+        const docxPath = path.join(tempDir, `${tempId}.docx`);
+
+        // The PDF output will have the same basename but .pdf extension
+        const pdfPath = path.join(tempDir, `${tempId}.pdf`);
+
+        try {
+            // Create temp directory
+            fs.mkdirSync(tempDir, { recursive: true });
+
+            // Write the .docx buffer to a temporary file
+            fs.writeFileSync(docxPath, docxBuffer);
+            console.log(`[PDF Gen] Linux: Written temp DOCX to ${docxPath} (${docxBuffer.length} bytes)`);
+
+            // Determine the LibreOffice binary
+            let libreBin = 'libreoffice';
+            try {
+                execSync('which soffice', { stdio: 'pipe' });
+                libreBin = 'soffice';
+            } catch (e) {
+                try {
+                    execSync('which libreoffice', { stdio: 'pipe' });
+                    libreBin = 'libreoffice';
+                } catch (e2) {
+                    throw new Error('LibreOffice is not installed. Neither "libreoffice" nor "soffice" found in PATH.');
+                }
+            }
+
+            // Run LibreOffice headless conversion
+            const cmd = `${libreBin} --headless --norestore --safe-mode --convert-to pdf --outdir "${tempDir}" "${docxPath}"`;
+            console.log(`[PDF Gen] Linux: Executing: ${cmd}`);
+
+            try {
+                const { stdout, stderr } = await execAsync(cmd, {
+                    timeout: 60000, // 60 second timeout
+                    env: {
+                        ...process.env,
+                        HOME: os.tmpdir(), // LibreOffice needs a writable HOME
+                    }
+                });
+                if (stdout) console.log(`[PDF Gen] Linux LibreOffice stdout: ${stdout.trim()}`);
+                if (stderr) console.warn(`[PDF Gen] Linux LibreOffice stderr: ${stderr.trim()}`);
+            } catch (execErr) {
+                const stdoutStr = execErr.stdout ? execErr.stdout.toString() : '';
+                const stderrStr = execErr.stderr ? execErr.stderr.toString() : '';
+                console.error(`[PDF Gen] LibreOffice exec failed:`, execErr.message);
+                console.error(`[PDF Gen] stdout: ${stdoutStr}`);
+                console.error(`[PDF Gen] stderr: ${stderrStr}`);
+                throw new Error(`LibreOffice conversion failed: ${stderrStr || execErr.message}`);
+            }
+
+            // Verify the PDF was created
+            if (!fs.existsSync(pdfPath)) {
+                // Sometimes LibreOffice uses a slightly different output name, check for any .pdf in tempDir
+                const files = fs.readdirSync(tempDir).filter(f => f.endsWith('.pdf'));
+                if (files.length === 0) {
+                    throw new Error('LibreOffice did not produce a PDF file.');
+                }
+                // Use the first PDF found
+                const actualPdfPath = path.join(tempDir, files[0]);
+                console.log(`[PDF Gen] Linux: PDF found at alternate path: ${actualPdfPath}`);
+                const pdfBuffer = fs.readFileSync(actualPdfPath);
+                console.log(`[PDF Gen] Linux: PDF generated successfully (${pdfBuffer.length} bytes)`);
+                return pdfBuffer;
+            }
+
+            const pdfBuffer = fs.readFileSync(pdfPath);
+            console.log(`[PDF Gen] Linux: PDF generated successfully (${pdfBuffer.length} bytes)`);
+            return pdfBuffer;
+
+        } catch (error) {
+            console.error('[PDF Gen] Linux conversion error:', error);
+            throw new Error(`Failed to convert document to PDF: ${error.message}`);
+        } finally {
+            // Cleanup entire temp directory
+            try {
+                if (fs.existsSync(tempDir)) {
+                    fs.rmSync(tempDir, { recursive: true, force: true });
+                    console.log(`[PDF Gen] Linux: Cleaned up temp directory ${tempDir}`);
+                }
+            } catch (cleanErr) {
+                console.warn(`[PDF Gen] Linux: Cleanup warning: ${cleanErr.message}`);
+            }
+        }
+    }
+
+    /**
+     * Windows conversion using MS Word COM Object via PowerShell.
+     * Preserves existing local development behavior exactly.
+     * 
+     * @param {Buffer} docxBuffer
      * @returns {Buffer} pdfBuffer
      */
-    static convertToPdf(docxBuffer) {
+    static _convertWithMSWord(docxBuffer) {
+        console.log('[PDF Gen] Windows environment detected. Using MS Word COM Object...');
         const tempId = crypto.randomUUID();
         const docxPath = path.join(os.tmpdir(), `${tempId}.docx`);
         const pdfPath = path.join(os.tmpdir(), `${tempId}.pdf`);

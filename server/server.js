@@ -98,6 +98,14 @@ if (DEPLOYMENT_MODE !== 'local') {
 server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT} [mode: ${DEPLOYMENT_MODE}]`);
 
+    // Health check: Verify LibreOffice availability for PDF conversion
+    try {
+        const ConsentFillerService = require('./src/services/consentFiller.service');
+        ConsentFillerService.checkLibreOffice();
+    } catch (healthErr) {
+        console.warn(`[Startup] LibreOffice health check skipped: ${healthErr.message}`);
+    }
+
     // 5. Post-startup services (after DB is ready — give it 3s)
     setTimeout(() => {
         if (DEPLOYMENT_MODE === 'local') {
