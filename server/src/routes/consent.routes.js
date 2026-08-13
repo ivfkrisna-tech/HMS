@@ -668,7 +668,7 @@ router.get('/templates/:id/generate-pdf', verifyToken, async (req, res) => {
         console.log(`[PDF Gen] PDF conversion started...`);
         let pdfBuffer;
         try {
-            pdfBuffer = ConsentFillerService.convertToPdf(filledDocxBuffer);
+            pdfBuffer = await ConsentFillerService.convertToPdf(filledDocxBuffer);
             console.log(`[PDF Gen] PDF conversion completed successfully.`);
         } catch (convErr) {
             console.error(`[PDF Gen] PDF conversion failed:`, convErr);
