@@ -329,7 +329,7 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
             return res.status(400).json({ success: false, message: "Order items are missing or invalid." });
         }
 
-        // Apply updated quantities if provided
+        // Apply updated quantities and explicit batch allocations if provided
         if (updatedItems && Array.isArray(updatedItems)) {
             for (let i = 0; i < order.items.length; i++) {
                 if (updatedItems[i]) {
@@ -338,6 +338,10 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                         order.items[i].quantity = Number(newQty);
                         order.items[i].qty = Number(newQty);
                         order.items[i].totalReqd = Number(newQty);
+                    }
+                    // FIX: Ensure manual pharmacist batch selections are securely mapped!
+                    if (updatedItems[i].batchAllocations) {
+                        order.items[i].batchAllocations = updatedItems[i].batchAllocations;
                     }
                 }
             }

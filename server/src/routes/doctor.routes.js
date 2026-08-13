@@ -393,7 +393,7 @@ router.get('/all-appointments', verifyToken, async (req, res) => {
 // 6. UPDATE Session (Notes)
 router.patch('/appointments/:id/prescription', verifyToken, upload.single('prescriptionFile'), async (req, res) => {
     try {
-        const { status, diagnosis, labTests, selectedPackages, dietPlan, pharmacy, notes, labId } = req.body;
+        const { status, diagnosis, labTests, selectedPackages, dietPlan, pharmacy, prescription, notes, labId } = req.body;
         const findQuery = { _id: req.params.id };
         if (req.user.hospitalId) findQuery.hospitalId = req.user.hospitalId;
 
@@ -422,8 +422,9 @@ router.patch('/appointments/:id/prescription', verifyToken, upload.single('presc
             appointment.dietPlan = typeof dietPlan === 'string' ? JSON.parse(dietPlan) : dietPlan;
         }
 
-        if (pharmacy) {
-            const p = typeof pharmacy === 'string' ? JSON.parse(pharmacy) : pharmacy;
+        const prescriptionData = prescription || pharmacy;
+        if (prescriptionData) {
+            const p = typeof prescriptionData === 'string' ? JSON.parse(prescriptionData) : prescriptionData;
             if (Array.isArray(p)) {
                 appointment.pharmacy = p.map(item => ({
                     medicineName: item.medicineName || item.name || '',
