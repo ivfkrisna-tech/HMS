@@ -27,11 +27,11 @@ apiClient.interceptors.request.use(
 
 //temporary add
 axios.defaults.baseURL = process.env.NODE_ENV === 'production'
-    ? "https://hms-h939.onrender.com"
+    ? "https://hms-ivf-docker.onrender.com"
     : "";
 
 // Base URL from Environment (Vercel / Local)
-const baseURL = import.meta.env.VITE_API_URL || 'https://hms-h939.onrender.com';
+const baseURL = import.meta.env.VITE_API_URL || 'https://hms-ivf-docker.onrender.com';
 
 const apiClient = axios.create({
     baseURL: baseURL,

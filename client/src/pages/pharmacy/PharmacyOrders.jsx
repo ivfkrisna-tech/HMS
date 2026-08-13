@@ -9,7 +9,7 @@ const PharmacyOrders = () => {
     const hostname = window.location.hostname;
     const backendUrl = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost'))
         ? 'http://localhost:3000'
-        : (import.meta.env.VITE_API_URL || 'https://hms-7ojp.onrender.com');
+        : (import.meta.env.VITE_API_URL || 'https://hms-ivf-docker.onrender.com');
 
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
