@@ -43,6 +43,11 @@ const pharmacyOrderSchema = new mongoose.Schema({
         price: { type: Number, default: 0 },
         purchased: { type: Boolean, default: false },
         quantity: { type: Number, default: 0 },
+        batchAllocations: [{
+            inventoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' },
+            batchNumber: { type: String, default: '' },
+            allocatedQty: { type: Number, default: 0 }
+        }],
         returnedQty: { type: Number, default: 0 },
         scheduleText: { type: String, default: '' },
         dosePerAdmin: { type: Number, default: 1 },
