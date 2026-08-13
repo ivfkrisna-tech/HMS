@@ -1064,7 +1064,7 @@ const CentralAdminDashboard = () => {
                                         <div className="form-row">
                                             <div className="form-group">
                                                 <label className="staff-label">Profile Photo</label>
-                                                <input type="file" accept="image/*" className="staff-input" style={{ padding: '8px' }}
+                                                <input type="file" accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp" className="staff-input" style={{ padding: '8px' }}
                                                     onChange={e => setHospitalAdminForm({ ...hospitalAdminForm, file: e.target.files[0] })} />
                                             </div>
                                             <div className="form-group">
@@ -1171,7 +1171,7 @@ const CentralAdminDashboard = () => {
                                                         )}
                                                         <input 
                                                             type="file" 
-                                                            accept="image/*"
+                                                            accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                                             className="staff-input"
                                                             style={{ padding: '8px' }}
                                                             onChange={e => setHospitalForm({ ...hospitalForm, loginBackgroundFile: e.target.files[0] })}

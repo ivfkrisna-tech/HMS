@@ -94,7 +94,7 @@ const AssignedTests = () => {
                                     {uploadingId === req._id ? 'Uploading...' : '📤 Upload Report'}
                                     <input
                                         type="file"
-                                        accept=".pdf,.jpg,.png"
+                                        accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                         onChange={(e) => handleFileUpload(e, req._id)}
                                         disabled={uploadingId === req._id}
                                         style={{ display: 'none' }}

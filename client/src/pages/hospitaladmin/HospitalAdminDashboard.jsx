@@ -618,7 +618,7 @@ const HospitalAdminDashboard = () => {
                                     <p style={{ margin: '0 0 4px', fontWeight: 600, fontSize: '16px', color: '#1e293b' }}>{currentUser?.name}</p>
                                     <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#64748b' }}>{currentUser?.email}</p>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                        <input type="file" accept="image/*" id="profilePhotoInput" style={{ display: 'none' }}
+                                        <input type="file" accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp" id="profilePhotoInput" style={{ display: 'none' }}
                                             onChange={e => setProfileFile(e.target.files[0])} />
                                         <label htmlFor="profilePhotoInput" style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
                                             📷 Choose Photo
@@ -712,7 +712,7 @@ const HospitalAdminDashboard = () => {
                                     <div className="form-row">
                                         <div className="form-group">
                                             <label className="staff-label">Profile Image</label>
-                                            <input type="file" accept="image/*" onChange={e => setCreateForm({ ...createForm, file: e.target.files[0] })} className="staff-input" style={{ padding: '10px' }} />
+                                            <input type="file" accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp" onChange={e => setCreateForm({ ...createForm, file: e.target.files[0] })} className="staff-input" style={{ padding: '10px' }} />
                                         </div>
                                         <div className="form-group">
                                             <label className="staff-label">Assign Role *</label>
@@ -1463,7 +1463,7 @@ const HospitalAdminDashboard = () => {
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <label className="staff-label">Change Photo</label>
-                                        <input type="file" accept="image/*" onChange={e => setEditForm({ ...editForm, newAvatarFile: e.target.files[0] })} className="staff-input" style={{ padding: '8px' }} />
+                                        <input type="file" accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp" onChange={e => setEditForm({ ...editForm, newAvatarFile: e.target.files[0] })} className="staff-input" style={{ padding: '8px' }} />
                                     </div>
                                 </div>
                                 <div className="form-row">

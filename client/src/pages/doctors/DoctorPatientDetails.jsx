@@ -288,9 +288,17 @@ const DoctorPatientDetails = () => {
         const fetchDetails = async () => {
             try {
                 const res = await doctorAPI.getAppointmentDetails(appointmentId);
+                console.log("FETCHED PATIENT PROFILE FROM BACKEND:", res);
                 if (res.success) {
                     setAppointment(res.appointment);
-                    setIntakeData(res.appointment.userId?.fertilityProfile || {});
+                    const baseProfile = res.appointment.userId?.fertilityProfile || {};
+                    const qAnswers = res.appointment.questionnaireAnswers || [];
+                    const mappedAnswers = {};
+                    qAnswers.forEach(ans => {
+                        mappedAnswers[ans.questionText] = ans.answer;
+                    });
+                    
+                    setIntakeData({ ...baseProfile, ...mappedAnswers });
                     
                     // Lock if completed
                     if (res.appointment.status === 'completed') {
@@ -822,6 +830,7 @@ const DoctorPatientDetails = () => {
         { id: 'overview', label: 'Overview', icon: '📋' },
         { id: 'history', label: 'Past Visits', icon: '📜' },
         { id: 'documents', label: 'Reports', icon: '📁' },
+        { id: 'consents', label: 'Consent Forms', icon: '📝' },
     ];
 
     // Dynamic Form Tabs Injection
@@ -991,16 +1000,41 @@ const DoctorPatientDetails = () => {
                 <div className="dpd-tabs-container">
                     <button className="dpd-tab-scroll-btn" onClick={() => scrollTabs('left')} title="Scroll Left">‹</button>
                     <div className="dpd-tabs-nav" ref={tabsRef}>
-                        {allTabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                className={`dpd-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                                onClick={() => setActiveTab(tab.id)}
-                            >
-                                <span className="dpd-tab-icon">{tab.icon}</span>
-                                <span className="dpd-tab-label">{tab.label}</span>
-                            </button>
-                        ))}
+                        {allTabs.map(tab => {
+                            if (tab.id === 'consents') {
+                                return (
+                                    <button
+                                        type="button"
+                                        key={tab.id}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            console.log("Switching tab to consents safely");
+                                            setActiveTab('consents');
+                                        }}
+                                        className={`dpd-tab-btn ${activeTab === 'consents' ? 'active' : ''}`}
+                                    >
+                                        <span className="dpd-tab-icon">📝</span>
+                                        <span className="dpd-tab-label">Consent Forms</span>
+                                    </button>
+                                );
+                            }
+                            return (
+                                <button
+                                    type="button"
+                                    key={tab.id}
+                                    className={`dpd-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveTab(tab.id);
+                                    }}
+                                >
+                                    <span className="dpd-tab-icon">{tab.icon}</span>
+                                    <span className="dpd-tab-label">{tab.label}</span>
+                                </button>
+                            );
+                        })}
                     </div>
                     <button className="dpd-tab-scroll-btn" onClick={() => scrollTabs('right')} title="Scroll Right">›</button>
                 </div>
@@ -1008,10 +1042,46 @@ const DoctorPatientDetails = () => {
                 {/* Tab Content */}
                 <div className="dpd-tab-content">
                     {/* OVERVIEW */}
-                    {activeTab === 'overview' && (
-                        <div className="dpd-tab-panel">
-                            <h3 className="dpd-panel-title">📋 Patient Overview</h3>
-                            <div className="dpd-overview-grid">
+                    {activeTab === 'overview' && (() => {
+                        console.log("FULL APPOINTMENT DATA:", appointment);
+                        console.log("FULL PATIENT DATA:", patient);
+                        const latestVitals = appointment?.vitals || (patient?.vitalsHistory && patient?.vitalsHistory[0]) || patient?.fertilityProfile?.vitals || {};
+
+                        const calcBMI = (h, w) => {
+                            if (!h || !w || isNaN(h) || isNaN(w)) return null;
+                            const hM = h / 100;
+                            return (w / (hM * hM)).toFixed(1);
+                        };
+
+                        const displayHeight = latestVitals.height || latestVitals.heightCm || patient?.height || '-';
+                        const displayWeight = latestVitals.weight || latestVitals.weightKg || patient?.weight || '-';
+                        const displayBMI    = latestVitals.bmi || (displayHeight !== '-' && displayWeight !== '-' ? calcBMI(displayHeight, displayWeight) : patient?.bmi) || '-';
+                        const displayBP     = latestVitals.bp || latestVitals.bloodPressure || '-';
+                        const displayPulse  = latestVitals.pulse || latestVitals.pulseRate || '-';
+                        const displayTemp   = latestVitals.temp || latestVitals.temperature || '-';
+                        const displaySpO2   = latestVitals.spo2 || latestVitals.spO2 || '-';
+                        const displayResp   = latestVitals.respRate || latestVitals.respiratoryRate || latestVitals.rr || '-';
+                        
+                        const valChiefComplaint = latestVitals.chiefComplaint || appointment?.chiefComplaint || profile.chiefComplaint || intakeData.chiefComplaint || '-';
+                        const displayNotes  = latestVitals.nurseNotes || latestVitals.notes || '';
+
+                        let isHighBP = false;
+                        if (displayBP && typeof displayBP === 'string' && displayBP.includes('/')) {
+                            const [sysStr, diaStr] = displayBP.split('/');
+                            const sys = parseInt(sysStr, 10);
+                            const dia = parseInt(diaStr, 10);
+
+                            if (!isNaN(sys) && !isNaN(dia)) {
+                                isHighBP = sys >= 140 || dia >= 90;
+                            }
+                        }
+                        const spo2Num = displaySpO2 !== '-' ? parseInt(displaySpO2) : 100;
+                        const isLowSpO2 = spo2Num < 95 && spo2Num > 0;
+
+                        return (
+                            <div className="dpd-tab-panel">
+                                <h3 className="dpd-panel-title">📋 Patient Overview</h3>
+                                <div className="dpd-overview-grid">
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Full Name</span>
                                     <span className="dpd-ov-value">{patient.name || '-'}</span>
@@ -1038,15 +1108,15 @@ const DoctorPatientDetails = () => {
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Height</span>
-                                    <span className="dpd-ov-value">{profile.height || intakeData.height || '-'} cm</span>
+                                    <span className="dpd-ov-value">{displayHeight} {displayHeight !== '-' ? 'cm' : ''}</span>
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Weight</span>
-                                    <span className="dpd-ov-value">{profile.weight || intakeData.weight || '-'} kg</span>
+                                    <span className="dpd-ov-value">{displayWeight} {displayWeight !== '-' ? 'kg' : ''}</span>
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">BMI</span>
-                                    <span className="dpd-ov-value">{profile.bmi || intakeData.bmi || '-'}</span>
+                                    <span className="dpd-ov-value">{displayBMI}</span>
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Address</span>
@@ -1054,13 +1124,44 @@ const DoctorPatientDetails = () => {
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Chief Complaint</span>
-                                    <span className="dpd-ov-value">{profile.chiefComplaint || intakeData.chiefComplaint || '-'}</span>
+                                    <span className="dpd-ov-value">{valChiefComplaint}</span>
                                 </div>
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Reason for Visit</span>
                                     <span className="dpd-ov-value">{profile.reasonForVisit || intakeData.reasonForVisit || '-'}</span>
                                 </div>
+                                <div className="dpd-ov-card" style={isHighBP ? { border: '2px solid #ef4444', background: '#fef2f2' } : {}}>
+                                    <span className="dpd-ov-label" style={isHighBP ? { color: '#b91c1c' } : {}}>
+                                        BP {isHighBP && <span style={{ fontSize: '11px', background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '10px', marginLeft: '6px' }}>⚠️ High BP</span>}
+                                    </span>
+                                    <span className="dpd-ov-value" style={isHighBP ? { color: '#b91c1c' } : {}}>{displayBP} {displayBP !== '-' ? 'mmHg' : ''}</span>
+                                </div>
+                                <div className="dpd-ov-card">
+                                    <span className="dpd-ov-label">Pulse</span>
+                                    <span className="dpd-ov-value">{displayPulse} {displayPulse !== '-' ? 'bpm' : ''}</span>
+                                </div>
+                                <div className="dpd-ov-card">
+                                    <span className="dpd-ov-label">Temperature</span>
+                                    <span className="dpd-ov-value">{displayTemp} {displayTemp !== '-' ? '°F' : ''}</span>
+                                </div>
+                                <div className="dpd-ov-card" style={isLowSpO2 ? { border: '2px solid #f97316', background: '#fff7ed' } : {}}>
+                                    <span className="dpd-ov-label" style={isLowSpO2 ? { color: '#c2410c' } : {}}>
+                                        SpO2 {isLowSpO2 && <span style={{ fontSize: '11px', background: '#ffedd5', color: '#9a3412', padding: '2px 6px', borderRadius: '10px', marginLeft: '6px' }}>⚠️ Low</span>}
+                                    </span>
+                                    <span className="dpd-ov-value" style={isLowSpO2 ? { color: '#c2410c' } : {}}>{displaySpO2}{displaySpO2 !== '-' ? '%' : ''}</span>
+                                </div>
+                                <div className="dpd-ov-card">
+                                    <span className="dpd-ov-label">Resp Rate</span>
+                                    <span className="dpd-ov-value">{displayResp} {displayResp !== '-' ? '/min' : ''}</span>
+                                </div>
                             </div>
+
+                            {displayNotes && displayNotes !== '-' && (
+                                <div style={{ marginTop: '16px', padding: '12px', background: '#f8fafc', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
+                                    <h4 style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#1e293b' }}>📝 Nurse / Assistant Notes</h4>
+                                    <p style={{ margin: 0, fontSize: '14px', color: '#475569' }}>{displayNotes}</p>
+                                </div>
+                            )}
 
                             {/* Partner Quick Info */}
                             {(profile.partnerFirstName || intakeData.partnerFirstName) && (
@@ -1087,7 +1188,8 @@ const DoctorPatientDetails = () => {
                                 </div>
                             )}
                         </div>
-                    )}
+                        );
+                    })()}
 
                     {/* PAST VISITS HISTORY */}
                     {activeTab === 'history' && (
@@ -1242,6 +1344,65 @@ const DoctorPatientDetails = () => {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    )}
+
+                    {/* CONSENTS TAB */}
+                    {activeTab === 'consents' && (
+                        <div className="dpd-tab-panel">
+                            <div style={{ padding: '20px', background: '#dcfce7', color: '#166534', fontWeight: 'bold', borderRadius: '8px' }}>
+                                Consent Forms Section Working
+                            </div>
+                            
+                            {/* Original UI commented out for testing
+                            <h3 className="dpd-panel-title">📝 Consent Forms</h3>
+                            {(patient?.consents || []).length === 0 ? (
+                                <div className="dpd-empty-hist"><p>No consent forms generated or uploaded.</p></div>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
+                                    {(patient?.consents || []).map((doc, i) => {
+                                        const isPending = doc.status === 'Pending';
+                                        return (
+                                        <div key={doc._id || i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}>
+                                                    📄 {String(doc.consentName || `Consent Form ${i + 1}`)}
+                                                </div>
+                                                {isPending ? (
+                                                    <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#d97706', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                                        ⏳ Pending Signature
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                                        ✅ Signed
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                                {doc.uploadedAt ? `Generated/Uploaded: ${new Date(doc.uploadedAt).toLocaleDateString('en-IN')}` : ''}
+                                                {(!isPending && doc.signedDate) ? ` | Signed: ${new Date(doc.signedDate).toLocaleDateString('en-IN')}` : ''}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '8px' }}>
+                                                {doc.fileUrl && (
+                                                    <a href={doc.fileUrl} target="_blank" rel="noreferrer"
+                                                       onClick={(e) => { e.preventDefault(); window.open(doc.fileUrl, '_blank'); }}
+                                                       style={{ flex: 1, textAlign: 'center', background: '#eff6ff', color: '#3b82f6', fontSize: '0.82rem', fontWeight: 600, padding: '8px', borderRadius: '6px', textDecoration: 'none' }}>
+                                                        👁 Preview
+                                                    </a>
+                                                )}
+                                                {doc.fileUrl && (
+                                                    <a href={doc.fileUrl} download
+                                                       onClick={(e) => { e.preventDefault(); window.open(doc.fileUrl, '_blank'); }}
+                                                       style={{ flex: 1, textAlign: 'center', background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', fontSize: '0.82rem', fontWeight: 600, padding: '8px', borderRadius: '6px', textDecoration: 'none' }}>
+                                                        ⬇️ Download
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )})}
+                                </div>
+                            )}
+                            */}
                         </div>
                     )}
                 </div>

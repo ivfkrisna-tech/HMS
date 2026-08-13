@@ -25,14 +25,17 @@ const pharmacyItemSchema = new mongoose.Schema({
 }, { _id: false });
 
 const vitalsSchema = new mongoose.Schema({
-    weight:      { type: String, default: '' },  // kg
-    height:      { type: String, default: '' },  // cm
-    bmi:         { type: String, default: '' },
-    bp:          { type: String, default: '' },  // e.g. 120/80
-    temperature:{ type: String, default: '' },  // °F
-    pulse:       { type: String, default: '' },  // bpm
-    spo2:        { type: String, default: '' },  // %
-    rr:          { type: String, default: '' },  // breaths/min
+    weight: { type: String, default: '' },
+    height: { type: String, default: '' },
+    bmi: { type: String, default: '' },
+    bp: { type: String, default: '' },
+    temperature: { type: String, default: '' },
+    pulse: { type: String, default: '' },
+    spo2: { type: String, default: '' },
+    rr: { type: String, default: '' },
+    chiefComplaint: { type: String, default: '' },
+    notes: { type: String, default: '' },
+    updatedAt: { type: Date, default: Date.now }
 }, { _id: false });
 
 const appointmentSchema = new mongoose.Schema({
@@ -99,6 +102,16 @@ const appointmentSchema = new mongoose.Schema({
     pharmacy: [pharmacyItemSchema],
     vitals: { type: vitalsSchema, default: () => ({}) },
     ivfDetails: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    questionnaireAnswers: [
+        {
+            questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: false },
+            questionText: { type: String, required: true },
+            answer: { type: mongoose.Schema.Types.Mixed, required: true },
+            answeredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            updatedAt: { type: Date, default: Date.now }
+        }
+    ],
 
     // Files
     prescription: { type: String, default: '' },

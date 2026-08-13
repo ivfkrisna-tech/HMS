@@ -20,13 +20,15 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Accept images and PDFs
+  // Accept images, PDFs, and Word Documents
   if (file.mimetype === 'image/jpeg' || 
       file.mimetype === 'image/png' || 
-      file.mimetype === 'application/pdf') {
+      file.mimetype === 'application/pdf' ||
+      file.mimetype === 'application/msword' ||
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only JPEG, PNG and PDF are allowed.'), false);
+    cb(new Error('Invalid file type. Only JPEG, PNG, PDF, and Word documents are allowed.'), false);
   }
 };
 

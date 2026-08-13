@@ -614,7 +614,7 @@ const PatientsMode = ({ onBookToken }) => {
                             <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept=".pdf,image/jpeg,image/png,image/webp"
+                                accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                 style={{ display: 'none' }}
                                 disabled={uploading}
                                 onChange={handleUploadReport}

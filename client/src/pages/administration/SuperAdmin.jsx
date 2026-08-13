@@ -296,7 +296,7 @@ const SuperAdmin = () => {
                                     <label className="staff-label">Profile Image</label>
                                     <input
                                         type="file"
-                                        accept="image/*"
+                                        accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                         onChange={e => setCreateForm({ ...createForm, file: e.target.files[0] })}
                                         className="staff-input"
                                         style={{ padding: '10px' }}
@@ -418,7 +418,7 @@ const SuperAdmin = () => {
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <label className="staff-label">Change Photo</label>
-                                        <input type="file" accept="image/*" onChange={e => setEditForm({ ...editForm, newAvatarFile: e.target.files[0] })} className="staff-input" style={{ padding: '8px' }} />
+                                        <input type="file" accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp" onChange={e => setEditForm({ ...editForm, newAvatarFile: e.target.files[0] })} className="staff-input" style={{ padding: '8px' }} />
                                     </div>
                                 </div>
 

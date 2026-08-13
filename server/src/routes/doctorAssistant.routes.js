@@ -289,22 +289,36 @@ router.post('/appointment/:appointmentId/preparation', verifyToken, async (req, 
 
 router.post('/appointment/:appointmentId/vitals', verifyToken, async (req, res) => {
     try {
-        const { weight, height, bmi, bp, temperature, pulse, spo2, rr, bloodSugar } = req.body;
+        const { weight, height, bmi, bp, bloodPressure, temperature, temp, pulse, pulseRate, spo2, spO2, rr, respRate, respiratoryRate, bloodSugar, chiefComplaint, notes, nurseNotes } = req.body;
+
+        const valWeight = weight || '';
+        const valHeight = height || '';
+        const valBMI = bmi || '';
+        const valBP = bp || bloodPressure || '';
+        const valTemp = temperature || temp || '';
+        const valPulse = pulse || pulseRate || '';
+        const valSpO2 = spo2 || spO2 || '';
+        const valRR = rr || respRate || respiratoryRate || '';
+        const valChiefComplaint = chiefComplaint || '';
+        const valNotes = notes || nurseNotes || '';
+
+        const vitalsObj = {
+            weight: valWeight,
+            height: valHeight,
+            bmi: valBMI,
+            bp: valBP,
+            temperature: valTemp,
+            pulse: valPulse,
+            spo2: valSpO2,
+            rr: valRR,
+            chiefComplaint: valChiefComplaint,
+            notes: valNotes,
+            updatedAt: new Date()
+        };
 
         const appointment = await Appointment.findOneAndUpdate(
             { _id: req.params.appointmentId, hospitalId: req.user.hospitalId },
-            {
-                vitals: {
-                    weight: weight || '',
-                    height: height || '',
-                    bmi: bmi || '',
-                    bp: bp || '',
-                    temperature: temperature || '',
-                    pulse: pulse || '',
-                    spo2: spo2 || '',
-                    rr: rr || ''
-                }
-            },
+            { vitals: vitalsObj },
             { new: true }
         );
 
@@ -314,9 +328,34 @@ router.post('/appointment/:appointmentId/vitals', verifyToken, async (req, res) 
 
         // Also save bloodSugar to ivfDetails if provided
         if (bloodSugar) {
-            await Appointment.findByIdAndUpdate(req.params.appointmentId, {
-                'ivfDetails.bloodSugar': bloodSugar
-            });
+            appointment.ivfDetails = appointment.ivfDetails || {};
+            appointment.ivfDetails.bloodSugar = bloodSugar;
+            await appointment.save();
+        }
+
+        // Update User profile and vitals history
+        if (appointment.userId) {
+            const user = await User.findById(appointment.userId);
+            if (user) {
+                // Unshift to history
+                user.vitalsHistory = user.vitalsHistory || [];
+                user.vitalsHistory.unshift({
+                    ...vitalsObj,
+                    timestamp: new Date()
+                });
+
+                // Top level fields
+                if (valHeight) user.height = valHeight;
+                if (valWeight) user.weight = valWeight;
+
+                // Sync with fertilityProfile for legacy
+                if (user.fertilityProfile) {
+                    user.fertilityProfile.vitals = vitalsObj;
+                    user.markModified('fertilityProfile');
+                }
+
+                await user.save();
+            }
         }
         
         await logAuditAndTimeline(appointment._id, 'Appointment', 'UPDATE', 'vitals', null, 'Vitals updated', req.user, 'Doctor Assistant', 'Preparation In Progress', 'Assistant updated patient vitals');
@@ -325,6 +364,53 @@ router.post('/appointment/:appointmentId/vitals', verifyToken, async (req, res) 
     } catch (err) {
         console.error('[Assistant] Save vitals error:', err.message);
         res.status(500).json({ success: false, message: 'Failed to save vitals' });
+    }
+});
+
+// ==========================================
+// SAVE QUESTIONNAIRE ANSWERS
+// ==========================================
+
+router.put('/appointment/:appointmentId/questionnaire', verifyToken, async (req, res) => {
+    try {
+        const { appointmentId } = req.params;
+        const { answers } = req.body; // Expecting array: [{ questionText, answer }]
+
+        if (!Array.isArray(answers)) {
+            return res.status(400).json({ success: false, message: 'Invalid format. Answers must be an array.' });
+        }
+
+        const appointment = await Appointment.findById(appointmentId);
+        if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
+
+        // Upsert logic
+        const existingAnswers = appointment.questionnaireAnswers || [];
+        
+        answers.forEach(newAns => {
+            const index = existingAnswers.findIndex(a => a.questionText === newAns.questionText);
+            if (index !== -1) {
+                existingAnswers[index].answer = newAns.answer;
+                existingAnswers[index].answeredBy = req.user._id;
+                existingAnswers[index].updatedAt = new Date();
+            } else {
+                existingAnswers.push({
+                    questionText: newAns.questionText,
+                    answer: newAns.answer,
+                    answeredBy: req.user._id,
+                    updatedAt: new Date()
+                });
+            }
+        });
+
+        appointment.questionnaireAnswers = existingAnswers;
+        await appointment.save();
+
+        await logAuditAndTimeline(appointment._id, 'Appointment', 'UPDATE', 'questionnaireAnswers', null, 'Questionnaire updated', req.user, 'Doctor Assistant', 'Preparation In Progress', 'Assistant updated patient questionnaire');
+
+        res.json({ success: true, message: 'Questionnaire saved successfully', questionnaireAnswers: appointment.questionnaireAnswers });
+    } catch (err) {
+        console.error('[Assistant] Save questionnaire error:', err.message);
+        res.status(500).json({ success: false, message: 'Failed to save questionnaire' });
     }
 });
 
@@ -396,17 +482,29 @@ router.post('/appointment/:appointmentId/reports', verifyToken, async (req, res)
             return res.status(400).json({ success: false, message: 'No files provided' });
         }
 
-        const appointment = await Appointment.findOneAndUpdate(
-            { _id: req.params.appointmentId, hospitalId: req.user.hospitalId },
-            { $push: { prescriptions: { $each: files } } },
-            { new: true }
-        );
+        const appointment = await Appointment.findOne({
+            _id: req.params.appointmentId,
+            hospitalId: req.user.hospitalId
+        });
 
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
 
-        res.json({ success: true, message: 'Reports saved', prescriptions: appointment.prescriptions });
+        const formattedFiles = files.map(f => ({
+            fileName: f.name || 'Report',
+            url: f.url,
+            date: new Date(),
+            type: f.type || 'Laboratory'
+        }));
+
+        const updatedUser = await User.findByIdAndUpdate(
+            appointment.userId,
+            { $push: { 'fertilityProfile.previousReports': { $each: formattedFiles } } },
+            { new: true }
+        );
+
+        res.json({ success: true, message: 'Reports saved', prescriptions: updatedUser.fertilityProfile?.previousReports || [] });
     } catch (err) {
         console.error('[Assistant] Save reports error:', err.message);
         res.status(500).json({ success: false, message: 'Failed to save reports' });

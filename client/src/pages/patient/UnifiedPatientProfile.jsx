@@ -641,6 +641,59 @@ const UnifiedPatientProfile = () => {
                 </div>
             )}
 
+            {/* Consent Forms Section */}
+            {(patientData?.consents || []).length > 0 && (
+                <div className="upp-partner-card" style={{ borderLeft: '4px solid #10b981', marginBottom: '24px' }}>
+                    <div className="upp-partner-info" style={{ width: '100%' }}>
+                        <div className="upp-partner-title">
+                            <span>📝 Consent Forms ({(patientData?.consents || []).length})</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px', marginTop: '12px' }}>
+                            {(patientData?.consents || []).map((doc, i) => {
+                                const isPending = doc.status === 'Pending';
+                                return (
+                                <div key={doc._id || i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#1e293b' }}>
+                                            📄 {String(doc.consentName || `Consent Form ${i + 1}`)}
+                                        </div>
+                                        {isPending ? (
+                                            <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#d97706', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                                ⏳ Pending Signature
+                                            </span>
+                                        ) : (
+                                            <span style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                                ✅ Signed
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                        {doc.uploadedAt ? `Generated/Uploaded: ${new Date(doc.uploadedAt).toLocaleDateString('en-IN')}` : ''}
+                                        {(!isPending && doc.signedDate) ? ` | Signed: ${new Date(doc.signedDate).toLocaleDateString('en-IN')}` : ''}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '8px' }}>
+                                        {doc.fileUrl && (
+                                            <a href={doc.fileUrl} target="_blank" rel="noreferrer"
+                                               onClick={(e) => { e.preventDefault(); window.open(doc.fileUrl, '_blank'); }}
+                                               style={{ flex: 1, textAlign: 'center', background: '#eff6ff', color: '#3b82f6', fontSize: '0.82rem', fontWeight: 600, padding: '8px', borderRadius: '6px', textDecoration: 'none' }}>
+                                                👁 Preview
+                                            </a>
+                                        )}
+                                        {doc.fileUrl && (
+                                            <a href={doc.fileUrl} download
+                                               onClick={(e) => { e.preventDefault(); window.open(doc.fileUrl, '_blank'); }}
+                                               style={{ flex: 1, textAlign: 'center', background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', fontSize: '0.82rem', fontWeight: 600, padding: '8px', borderRadius: '6px', textDecoration: 'none' }}>
+                                                ⬇️ Download
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            )})}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Metrics Grid */}
             <div className="upp-metrics">
                 <div className="upp-metric-card" style={{ borderLeft: '4px solid #3b82f6' }}>
@@ -879,7 +932,7 @@ const UnifiedPatientProfile = () => {
                                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Upload Consent File</label>
                                     <input 
                                         type="file" 
-                                        accept=".pdf, .jpg, .jpeg, .png"
+                                        accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                                         onChange={handleConsentFileChange}
                                         style={{ width: '100%', padding: '5px 0', fontSize: '14px' }}
                                     />

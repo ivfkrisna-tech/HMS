@@ -15,8 +15,11 @@ import './DashboardLayout.css';
 const DashboardSidebar = ({ isOpen, setOpen }) => {
     const { user } = useAuth();
     const { branding, hospitalName } = useBranding();
+    const location = useLocation();
     const role = (user?.role || '').toLowerCase();
     
+    // Categorized Menus
+
     // Categorized Menus
     const getMenu = () => {
         if (role === 'centraladmin' || role === 'superadmin') {
@@ -53,17 +56,9 @@ const DashboardSidebar = ({ isOpen, setOpen }) => {
         }
         if (role.includes('doctor assistant') || role.includes('doctorassistant')) {
             return [
-                { label: 'Dashboard', path: '/assistant/dashboard', icon: <FiHome /> },
+                { label: 'Dashboard', path: '/assistant/patients', icon: <FiHome /> },
                 { label: "Today's Patients", path: '/assistant/patients', icon: <FiUsers /> },
                 { label: 'Appointments', path: '/assistant/appointments', icon: <FiCalendar /> },
-                { label: 'Patient Preparation', path: '/assistant/preparation', icon: <FiPlusSquare /> },
-                { label: 'Vitals', path: '/assistant/vitals', icon: <FiHeart /> },
-                { label: 'Reports', path: '/assistant/reports', icon: <FiFileText /> },
-                { label: 'Investigations', path: '/assistant/investigations', icon: <FiActivity /> },
-                { label: 'Consent Forms', path: '/assistant/consents', icon: <FiShield /> },
-                { label: 'Clinical Notes', path: '/assistant/clinical-notes', icon: <FiEdit /> },
-                { label: 'Follow-up', path: '/assistant/follow-up', icon: <FiClock /> },
-                { label: 'Tasks', path: '/assistant/tasks', icon: <FiCheckSquare /> },
                 { label: 'Question Library', path: '/assistant/question-library', icon: <FiFileText /> },
             ];
         }

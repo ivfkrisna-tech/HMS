@@ -652,6 +652,7 @@ export const assistantAPI = {
     saveVitals: async (aptId, data) => (await apiClient.post(`/api/assistant/appointment/${aptId}/vitals`, data)).data,
     saveIvfDetails: async (aptId, data) => (await apiClient.post(`/api/assistant/appointment/${aptId}/ivf-details`, data)).data,
     saveClinicalNotes: async (aptId, data) => (await apiClient.post(`/api/assistant/appointment/${aptId}/clinical-notes`, data)).data,
+    saveQuestionnaire: async (aptId, answers) => (await apiClient.put(`/api/assistant/appointment/${aptId}/questionnaire`, { answers })).data,
     markReady: async (aptId) => (await apiClient.post(`/api/assistant/appointment/${aptId}/mark-ready`)).data,
     getChecklist: async (aptId) => (await apiClient.get(`/api/assistant/appointment/${aptId}/checklist`)).data,
 };

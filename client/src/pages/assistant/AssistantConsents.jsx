@@ -73,7 +73,7 @@ const AssistantConsents = () => {
         }
     };
 
-    const handleGenerate = () => {
+    const handleGenerate = async () => {
         if (!selectedTemplateId) return alert('Please select a template');
         if (!patient || !patient._id) return alert('Patient not found');
         
@@ -81,6 +81,25 @@ const AssistantConsents = () => {
         try {
             const url = consentAPI.getGeneratePdfUrl(selectedTemplateId, patient._id);
             window.open(url, '_blank');
+            
+            const selectedTemplate = templates.find(t => t._id === selectedTemplateId);
+            const tmplName = selectedTemplate ? (selectedTemplate.title || selectedTemplate.name) : 'Generated Consent';
+            
+            const newConsent = {
+                consentName: tmplName,
+                fileUrl: url,
+                fileType: 'application/pdf',
+                uploadedAt: new Date().toISOString(),
+                status: 'Pending',
+                signedDate: null,
+                appointmentId: appointmentId || null
+            };
+            
+            const updatedConsents = [...(patient.consents || []), newConsent];
+            const res = await assistantAPI.updatePatientProfile(patient._id, { consents: updatedConsents });
+            if (res.success) {
+                setPatient(prev => ({ ...prev, consents: updatedConsents }));
+            }
         } catch (error) {
             console.error("Generate error", error);
         } finally {
@@ -111,7 +130,10 @@ const AssistantConsents = () => {
                     consentName: consentNameInput.trim(),
                     fileUrl: uploadRes.files[0].url,
                     fileType: uploadRes.files[0].mimetype || 'document',
-                    uploadedAt: new Date().toISOString()
+                    uploadedAt: new Date().toISOString(),
+                    status: 'Signed',
+                    signedDate: new Date().toISOString(),
+                    appointmentId: appointmentId || null
                 };
                 
                 const updatedConsents = [...(patient.consents || []), newConsent];
@@ -263,6 +285,7 @@ const AssistantConsents = () => {
                     </div>
                     
                     <button 
+                        type="button"
                         onClick={handleGenerate}
                         disabled={generating || !selectedTemplateId}
                         style={{ width: '100%', padding: '12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: (generating || !selectedTemplateId) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: (generating || !selectedTemplateId) ? 0.6 : 1 }}
@@ -299,10 +322,11 @@ const AssistantConsents = () => {
                         ref={fileInputRef} 
                         style={{ display: 'none' }} 
                         onChange={handleFileChange}
-                        accept="image/*,application/pdf"
+                        accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                     />
                     
                     <button 
+                        type="button"
                         onClick={handleUploadClick}
                         disabled={uploading}
                         style={{ width: '100%', padding: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: uploading ? 0.7 : 1 }}
@@ -330,13 +354,21 @@ const AssistantConsents = () => {
                                 <td style={{ padding: '16px', fontWeight: '500', color: '#334155' }}>{consent.consentName}</td>
                                 <td style={{ padding: '16px', color: '#475569' }}>{new Date(consent.uploadedAt).toLocaleDateString()}</td>
                                 <td style={{ padding: '16px' }}>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '500' }}>
-                                        <FiCheck /> Signed & Uploaded
-                                    </span>
+                                    {consent.status === 'Pending' ? (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '500' }}>
+                                            Pending Signature
+                                        </span>
+                                    ) : (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '999px', fontSize: '0.85rem', fontWeight: '500' }}>
+                                            <FiCheck /> Signed & Uploaded
+                                        </span>
+                                    )}
                                 </td>
                                 <td style={{ padding: '16px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                                        <a href={consent.fileUrl} target="_blank" rel="noreferrer" style={{ padding: '6px', background: '#eff6ff', color: '#3b82f6', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex' }} title="View Uploaded Consent">
+                                        <a href={consent.fileUrl} target="_blank" rel="noreferrer" style={{ padding: '6px', background: '#eff6ff', color: '#3b82f6', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex' }} title={consent.status === 'Pending' ? "Preview Document" : "View Uploaded Consent"}
+                                           onClick={(e) => { e.preventDefault(); window.open(consent.fileUrl, '_blank'); }}
+                                        >
                                             <FiEye />
                                         </a>
                                     </div>

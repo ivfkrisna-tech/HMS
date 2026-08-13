@@ -23,7 +23,7 @@ const AssistantReports = () => {
             const res = await assistantAPI.getAppointmentDetails(appointmentId);
             if (res.success) {
                 setAppointment(res.appointment);
-                setReports(res.appointment.prescriptions || []);
+                setReports(res.appointment.userId?.fertilityProfile?.previousReports || []);
             }
         } catch (error) {
             console.error("Failed to load appointment details", error);
@@ -96,7 +96,7 @@ const AssistantReports = () => {
                     style={{ display: 'none' }} 
                     onChange={handleFileChange}
                     multiple
-                    accept="image/*,application/pdf"
+                    accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp"
                 />
 
                 <button 
@@ -122,10 +122,10 @@ const AssistantReports = () => {
                         {reports.map((report, index) => (
                             <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={{ padding: '16px', fontWeight: '500', color: '#334155', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <FiFileText style={{ color: '#94a3b8' }} /> {report.name || `Report ${index + 1}`}
+                                    <FiFileText style={{ color: '#94a3b8' }} /> {report.name || report.fileName || `Report ${index + 1}`}
                                 </td>
                                 <td style={{ padding: '16px', color: '#475569' }}>{report.type || 'Document'}</td>
-                                <td style={{ padding: '16px', color: '#475569' }}>{new Date(report.uploadedAt).toLocaleDateString()}</td>
+                                <td style={{ padding: '16px', color: '#475569' }}>{new Date(report.uploadedAt || report.date).toLocaleDateString()}</td>
                                 <td style={{ padding: '16px', textAlign: 'center' }}>
                                     <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
                                         <a href={report.url} target="_blank" rel="noreferrer" style={{ padding: '6px', background: '#eff6ff', color: '#3b82f6', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex' }} title="Preview Report">
