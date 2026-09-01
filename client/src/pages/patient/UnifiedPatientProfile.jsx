@@ -694,6 +694,79 @@ const UnifiedPatientProfile = () => {
                 </div>
             )}
 
+            {/* LATEST VITALS BLOCK */}
+            <div className="upp-partner-card" style={{ borderLeft: '4px solid #0ea5e9', marginBottom: '24px' }}>
+                <div className="upp-partner-info" style={{ width: '100%' }}>
+                    <div className="upp-partner-title">
+                        <span>🩺 Latest Vitals (Updated by Nurse)</span>
+                    </div>
+                    {patientData?.latestVitals ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '16px', marginTop: '12px' }}>
+                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>BLOOD PRESSURE</div>
+                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{patientData.latestVitals.bp || '-'}</div>
+                            </div>
+                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>PULSE RATE</div>
+                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{patientData.latestVitals.pulse ? `${patientData.latestVitals.pulse} bpm` : '-'}</div>
+                            </div>
+                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>SPO₂ OXYGEN</div>
+                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{patientData.latestVitals.spo2 || '-'}</div>
+                            </div>
+                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>TEMPERATURE</div>
+                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{patientData.latestVitals.temp ? `${patientData.latestVitals.temp} °F` : '-'}</div>
+                            </div>
+                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>WEIGHT</div>
+                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{patientData.latestVitals.weight ? `${patientData.latestVitals.weight} kg` : '-'}</div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ marginTop: '12px', color: '#64748b', fontSize: '0.9rem' }}>No vitals recorded yet</div>
+                    )}
+                </div>
+            </div>
+
+            {/* NURSE ADMINISTRATION HISTORY */}
+            {patientData?.nurseAdministrationHistory && patientData.nurseAdministrationHistory.length > 0 && (
+                <div className="upp-partner-card" style={{ borderLeft: '4px solid #f43f5e', marginBottom: '24px' }}>
+                    <div className="upp-partner-info" style={{ width: '100%' }}>
+                        <div className="upp-partner-title">
+                            <span>💉 Nurse Administration History</span>
+                        </div>
+                        <div style={{ marginTop: '12px', overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                                <thead>
+                                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                                        <th style={{ padding: '12px' }}>Medication Name & Type</th>
+                                        <th style={{ padding: '12px' }}>Dose Administered</th>
+                                        <th style={{ padding: '12px' }}>Date & Time Given</th>
+                                        <th style={{ padding: '12px' }}>Administered By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {patientData.nurseAdministrationHistory.map((log, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                            <td style={{ padding: '12px' }}>
+                                                <div style={{ fontWeight: '600', color: '#1e293b' }}>{log?.medicationName}</div>
+                                                <div style={{ fontSize: '12px', color: '#64748b' }}>{log?.type}</div>
+                                            </td>
+                                            <td style={{ padding: '12px', color: '#475569' }}>{log?.dosageGiven}</td>
+                                            <td style={{ padding: '12px', color: '#475569' }}>
+                                                {log?.givenAt ? new Date(log.givenAt).toLocaleString('en-IN') : '-'}
+                                            </td>
+                                            <td style={{ padding: '12px', color: '#475569' }}>{log?.administeredBy}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Metrics Grid */}
             <div className="upp-metrics">
                 <div className="upp-metric-card" style={{ borderLeft: '4px solid #3b82f6' }}>

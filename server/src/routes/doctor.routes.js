@@ -223,7 +223,31 @@ router.get('/patients/:patientId/full-profile', verifyToken, async (req, res) =>
                 linkedAppointmentId: patient.linkedAppointmentId,
                 consents: patient.consents || [],
                 fertilityProfile: patient.fertilityProfile || {},
-                createdAt: patient.createdAt
+                createdAt: patient.createdAt,
+                nurseAdministrationHistory: (patient.medicationLogs || []).map(log => {
+                    let dose = 'Standard Dose';
+                    let type = 'Tablet';
+                    const medNameLower = (log.medicineName || '').toLowerCase();
+                    if (medNameLower.includes('inj')) type = 'Injection';
+                    else if (medNameLower.includes('drip') || medNameLower.includes('infusion')) type = 'IV Drip';
+                    
+                    pharmacyOrders.forEach(po => {
+                        (po.items || []).forEach(item => {
+                            if ((item.medicineName || item.name || '').toLowerCase() === medNameLower) {
+                                dose = item.dose || item.doseAdmin || 'Standard Dose';
+                            }
+                        });
+                    });
+                    
+                    return {
+                        medicationName: log.medicineName,
+                        dosageGiven: dose,
+                        type: type,
+                        givenAt: log.timestamp || `${log.date} ${log.time}`,
+                        administeredBy: log.administeredBy || 'Nurse'
+                    };
+                }).sort((a, b) => new Date(b.givenAt) - new Date(a.givenAt)),
+                latestVitals: (patient.vitalsHistory && patient.vitalsHistory.length > 0) ? patient.vitalsHistory[patient.vitalsHistory.length - 1] : null
             },
             appointments,
             labReports,

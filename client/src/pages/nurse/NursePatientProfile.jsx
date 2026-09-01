@@ -449,10 +449,25 @@ const NursePatientProfile = () => {
                 </>
             )}
 
+            {/* Doctor's Clinical Notes & Diagnosis */}
+            <div className="np-section-card" style={{ background: '#f8fafc', borderLeft: '4px solid #3b82f6' }}>
+                <h3 className="np-card-title">👨‍⚕️ Doctor's Clinical Notes & Diagnosis</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                    <div>
+                        <strong style={{ color: '#1e293b', fontSize: '14px' }}>Diagnosis: </strong>
+                        <span style={{ color: '#475569', fontSize: '14px' }}>{data?.diagnosis || 'No diagnosis recorded yet.'}</span>
+                    </div>
+                    <div>
+                        <strong style={{ color: '#1e293b', fontSize: '14px' }}>Clinical Notes: </strong>
+                        <span style={{ color: '#475569', fontSize: '14px', whiteSpace: 'pre-wrap' }}>{data?.clinicalNotes || 'No clinical notes recorded yet.'}</span>
+                    </div>
+                </div>
+            </div>
+
             {/* Vitals Display Block */}
             <div className="np-section-card">
                 <div className="np-card-header-flex">
-                    <h3 className="np-card-title"><FiActivity className="text-danger" /> Patient Vitals</h3>
+                    <h3 className="np-card-title">🩺 Latest Vitals (Updated by Nurse)</h3>
                     <button onClick={() => setShowVitalsModal(true)} className="np-primary-action-btn">
                         <FiPlus /> Record Vitals
                     </button>
@@ -473,6 +488,10 @@ const NursePatientProfile = () => {
                     <div className="np-vitals-pill-box">
                         <span className="np-vitals-label">TEMPERATURE</span>
                         <p className="np-vitals-value">{latestVitals?.temp ? `${latestVitals.temp} °F` : '-'}</p>
+                    </div>
+                    <div className="np-vitals-pill-box">
+                        <span className="np-vitals-label">WEIGHT</span>
+                        <p className="np-vitals-value">{latestVitals?.weight ? `${latestVitals.weight} kg` : '-'}</p>
                     </div>
                 </div>
             </div>

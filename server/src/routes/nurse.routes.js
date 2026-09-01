@@ -232,9 +232,12 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
             const idStr = p._id.toString();
             const docName = appt.doctorId?.name ? (appt.doctorId.name.startsWith('Dr.') ? appt.doctorId.name : `Dr. ${appt.doctorId.name}`) : 'Assigned Doctor';
 
+            const hasNotes = !!(appt.diagnosis || appt.doctorNotes || appt.clinicalNotes);
+
             if (patientMap.has(idStr)) {
                 const existing = patientMap.get(idStr);
                 if (docName !== 'Assigned Doctor') existing.doctorName = docName;
+                if (hasNotes) existing.hasDiagnosisOrNotes = true;
                 continue;
             }
 
@@ -271,14 +274,15 @@ router.get('/patients', verifyToken, resolveTenant, async (req, res) => {
                 admissionDate: 'N/A',
                 followUpStatus: appt.status || 'Scheduled',
                 appointmentStatus: appt.status || 'Confirmed',
-                hasAppointmentToday: isToday
+                hasAppointmentToday: isToday,
+                hasDiagnosisOrNotes: hasNotes
             });
         }
 
         const patientsList = Array.from(patientMap.values()).filter(p => {
             const roleName = (req.user._roleData?.name || '').toLowerCase();
             if (roleName === 'nurse') {
-                return p.isAdmitted || p.status === 'admitted' || p.hasActiveMedication || p.hasAppointmentToday;
+                return p.isAdmitted || p.status === 'admitted' || p.hasActiveMedication || p.hasDiagnosisOrNotes;
             }
             return true;
         });
@@ -598,7 +602,9 @@ router.get('/patient/:id', verifyToken, resolveTenant, async (req, res) => {
                 appointmentStatus: latestAppt?.status || (admission ? 'Admitted' : 'None'),
                 medicationJourney,
                 stats,
-                injectionTracking
+                injectionTracking,
+                diagnosis: latestAppt?.diagnosis || '',
+                clinicalNotes: latestAppt?.doctorNotes || latestAppt?.clinicalNotes || ''
             }
         });
     } catch (error) {

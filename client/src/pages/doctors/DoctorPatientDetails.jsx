@@ -1046,7 +1046,7 @@ const DoctorPatientDetails = () => {
                     {activeTab === 'overview' && (() => {
                         console.log("FULL APPOINTMENT DATA:", appointment);
                         console.log("FULL PATIENT DATA:", patient);
-                        const latestVitals = appointment?.vitals || (patient?.vitalsHistory && patient?.vitalsHistory[0]) || patient?.fertilityProfile?.vitals || {};
+                        const latestVitals = patient?.latestVitals || appointment?.vitals || (patient?.vitalsHistory && patient?.vitalsHistory[0]) || patient?.fertilityProfile?.vitals || {};
 
                         const calcBMI = (h, w) => {
                             if (!h || !w || isNaN(h) || isNaN(w)) return null;
@@ -1082,6 +1082,40 @@ const DoctorPatientDetails = () => {
                         return (
                             <div className="dpd-tab-panel">
                                 <h3 className="dpd-panel-title">📋 Patient Overview</h3>
+
+                                {/* LATEST VITALS BLOCK */}
+                                <div style={{ background: '#f8fafc', borderLeft: '4px solid #0ea5e9', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+                                        <h4 style={{ margin: 0, fontSize: '15px', color: '#0f172a' }}>🩺 Latest Vitals (Updated by Nurse)</h4>
+                                    </div>
+                                    {latestVitals && Object.keys(latestVitals).length > 0 ? (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '16px' }}>
+                                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>BLOOD PRESSURE</div>
+                                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{displayBP !== '-' ? displayBP : '-'}</div>
+                                            </div>
+                                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>PULSE RATE</div>
+                                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{displayPulse !== '-' ? `${displayPulse} bpm` : '-'}</div>
+                                            </div>
+                                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>SPO₂ OXYGEN</div>
+                                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{displaySpO2 !== '-' ? `${displaySpO2}%` : '-'}</div>
+                                            </div>
+                                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>TEMPERATURE</div>
+                                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{displayTemp !== '-' ? `${displayTemp} °F` : '-'}</div>
+                                            </div>
+                                            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', border: '1px solid #bae6fd', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '0.8rem', color: '#0284c7', fontWeight: 600 }}>WEIGHT</div>
+                                                <div style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: 700 }}>{displayWeight !== '-' ? `${displayWeight} kg` : '-'}</div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ color: '#64748b', fontSize: '0.9rem' }}>No vitals recorded yet</div>
+                                    )}
+                                </div>
+
                                 <div className="dpd-overview-grid">
                                 <div className="dpd-ov-card">
                                     <span className="dpd-ov-label">Full Name</span>

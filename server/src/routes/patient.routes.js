@@ -140,6 +140,32 @@ router.get('/:id/full-history', verifyToken, resolveTenant, async (req, res) => 
 
         timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+        user.nurseAdministrationHistory = (user.medicationLogs || []).map(log => {
+            let dose = 'Standard Dose';
+            let type = 'Tablet';
+            const medNameLower = (log.medicineName || '').toLowerCase();
+            if (medNameLower.includes('inj')) type = 'Injection';
+            else if (medNameLower.includes('drip') || medNameLower.includes('infusion')) type = 'IV Drip';
+            
+            pharmacies.forEach(po => {
+                (po.items || []).forEach(item => {
+                    if ((item.medicineName || item.name || '').toLowerCase() === medNameLower) {
+                        dose = item.dose || item.doseAdmin || 'Standard Dose';
+                    }
+                });
+            });
+            
+            return {
+                medicationName: log.medicineName,
+                dosageGiven: dose,
+                type: type,
+                givenAt: log.timestamp || `${log.date} ${log.time}`,
+                administeredBy: log.administeredBy || 'Nurse'
+            };
+        }).sort((a, b) => new Date(b.givenAt) - new Date(a.givenAt));
+
+        user.latestVitals = (user.vitalsHistory && user.vitalsHistory.length > 0) ? user.vitalsHistory[user.vitalsHistory.length - 1] : null;
+
         res.json({ success: true, user, timeline });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
