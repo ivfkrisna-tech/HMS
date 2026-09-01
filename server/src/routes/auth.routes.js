@@ -230,6 +230,11 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
+    // Check account active/inactive status
+    if (user.status && user.status.toLowerCase() === 'inactive') {
+      return res.status(403).json({ success: false, message: 'Your account is inactive. Contact your administrator.' });
+    }
+
     // STRICT HOSPITAL ROW-LEVEL SECURITY CHECK
     const globalAdminRoles = ['superadmin', 'centraladmin'];
     const userRoleStr = roleData.name ? roleData.name.toLowerCase() : '';

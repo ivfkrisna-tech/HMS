@@ -60,8 +60,32 @@ const verifyHospitalAdmin = async (req, res, next) => {
 // Get all hospitals
 router.get('/', verifyCentralAdmin, async (req, res) => {
     try {
-        const hospitals = await Hospital.find({}).populate('adminUserId', 'name email');
-        res.json({ success: true, hospitals });
+        const hospitals = await Hospital.find({}).populate('adminUserId', 'name email phone status adminNumber').lean();
+        const hospitalIds = hospitals.map(h => h._id);
+
+        // Fetch all hospital admins grouped by hospitalId
+        const allAdmins = await User.find(
+            { hospitalId: { $in: hospitalIds }, role: 'hospitaladmin' },
+            'name email phone status adminNumber hospitalId createdAt'
+        ).sort({ adminNumber: 1, createdAt: 1 }).lean();
+
+        const adminsByHospital = {};
+        for (const admin of allAdmins) {
+            const hid = String(admin.hospitalId);
+            if (!adminsByHospital[hid]) adminsByHospital[hid] = [];
+            adminsByHospital[hid].push(admin);
+        }
+
+        const enrichedHospitals = hospitals.map(h => {
+            const admins = adminsByHospital[String(h._id)] || [];
+            return {
+                ...h,
+                admins,
+                adminCount: admins.length
+            };
+        });
+
+        res.json({ success: true, hospitals: enrichedHospitals });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -345,13 +369,13 @@ router.delete('/:id', verifyCentralAdmin, async (req, res) => {
 });
 
 // ==========================================
-// HOSPITAL ADMIN AUTH
+// HOSPITAL ADMIN MANAGEMENT (Central Admin only)
 // ==========================================
 
-// Hospital Admin Signup (creates a hospitaladmin account) — Central Admin only
+// Hospital Admin Signup (creates a new hospitaladmin account) — Central Admin only
 router.post('/admin/signup', verifyCentralAdmin, async (req, res) => {
     try {
-        const { name, email, password, phone, hospitalId } = req.body;
+        const { name, email, password, phone, hospitalId, status } = req.body;
 
         if (!name || !email || !password || !hospitalId) {
             return res.status(400).json({ success: false, message: 'Name, email, password, and hospitalId are required' });
@@ -360,20 +384,35 @@ router.post('/admin/signup', verifyCentralAdmin, async (req, res) => {
         const hospital = await Hospital.findById(hospitalId);
         if (!hospital) return res.status(404).json({ success: false, message: 'Hospital not found' });
 
-        const existing = await User.findOne({ email });
+        const normalizedEmail = email.toLowerCase().trim();
+        const existing = await User.findOne({ email: normalizedEmail });
         if (existing) return res.status(400).json({ success: false, message: 'Email already registered' });
 
+        // Calculate next sequential adminNumber for this specific hospital
+        const highestAdmin = await User.findOne({ hospitalId, role: 'hospitaladmin' })
+            .sort({ adminNumber: -1, createdAt: -1 });
+        const nextAdminNumber = (highestAdmin && typeof highestAdmin.adminNumber === 'number')
+            ? highestAdmin.adminNumber + 1
+            : (await User.countDocuments({ hospitalId, role: 'hospitaladmin' })) + 1;
+
         const admin = new User({
-            name, email, password, phone: phone || '',
+            name,
+            email: normalizedEmail,
+            password,
+            phone: phone || '',
             role: 'hospitaladmin',
-            hospitalId
+            hospitalId,
+            adminNumber: nextAdminNumber,
+            status: status || 'Active'
         });
 
         await admin.save();
 
-        // Link hospital admin to hospital record
-        hospital.adminUserId = admin._id;
-        await hospital.save();
+        // If hospital has no adminUserId, link it to the first admin for legacy fallback
+        if (!hospital.adminUserId) {
+            hospital.adminUserId = admin._id;
+            await hospital.save();
+        }
 
         res.status(201).json({
             success: true,
@@ -382,11 +421,76 @@ router.post('/admin/signup', verifyCentralAdmin, async (req, res) => {
                 id: admin._id,
                 name: admin.name,
                 email: admin.email,
+                phone: admin.phone,
                 role: 'hospitaladmin',
+                adminNumber: admin.adminNumber,
+                status: admin.status,
                 hospitalId,
                 hospitalName: hospital.name
             }
         });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Update a specific Hospital Admin — Central Admin only
+router.put('/admin/:id', verifyCentralAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email, password, phone, status } = req.body;
+
+        const admin = await User.findOne({ _id: id, role: 'hospitaladmin' });
+        if (!admin) return res.status(404).json({ success: false, message: 'Hospital Admin not found' });
+
+        if (email && email.toLowerCase().trim() !== admin.email) {
+            const normalizedEmail = email.toLowerCase().trim();
+            const conflict = await User.findOne({ email: normalizedEmail, _id: { $ne: id } });
+            if (conflict) return res.status(400).json({ success: false, message: 'Email already registered to another user' });
+            admin.email = normalizedEmail;
+        }
+
+        if (name) admin.name = name;
+        if (phone !== undefined) admin.phone = phone;
+        if (status !== undefined) admin.status = status;
+        if (password && password.trim()) admin.password = password.trim();
+
+        await admin.save();
+
+        res.json({
+            success: true,
+            message: 'Hospital Admin updated successfully',
+            admin: {
+                id: admin._id,
+                name: admin.name,
+                email: admin.email,
+                phone: admin.phone,
+                role: 'hospitaladmin',
+                adminNumber: admin.adminNumber,
+                status: admin.status,
+                hospitalId: admin.hospitalId
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Delete a specific Hospital Admin — Central Admin only
+router.delete('/admin/:id', verifyCentralAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const admin = await User.findOne({ _id: id, role: 'hospitaladmin' });
+        if (!admin) return res.status(404).json({ success: false, message: 'Hospital Admin not found' });
+
+        const hospitalId = admin.hospitalId;
+        await User.findByIdAndDelete(id);
+
+        // If the hospital's legacy adminUserId was this deleted admin, update it to remaining admin or null
+        const remainingAdmin = await User.findOne({ hospitalId, role: 'hospitaladmin' }).sort({ adminNumber: 1 });
+        await Hospital.findByIdAndUpdate(hospitalId, { adminUserId: remainingAdmin ? remainingAdmin._id : null });
+
+        res.json({ success: true, message: 'Hospital Admin deleted successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -398,31 +502,26 @@ router.post('/admin/login', async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password are required' });
 
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await User.findOne({ email: normalizedEmail });
         if (!user) return res.status(401).json({ success: false, message: 'Invalid email or password' });
 
         // Only allow hospitaladmin role through this endpoint
         const userRole = typeof user.role === 'string' ? user.role : null;
 
-        console.log("========== LOGIN DEBUG ==========");
-        console.log("Email:", normalizedEmail);
-        console.log("User Found:", !!user);
-        console.log("User Role:", user.role);
-        console.log("Hospital ID:", user.hospitalId);
-
         if (userRole !== 'hospitaladmin') {
             return res.status(403).json({ success: false, message: 'This login is for Hospital Admins only.' });
+        }
+
+        if (user.status && user.status.toLowerCase() === 'inactive') {
+            return res.status(403).json({ success: false, message: 'This Hospital Admin account is inactive. Contact your Central Admin.' });
         }
 
         if (!user.hospitalId) {
             return res.status(403).json({ success: false, message: 'This account is not linked to any hospital. Contact your Central Admin.' });
         }
-        console.log("Stored Password Hash:", user.password);
+
         const isPasswordValid = await user.comparePassword(password);
-
-        console.log("Entered Password:", password);
-        console.log("Password Match:", isPasswordValid);
-
         if (!isPasswordValid) return res.status(401).json({ success: false, message: 'Invalid email or password' });
 
         const hospital = await Hospital.findById(user.hospitalId);
@@ -454,6 +553,8 @@ router.post('/admin/login', async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: 'hospitaladmin',
+                adminNumber: user.adminNumber || 1,
+                status: user.status || 'Active',
                 permissions: ['*'],
                 dashboardPath: '/hospitaladmin',
                 navLinks: [],
@@ -894,13 +995,22 @@ router.get('/:id/stats', verifyHospitalAdmin, async (req, res) => {
             !['patient'].includes(u.roleName?.toLowerCase())
         );
 
+        // 12. All hospital admins for this hospital
+        const hospitalAdmins = await User.find(
+            { hospitalId, role: 'hospitaladmin' },
+            'name email phone status adminNumber createdAt updatedAt avatar'
+        ).sort({ adminNumber: 1, createdAt: 1 }).lean();
+
         res.json({
             success: true,
             hospital: {
                 ...hospital.toObject(),
-                adminName: hospital.adminUserId?.name || null,
-                adminEmail: hospital.adminUserId?.email || null
+                adminName: hospitalAdmins[0]?.name || hospital.adminUserId?.name || null,
+                adminEmail: hospitalAdmins[0]?.email || hospital.adminUserId?.email || null,
+                admins: hospitalAdmins,
+                adminCount: hospitalAdmins.length
             },
+            hospitalAdmins,
             stats: {
                 // Staff
                 totalStaff,

@@ -28,6 +28,12 @@ const userSchema = new mongoose.Schema({
         }
     },
 
+    // Sequential admin number within the assigned hospital (Hospital Admin 1, 2, 3...)
+    adminNumber: { type: Number, default: null },
+
+    // Account status
+    status: { type: String, enum: ['Active', 'Inactive', 'active', 'inactive'], default: 'Active' },
+
     // Patient ID for clinical tracking
     patientId: { type: String, unique: true, sparse: true },
     mrn: { type: String, unique: true, sparse: true },
