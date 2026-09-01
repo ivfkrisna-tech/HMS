@@ -1,9 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # HMS Backend - Production Dockerfile
-# Uses Node.js 18 on Debian Bullseye with LibreOffice for DOCX → PDF conversion
+# Uses Node.js 20 (LTS) on Debian Bookworm with LibreOffice for DOCX → PDF conversion
 # ─────────────────────────────────────────────────────────────────────────────
 
-FROM node:18-bullseye-slim
+FROM node:20-bookworm-slim
 
 # ── Install LibreOffice + Fonts ──────────────────────────────────────────────
 # libreoffice-writer: Core Writer component for DOCX → PDF
