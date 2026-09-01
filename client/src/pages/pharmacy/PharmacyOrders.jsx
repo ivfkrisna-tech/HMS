@@ -767,6 +767,7 @@ const PharmacyOrders = () => {
                 const invoiceData = getInvoiceCalculations(selectedOrder, discountPercent);
                 return (
                     <div
+                        className="print-modal-overlay"
                         style={{
                             position: 'fixed',
                             top: 0,
@@ -787,6 +788,7 @@ const PharmacyOrders = () => {
                     >
                         {/* White Modal Card Container */}
                         <div
+                            className="print-modal-content"
                             style={{
                                 backgroundColor: '#ffffff',
                                 borderRadius: '18px',
@@ -804,7 +806,7 @@ const PharmacyOrders = () => {
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Modal Header */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+                            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
                                 <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#115e59', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     📑 Patient Bill / Invoice
                                 </h2>
@@ -877,7 +879,7 @@ const PharmacyOrders = () => {
                                                 <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'center' }}>#</th>
                                                 <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>Medicine Name</th>
                                                 <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>Batch / Exp</th>
-                                                <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>Qty & Schedule</th>
+                                                <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>Qty</th>
                                                 <th style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>MRP (₹)</th>
                                                 <th style={{ padding: '8px', textAlign: 'right' }}>Total (₹)</th>
                                             </tr>
@@ -892,8 +894,97 @@ const PharmacyOrders = () => {
                                                                 {item.medicineName || item.name || 'Medicine Name'}
                                                             </td>
                                                             <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0', color: '#64748b' }}>
-                                                                <div>{item.batch || 'sdfdf'}</div>
-                                                                <div style={{ fontSize: '9px' }}>{item.exp || '10/29/2029'}</div>
+                                                                {selectedOrder?.orderStatus === 'Completed' ? (
+                                                                    <div>
+                                                                        {item.batchAllocations && item.batchAllocations.length > 0 ? item.batchAllocations.map((b, i) => (
+                                                                            <div key={i} style={{fontSize: '11px', fontWeight: 'bold'}}>{b.batchNumber} (Qty: {b.allocatedQty})</div>
+                                                                        )) : (
+                                                                            <>
+                                                                                <div>{item.batch || 'Auto-Allocated'}</div>
+                                                                                {item.exp && <div style={{ fontSize: '9px' }}>{item.exp}</div>}
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                                        {(item.batchAllocations || []).map((b, i) => (
+                                                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', background: '#f1f5f9', padding: '4px', borderRadius: '4px' }}>
+                                                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                                    <span style={{ fontWeight: 'bold', color: '#0f172a' }}>{b.batchNumber}</span>
+                                                                                    <span style={{ fontSize: '9px' }}>Qty: {b.allocatedQty}</span>
+                                                                                </div>
+                                                                                <button type="button" onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const updatedOrder = { ...selectedOrder };
+                                                                                    const itemsArray = updatedOrder.prescribedItems || updatedOrder.items || [];
+                                                                                    const updatedItems = [...itemsArray];
+                                                                                    const newAllocations = [...(updatedItems[idx].batchAllocations || [])];
+                                                                                    newAllocations.splice(i, 1);
+                                                                                    updatedItems[idx] = { ...updatedItems[idx], batchAllocations: newAllocations };
+                                                                                    if (newAllocations.length > 0) {
+                                                                                        const newTotal = newAllocations.reduce((acc, alloc) => acc + alloc.allocatedQty, 0);
+                                                                                        updatedItems[idx].qty = newTotal;
+                                                                                        updatedItems[idx].quantity = newTotal;
+                                                                                        updatedItems[idx].finalQty = newTotal;
+                                                                                    }
+                                                                                    if (updatedOrder.prescribedItems) updatedOrder.prescribedItems = updatedItems;
+                                                                                    if (updatedOrder.items) updatedOrder.items = updatedItems;
+                                                                                    setSelectedOrder(updatedOrder);
+                                                                                    setOrders(prev => prev.map(o => o._id === updatedOrder._id ? updatedOrder : o));
+                                                                                    if (paymentFlowOrder?._id === updatedOrder._id) setPaymentFlowOrder(updatedOrder);
+                                                                                }} style={{ color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', padding: '0 4px', fontWeight: 'bold' }}>&times;</button>
+                                                                            </div>
+                                                                        ))}
+                                                                        <select
+                                                                            style={{ fontSize: '11px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px', maxWidth: '140px', backgroundColor: '#f8fafc' }}
+                                                                            value=""
+                                                                            onChange={(e) => {
+                                                                                const selId = e.target.value;
+                                                                                if (!selId) return;
+                                                                                const invItem = inventory.find(inv => inv._id === selId);
+                                                                                if (!invItem) return;
+                                                                                
+                                                                                const updatedOrder = { ...selectedOrder };
+                                                                                const itemsArray = updatedOrder.prescribedItems || updatedOrder.items || [];
+                                                                                const updatedItems = [...itemsArray];
+                                                                                const currentAllocations = [...(updatedItems[idx].batchAllocations || [])];
+                                                                                
+                                                                                if (currentAllocations.some(a => a.inventoryId === selId)) return;
+                                                                                
+                                                                                const currentTotal = currentAllocations.reduce((acc, a) => acc + a.allocatedQty, 0);
+                                                                                const needed = Math.max(0, Number(updatedItems[idx].finalQty || updatedItems[idx].quantity || 0) - currentTotal);
+                                                                                const toAllocate = Math.min(invItem.stock, needed > 0 ? needed : 1);
+                                                                                
+                                                                                currentAllocations.push({
+                                                                                    inventoryId: invItem._id,
+                                                                                    batchNumber: invItem.batchNumber || 'N/A',
+                                                                                    allocatedQty: toAllocate
+                                                                                });
+                                                                                
+                                                                                updatedItems[idx] = { ...updatedItems[idx], batchAllocations: currentAllocations };
+                                                                                const newTotal = currentAllocations.reduce((acc, alloc) => acc + alloc.allocatedQty, 0);
+                                                                                updatedItems[idx].qty = newTotal;
+                                                                                updatedItems[idx].quantity = newTotal;
+                                                                                updatedItems[idx].finalQty = newTotal;
+
+                                                                                if (updatedOrder.prescribedItems) updatedOrder.prescribedItems = updatedItems;
+                                                                                if (updatedOrder.items) updatedOrder.items = updatedItems;
+                                                                                setSelectedOrder(updatedOrder);
+                                                                                setOrders(prev => prev.map(o => o._id === updatedOrder._id ? updatedOrder : o));
+                                                                                if (paymentFlowOrder?._id === updatedOrder._id) setPaymentFlowOrder(updatedOrder);
+                                                                            }}
+                                                                        >
+                                                                            <option value="">+ Add Batch</option>
+                                                                            {inventory.filter(inv => {
+                                                                                const itemName = (item.medicineName || item.name || '').toLowerCase().trim();
+                                                                                const invName = (inv.name || '').toLowerCase().trim();
+                                                                                return inv.stock > 0 && (invName === itemName || invName.includes(itemName) || itemName.includes(invName));
+                                                                            }).map(inv => (
+                                                                                <option key={inv._id} value={inv._id}>{inv.batchNumber || 'N/A'} (Stk: {inv.stock})</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                             <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0' }}>
                                                                 <div style={{ fontWeight: 'bold', color: '#0f172a' }}>
@@ -923,9 +1014,6 @@ const PharmacyOrders = () => {
                                                                             <span style={{ fontSize: '11px', color: '#059669', marginLeft: '4px' }}>{item.packagingBreakdown ? `(📦 ${item.packagingBreakdown})` : item.unitLabel}</span>
                                                                         </div>
                                                                     )}
-                                                                </div>
-                                                                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
-                                                                    {item.dose} {item.isLiquidOrInj || ['syrup', 'injection', 'vial', 'vials', 'drops', 'ml'].includes(String(item.unitLabel).toLowerCase()) ? 'ml' : 'tab(s)'} • {item.freqText} • {item.durationDays} Days
                                                                 </div>
                                                             </td>
                                                             <td style={{ padding: '8px', borderRight: '1px solid #e2e8f0', textAlign: 'right' }}>₹{item.unitRate.toFixed(2)} /{item.unitLabel}</td>
@@ -995,7 +1083,7 @@ const PharmacyOrders = () => {
                             </div>
 
                             {/* Footer Buttons */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px' }}>
+                            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px' }}>
                                 <button
                                     type="button"
                                     onClick={() => window.print()}

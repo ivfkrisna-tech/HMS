@@ -385,3 +385,46 @@ a:hover {
   padding: 0 var(--space-6);
   width: 100%;
 }
+
+/* --- PRINT STYLES --- */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-modal-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: transparent !important;
+    overflow: visible !important;
+    align-items: flex-start !important;
+    padding: 0 !important;
+  }
+  .print-modal-overlay * {
+    visibility: visible;
+  }
+  .print-modal-content {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .no-print, .no-print * {
+    display: none !important;
+  }
+  @page {
+    size: auto;
+    margin: 10mm;
+  }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+}

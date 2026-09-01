@@ -329,7 +329,7 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
             return res.status(400).json({ success: false, message: "Order items are missing or invalid." });
         }
 
-        // Apply updated quantities if provided
+        // Apply updated quantities and explicit batch allocations if provided
         if (updatedItems && Array.isArray(updatedItems)) {
             for (let i = 0; i < order.items.length; i++) {
                 if (updatedItems[i]) {
@@ -338,6 +338,10 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                         order.items[i].quantity = Number(newQty);
                         order.items[i].qty = Number(newQty);
                         order.items[i].totalReqd = Number(newQty);
+                    }
+                    // FIX: Ensure manual pharmacist batch selections are securely mapped!
+                    if (updatedItems[i].batchAllocations) {
+                        order.items[i].batchAllocations = updatedItems[i].batchAllocations;
                     }
                 }
             }
@@ -480,8 +484,23 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                     totalAmount += itemTotal;
 
                     // STOCK DEDUCTION MATH
+                    if (item.batchAllocations && item.batchAllocations.length > 0) {
+                        // NEW FLOW: Precise Batch Deduction
+                        for (const alloc of item.batchAllocations) {
+                            if (!alloc.inventoryId) continue;
+                            const targetInv = await Inventory.findById(alloc.inventoryId);
+                            if (targetInv && targetInv.stock > 0) {
+                                // EXACT DEDUCTION: Do not multiply by unitsPerStrip. Stock inherently represents the unit (e.g., Strips)
+                                let qtyToDeduct = alloc.allocatedQty;
+                                targetInv.stock = Math.max(0, targetInv.stock - qtyToDeduct);
+                                await targetInv.save();
+                            }
+                        }
+                        continue; // Explicitly prevent any fallback legacy logic for this item
+                    }
+                    
                     if (invItem.isMultiDose) {
-                        // Initialize openUnitVolume properly if it's currently 0 or corrupt but stock exists
+                        // BACKWARD COMPATIBILITY: Initialize openUnitVolume properly if it's currently 0 or corrupt but stock exists
                         if ((!invItem.openUnitVolume || invItem.openUnitVolume <= 0) && invItem.stock > 0) {
                             invItem.stock -= 1;
                             invItem.openUnitVolume = (invItem.packVolume || 1);
@@ -509,12 +528,10 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
                         }
                         await invItem.save();
                     } else {
-                        // Standard deduction
+                        // BACKWARD COMPATIBILITY: Standard deduction
                         if (invItem.stock > 0) {
+                            // EXACT DEDUCTION: Do not multiply by unitsPerStrip.
                             let qtyToDeduct = billedQty;
-                            if (['Strip', 'Capsules', 'Tablets'].includes(invItem.unit)) {
-                                qtyToDeduct = qtyToDeduct * (Number(invItem.unitsPerStrip) || 1);
-                            }
                             invItem.stock = Math.max(0, invItem.stock - qtyToDeduct);
                             await invItem.save();
                         }
@@ -604,13 +621,17 @@ router.post('/outside-patient-bill', verifyToken, async (req, res) => {
         for (const item of items) {
             const invItem = await Inventory.findById(item.inventoryId);
             if (invItem) {
-                // simple deduction for walk-in
+                // simple deduction for walk-in (EXACT DEDUCTION)
                 let qtyToDeduct = Number(item.quantity) || 1;
-                if (['Strip', 'Capsules', 'Tablets'].includes(invItem.unit)) {
-                    qtyToDeduct = qtyToDeduct * (Number(invItem.unitsPerStrip) || 1);
-                }
                 invItem.stock = Math.max(0, (invItem.stock || 0) - qtyToDeduct);
                 await invItem.save();
+
+                // Explicitly bind the walked-in batch to batchAllocations for consistency
+                item.batchAllocations = [{
+                    inventoryId: item.inventoryId,
+                    batchNumber: item.batch || invItem.batchNumber || 'N/A',
+                    allocatedQty: qtyToDeduct
+                }];
             }
         }
 
