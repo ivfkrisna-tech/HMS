@@ -437,11 +437,12 @@ const DoctorPatientDetails = () => {
                     const isInjection = (m.medicineName || '').toLowerCase().includes('inj') || (m.medicineName || '').toLowerCase().includes('drip') || m.totalDosageRequired > 0;
                     
                     const medNameLower = (m.medicineName || '').toLowerCase();
-                    const unit = medNameLower.includes('insulin') || medNameLower.includes('heparin') || medNameLower.includes('iu') ? 'IU' : 'ml';
-                    const actualDoseString = isInjection ? `${m.dosePerAdmin || 1} ${unit}` : (m.dose || '');
+                    const isLiquidOrInj = medNameLower.includes('inj') || medNameLower.includes('drip') || medNameLower.includes('infusion') || medNameLower.includes('syr') || m.type === 'Injection' || m.type === 'Drip' || m.type === 'Infusion';
+                    const unit = m.dosageUnit || m.unit || (medNameLower.includes('insulin') || medNameLower.includes('heparin') || medNameLower.includes('iu') ? 'IU' : (isLiquidOrInj ? 'ml' : 'dose'));
+                    const actualDoseString = isInjection ? `${m.dosePerAdmin || m.dose || 1} ${unit}` : (m.dose || '');
                     
                     const scheduleText = isInjection 
-                        ? `${m.dosePerAdmin || 1} ${unit} x ${m.frequency || 1}/day for ${m.durationDays || 1} days` 
+                        ? `${m.dosePerAdmin || m.dose || 1} ${unit} x ${m.frequency || 1}/day for ${m.durationDays || 1} days` 
                         : '';
                     
                     return {

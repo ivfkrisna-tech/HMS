@@ -138,9 +138,7 @@ const hasOngoingTreatment = (meds) => {
 
     return meds.some(med => {
         const lowerType = (med.type || '').toLowerCase();
-        // Check for 'injection' or 'drip' (e.g. 'injection', 'iv drip')
-        const isInjectionOrDrip = lowerType.includes('injection') || lowerType.includes('drip');
-        if (!isInjectionOrDrip) return false;
+        // Allow all prescribed active medications
 
         const actualStartDate = med.startDate ? new Date(med.startDate) : (med.rawDate ? new Date(med.rawDate) : new Date());
         const start = new Date(actualStartDate);
