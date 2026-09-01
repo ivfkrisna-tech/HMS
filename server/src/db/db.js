@@ -47,17 +47,20 @@ async function connectDB() {
             const User = mongoose.connection.collection('users');
             const indexes = await User.indexes();
             const usernameIndex = indexes.find(idx => idx.name === 'username_1');
-
             if (usernameIndex) {
                 await User.dropIndex('username_1');
-                console.log('✓ Dropped old username_1 index (migration fix)');
+                console.log('✅ Dropped legacy username index');
             }
         } catch (indexError) {
-            // Index might not exist or collection might not exist, ignore error
-            // Code 26 is "NamespaceNotFound", Code 27 is "IndexNotFound"
-            if (indexError.code !== 27 && indexError.code !== 26 && indexError.codeName !== 'IndexNotFound' && indexError.codeName !== 'NamespaceNotFound') {
-                console.log('Note: Could not check/drop username index:', indexError.message);
-            }
+            // Index might not exist or already dropped, which is fine
+        }
+
+        // Run safe Hospital Admin migration
+        try {
+            const migrateHospitalAdmins = require('./migrateHospitalAdmins');
+            await migrateHospitalAdmins();
+        } catch (migErr) {
+            console.warn('Hospital admin migration error:', migErr.message);
         }
     } catch (err) {
         console.error('❌ Database connection error:', err.message);

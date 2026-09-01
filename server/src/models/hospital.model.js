@@ -58,7 +58,7 @@ const hospitalSchema = new mongoose.Schema({
 
     // Custom domain — e.g. "portal.apex.com"
     // Hospital points their domain via CNAME to this server; we resolve the tenant from this field.
-    customDomain: { type: String, default: null, unique: true, sparse: true, lowercase: true, trim: true },
+    customDomain: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
 
     // White-label toggle — when true, system uses customDomain URL instead of slug.domain
     // When false (default), existing subdomain behavior is preserved

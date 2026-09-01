@@ -28,10 +28,14 @@ const CentralAdminDashboard = () => {
     const [brandingHospital, setBrandingHospital] = useState(null);
     const hospitalFormRef = useRef(null);
 
-    // Hospital Admin creation
+    // Hospital Admin creation & management
     const [showHospitalAdminForm, setShowHospitalAdminForm] = useState(false);
-    const [hospitalAdminForm, setHospitalAdminForm] = useState({ name: '', email: '', password: '', phone: '', hospitalId: '', file: null });
+    const [hospitalAdminForm, setHospitalAdminForm] = useState({ name: '', email: '', password: '', phone: '', hospitalId: '', status: 'Active', file: null });
     const [creatingHospitalAdmin, setCreatingHospitalAdmin] = useState(false);
+    const [editingAdmin, setEditingAdmin] = useState(null);
+    const [editAdminForm, setEditAdminForm] = useState({ id: '', name: '', email: '', phone: '', password: '', status: 'Active' });
+    const [savingEditAdmin, setSavingEditAdmin] = useState(false);
+    const [deleteAdminConfirm, setDeleteAdminConfirm] = useState(null);
 
     // Hospital Detail View
     const [selectedHospital, setSelectedHospital] = useState(null);
@@ -515,7 +519,7 @@ const CentralAdminDashboard = () => {
         setTimeout(() => hospitalFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     };
 
-    // --- Hospital Admin Creation ---
+    // --- Hospital Admin CRUD ---
     const handleCreateHospitalAdmin = async (e) => {
         e.preventDefault();
         setCreatingHospitalAdmin(true); setError(''); setSuccess('');
@@ -533,13 +537,78 @@ const CentralAdminDashboard = () => {
                         }
                     } catch { /* avatar upload failure is non-fatal */ }
                 }
-                setSuccess(`✅ Hospital Admin created! Login: ${hospitalAdminForm.email}`);
-                setHospitalAdminForm({ name: '', email: '', password: '', phone: '', hospitalId: '', file: null });
+                const adminNumLabel = res.user?.adminNumber ? `Hospital Admin ${res.user.adminNumber}` : 'Hospital Admin';
+                setSuccess(`✅ ${adminNumLabel} created! Login: ${hospitalAdminForm.email}`);
+                const createdHospitalId = hospitalAdminForm.hospitalId;
+                setHospitalAdminForm({ name: '', email: '', password: '', phone: '', hospitalId: '', status: 'Active', file: null });
                 setShowHospitalAdminForm(false);
                 fetchHospitals();
+                if (selectedHospital && String(selectedHospital._id) === String(createdHospitalId)) {
+                    fetchHospitalStats(selectedHospital._id, datePreset, customStartDate, customEndDate);
+                }
             }
         } catch (err) { setError(err.response?.data?.message || 'Error creating hospital admin.'); }
         finally { setCreatingHospitalAdmin(false); }
+    };
+
+    const openEditAdminModal = (admin) => {
+        setEditingAdmin(admin);
+        setEditAdminForm({
+            id: admin._id || admin.id,
+            name: admin.name || '',
+            email: admin.email || '',
+            phone: admin.phone || '',
+            password: '',
+            status: admin.status || 'Active'
+        });
+    };
+
+    const handleSaveEditAdmin = async (e) => {
+        e.preventDefault();
+        if (!editingAdmin) return;
+        setSavingEditAdmin(true); setError(''); setSuccess('');
+        try {
+            const payload = {
+                name: editAdminForm.name,
+                email: editAdminForm.email,
+                phone: editAdminForm.phone,
+                status: editAdminForm.status
+            };
+            if (editAdminForm.password && editAdminForm.password.trim()) {
+                payload.password = editAdminForm.password.trim();
+            }
+            const res = await hospitalAdminAPI.updateHospitalAdmin(editAdminForm.id, payload);
+            if (res.success) {
+                setSuccess(`✅ Hospital Admin updated successfully!`);
+                setEditingAdmin(null);
+                fetchHospitals();
+                if (selectedHospital) {
+                    fetchHospitalStats(selectedHospital._id, datePreset, customStartDate, customEndDate);
+                }
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || 'Error updating hospital admin.');
+        } finally {
+            setSavingEditAdmin(false);
+        }
+    };
+
+    const handleDeleteHospitalAdmin = async (adminId) => {
+        setError(''); setSuccess('');
+        try {
+            const res = await hospitalAdminAPI.deleteHospitalAdmin(adminId);
+            if (res.success) {
+                setSuccess('✅ Hospital Admin deleted successfully');
+                setDeleteAdminConfirm(null);
+                fetchHospitals();
+                if (selectedHospital) {
+                    fetchHospitalStats(selectedHospital._id, datePreset, customStartDate, customEndDate);
+                }
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || 'Error deleting hospital admin.');
+            setDeleteAdminConfirm(null);
+        }
     };
 
     // --- Staff Creation — hospital required ---
@@ -832,6 +901,117 @@ const CentralAdminDashboard = () => {
                                 </div>
                             </div>
 
+                            {/* ---- ASSIGNED HOSPITAL ADMINS SECTION ---- */}
+                            <div className="admin-card" style={{ marginBottom: '24px', border: '2px solid #e0e7ff', background: '#ffffff' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                                    <div>
+                                        <h3 style={{ margin: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            👥 Assigned Hospital Admins
+                                            <span style={{ fontSize: '12px', background: '#e0e7ff', color: '#4338ca', padding: '2px 10px', borderRadius: '12px', fontWeight: 800 }}>
+                                                {hospitalStats.hospitalAdmins?.length || h.admins?.length || 0}
+                                            </span>
+                                        </h3>
+                                        <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
+                                            Each admin has independent credentials to manage <strong>{h.name}</strong>.
+                                        </p>
+                                    </div>
+                                    <button
+                                        className="btn-save"
+                                        style={{ padding: '8px 16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                        onClick={() => {
+                                            setHospitalAdminForm({
+                                                name: '',
+                                                email: '',
+                                                password: '',
+                                                phone: '',
+                                                hospitalId: h._id,
+                                                status: 'Active',
+                                                file: null
+                                            });
+                                            setShowHospitalAdminForm(true);
+                                            closeHospitalDetail();
+                                        }}
+                                    >
+                                        + Add Hospital Admin
+                                    </button>
+                                </div>
+
+                                {(!hospitalStats.hospitalAdmins || hospitalStats.hospitalAdmins.length === 0) ? (
+                                    <div style={{ textAlign: 'center', padding: '24px', background: '#fff7ed', borderRadius: '10px', border: '1px dashed #fed7aa' }}>
+                                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>⚠️</div>
+                                        <p style={{ color: '#92400e', fontWeight: 600, margin: '0 0 4px' }}>No Hospital Admin assigned yet</p>
+                                        <p style={{ color: '#b45309', fontSize: '13px', margin: 0 }}>
+                                            Click <strong>+ Add Hospital Admin</strong> above to create credentials for this hospital.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                                        {(hospitalStats.hospitalAdmins || h.admins || []).map((admin, idx) => (
+                                            <div key={admin._id} style={{
+                                                background: '#f8fafc',
+                                                border: '1.5px solid #e2e8f0',
+                                                borderRadius: '12px',
+                                                padding: '16px 18px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                justifyContent: 'space-between'
+                                            }}>
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                                        <span style={{
+                                                            fontWeight: 800,
+                                                            fontSize: '13px',
+                                                            color: '#1e293b',
+                                                            background: '#e0e7ff',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '6px',
+                                                            letterSpacing: '0.02em'
+                                                        }}>
+                                                            👤 Hospital Admin {admin.adminNumber || (idx + 1)}
+                                                        </span>
+                                                        <span className={`status-badge ${(admin.status === 'Inactive' || admin.status === 'inactive') ? 'status-inactive' : 'status-active'}`}>
+                                                            {(admin.status === 'Inactive' || admin.status === 'inactive') ? 'Inactive' : 'Active'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                                                        {admin.avatar ? (
+                                                            <img src={admin.avatar} alt={admin.name} style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover' }} />
+                                                        ) : (
+                                                            <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#dbeafe', color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '16px' }}>
+                                                                {admin.name?.charAt(0)?.toUpperCase() || 'A'}
+                                                            </div>
+                                                        )}
+                                                        <div style={{ overflow: 'hidden' }}>
+                                                            <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{admin.name}</div>
+                                                            <div style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>✉️ {admin.email}</div>
+                                                            <div style={{ fontSize: '13px', color: '#64748b' }}>📞 {admin.phone || '—'}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '8px' }}>
+                                                    <button
+                                                        className="btn-edit"
+                                                        style={{ flex: 1, padding: '7px 12px', fontSize: '12px', fontWeight: 600 }}
+                                                        onClick={() => openEditAdminModal(admin)}
+                                                    >
+                                                        ✏️ Edit Admin
+                                                    </button>
+                                                    <button
+                                                        className="btn-delete"
+                                                        style={{ padding: '7px 12px', fontSize: '12px', fontWeight: 600 }}
+                                                        onClick={() => setDeleteAdminConfirm(admin._id)}
+                                                    >
+                                                        🗑️ Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
                             {/* ---- TWO COLUMN: Staff Breakdown + Revenue Chart ---- */}
                             <div className="detail-two-col">
                                 {/* Staff breakdown */}
@@ -862,8 +1042,7 @@ const CentralAdminDashboard = () => {
                                             { label: 'Email', value: h.email },
                                             { label: 'Website', value: h.website },
                                             { label: 'Address', value: h.address },
-                                            { label: 'Admin', value: h.adminName || 'Not assigned' },
-                                            { label: 'Admin Email', value: h.adminEmail },
+                                            { label: 'Admins', value: (hospitalStats.hospitalAdmins || h.admins || []).length > 0 ? `${(hospitalStats.hospitalAdmins || h.admins || []).length} assigned (${(hospitalStats.hospitalAdmins || h.admins || []).map(a => a.name).join(', ')})` : (h.adminName || 'Not assigned') },
                                             { label: 'Staff Login URL', value: h.customDomain ? `https://${h.customDomain}/login` : (h.slug && `${window.location.protocol}//${h.slug}.${getBaseHost()}/login`), isLink: true },
                                             { label: 'Appointment Fee', value: h.appointmentFee !== undefined && h.appointmentFee !== null ? formatCurrency(h.appointmentFee) : formatCurrency(500) },
                                         ].map((item, i) => item.value && (
@@ -1063,16 +1242,25 @@ const CentralAdminDashboard = () => {
                                         </div>
                                         <div className="form-row">
                                             <div className="form-group">
-                                                <label className="staff-label">Profile Photo</label>
-                                                <input type="file" accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp" className="staff-input" style={{ padding: '8px' }}
-                                                    onChange={e => setHospitalAdminForm({ ...hospitalAdminForm, file: e.target.files[0] })} />
-                                            </div>
-                                            <div className="form-group">
                                                 <label className="staff-label">Assign Hospital *</label>
                                                 <select className="staff-input" value={hospitalAdminForm.hospitalId} onChange={e => setHospitalAdminForm({ ...hospitalAdminForm, hospitalId: e.target.value })} required>
                                                     <option value="">-- Select Hospital --</option>
                                                     {hospitals.map(h => <option key={h._id} value={h._id}>{h.name}{h.city ? ` — ${h.city}` : ''}</option>)}
                                                 </select>
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="staff-label">Status *</label>
+                                                <select className="staff-input" value={hospitalAdminForm.status || 'Active'} onChange={e => setHospitalAdminForm({ ...hospitalAdminForm, status: e.target.value })}>
+                                                    <option value="Active">Active</option>
+                                                    <option value="Inactive">Inactive</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label className="staff-label">Profile Photo</label>
+                                                <input type="file" accept=".doc,.docx,.pdf,.jpg,.jpeg,.png,.webp" className="staff-input" style={{ padding: '8px' }}
+                                                    onChange={e => setHospitalAdminForm({ ...hospitalAdminForm, file: e.target.files[0] })} />
                                             </div>
                                         </div>
                                         <button type="submit" disabled={creatingHospitalAdmin} className="submit-button">{creatingHospitalAdmin ? 'Creating...' : '✅ Create Hospital Admin'}</button>
@@ -1218,6 +1406,21 @@ const CentralAdminDashboard = () => {
                                                 {h.city && <span>📍 {h.city}{h.state ? `, ${h.state}` : ''}</span>}
                                                 {h.phone && <span>📞 {h.phone}</span>}
                                                 {h.email && <span>✉️ {h.email}</span>}
+
+                                                {/* Assigned Hospital Admins count */}
+                                                <div style={{ marginTop: '8px', padding: '6px 12px', borderRadius: '8px', background: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>👥 Hospital Admins:</span>
+                                                    <span style={{
+                                                        fontSize: '12px',
+                                                        fontWeight: 800,
+                                                        color: (h.adminCount !== undefined ? h.adminCount : (h.admins?.length || 0)) > 0 ? '#1d4ed8' : '#94a3b8',
+                                                        background: (h.adminCount !== undefined ? h.adminCount : (h.admins?.length || 0)) > 0 ? '#dbeafe' : '#f1f5f9',
+                                                        padding: '2px 9px',
+                                                        borderRadius: '12px'
+                                                    }}>
+                                                        {h.adminCount !== undefined ? h.adminCount : (h.admins?.length || 0)}
+                                                    </span>
+                                                </div>
                                                 
                                                 {h.whiteLabelEnabled && h.customDomain && (
                                                     <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2201,6 +2404,73 @@ const CentralAdminDashboard = () => {
                             <div className="modal-buttons">
                                 <button onClick={() => handleDeleteHospital(deleteHospitalConfirm)} className="btn-confirm-delete">Delete</button>
                                 <button onClick={() => setDeleteHospitalConfirm(null)} className="btn-cancel">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Edit Hospital Admin Modal */}
+                {editingAdmin && (
+                    <div className="modal-overlay" style={{ zIndex: 9999 }}>
+                        <div className="modal-content" style={{ maxWidth: '520px', width: '100%', textAlign: 'left' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <h3 style={{ margin: 0, color: '#1e293b' }}>
+                                    ✏️ Edit Hospital Admin {editingAdmin.adminNumber ? `#${editingAdmin.adminNumber}` : ''}
+                                </h3>
+                                <button onClick={() => setEditingAdmin(null)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                            </div>
+                            <form onSubmit={handleSaveEditAdmin} className="user-form">
+                                <div className="form-group">
+                                    <label className="staff-label">Full Name *</label>
+                                    <input type="text" className="staff-input" value={editAdminForm.name} onChange={e => setEditAdminForm({ ...editAdminForm, name: e.target.value })} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="staff-label">Email Address *</label>
+                                    <input type="email" className="staff-input" value={editAdminForm.email} onChange={e => setEditAdminForm({ ...editAdminForm, email: e.target.value })} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="staff-label">
+                                        Phone Number
+                                        {editAdminForm.phone && editAdminForm.phone.length !== 10 && (
+                                            <span style={{ color: 'red', marginLeft: '5px', fontSize: '11px', textTransform: 'none' }}>must be 10 digits</span>
+                                        )}
+                                    </label>
+                                    <input type="tel" maxLength="10" className="staff-input" value={editAdminForm.phone} onChange={e => setEditAdminForm({ ...editAdminForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="staff-label">New Password (leave blank to keep current)</label>
+                                    <input type="password" placeholder="Enter new password if changing" className="staff-input" value={editAdminForm.password} onChange={e => setEditAdminForm({ ...editAdminForm, password: e.target.value })} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="staff-label">Status *</label>
+                                    <select className="staff-input" value={editAdminForm.status} onChange={e => setEditAdminForm({ ...editAdminForm, status: e.target.value })}>
+                                        <option value="Active">Active</option>
+                                        <option value="Inactive">Inactive</option>
+                                    </select>
+                                </div>
+                                <div className="modal-buttons" style={{ marginTop: '24px' }}>
+                                    <button type="submit" className="btn-save" disabled={savingEditAdmin}>
+                                        {savingEditAdmin ? 'Saving…' : '✓ Save Changes'}
+                                    </button>
+                                    <button type="button" className="btn-cancel" onClick={() => setEditingAdmin(null)}>Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Delete Hospital Admin Confirm Modal */}
+                {deleteAdminConfirm && (
+                    <div className="modal-overlay" style={{ zIndex: 9999 }}>
+                        <div className="modal-content" style={{ maxWidth: '420px', width: '100%', textAlign: 'center' }}>
+                            <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
+                            <h3 style={{ margin: '0 0 8px', color: '#1e293b' }}>Delete Hospital Admin?</h3>
+                            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>
+                                Are you sure you want to delete this Hospital Admin account? Other admins for this hospital will remain untouched.
+                            </p>
+                            <div className="modal-buttons">
+                                <button onClick={() => handleDeleteHospitalAdmin(deleteAdminConfirm)} className="btn-confirm-delete">Delete</button>
+                                <button onClick={() => setDeleteAdminConfirm(null)} className="btn-cancel">Cancel</button>
                             </div>
                         </div>
                     </div>

@@ -481,6 +481,8 @@ export const hospitalAPI = {
 export const hospitalAdminAPI = {
     login: async (email, password) => (await apiClient.post('/api/hospitals/admin/login', { email, password })).data,
     createHospitalAdmin: async (data) => (await apiClient.post('/api/hospitals/admin/signup', data)).data,
+    updateHospitalAdmin: async (id, data) => (await apiClient.put(`/api/hospitals/admin/${id}`, data)).data,
+    deleteHospitalAdmin: async (id) => (await apiClient.delete(`/api/hospitals/admin/${id}`)).data,
 };
 
 export const financeAPI = {
